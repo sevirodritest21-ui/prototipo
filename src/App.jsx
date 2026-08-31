@@ -3,14 +3,14 @@ import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 
 import PaginaInicio from "./PaginaInicio";
 import FormularioReserva from "./FormularioReserva";
-import ChatbotFlotante from "./ChatbotFlotante";
+import ChatbotFlotante from "./ChatBotFlotante";
 
 function PaginaContacto() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-950 px-4">
       <div className="w-full max-w-md rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl p-8 text-center">
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-sky-500/20 text-2xl">
-          
+
         </div>
 
         <h2 className="mt-4 text-3xl font-bold text-white">
