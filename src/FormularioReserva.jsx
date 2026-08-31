@@ -1,0 +1,173 @@
+import React, { useState } from "react";
+
+// Helper para obtener o generar un sessionId único por pestaña
+const obtenerSessionId = () => {
+  let sId = sessionStorage.getItem('chat_session_id');
+  if (!sId) {
+    sId = 'session_' + Math.random().toString(36).substring(2, 15) + '_' + Date.now();
+    sessionStorage.setItem('chat_session_id', sId);
+  }
+  return sId;
+};
+
+export default function FormularioReserva() {
+  const [formData, setFormData] = useState({
+    nombre: "",
+    rut: "",
+    fecha: "",
+  });
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+
+    setFormData({
+      ...formData,
+      [name]: value,
+    });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    try {
+      const response = await fetch(
+        "http://localhost:8000/api/reservas",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            ...formData,
+            sessionId: obtenerSessionId()
+          }),
+        }
+      );
+
+      if (response.ok) {
+        alert("¡Reserva creada con éxito!");
+
+        setFormData({
+          nombre: "",
+          rut: "",
+          fecha: "",
+        });
+      } else {
+        alert("Error al crear la reserva");
+      }
+    } catch (error) {
+      console.error(error);
+      alert("No se pudo conectar con el servidor");
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-white via-sky-50 to-amber-50 pt-28 pb-16 px-4">
+
+      {/* Decoraciones */}
+      <div className="absolute top-20 left-0 h-96 w-96 rounded-full bg-sky-300/20 blur-3xl" />
+      <div className="absolute bottom-0 right-0 h-96 w-96 rounded-full bg-amber-300/20 blur-3xl" />
+
+      <div className="relative mx-auto max-w-5xl">
+
+        {/* Encabezado */}
+        <div className="text-center mb-12">
+
+          <span className="inline-flex items-center rounded-full border border-sky-200 bg-white px-4 py-2 text-sm font-medium text-sky-700 shadow-sm">
+            📅 Reserva tu cubiculo
+          </span>
+
+          <h1 className="mt-6 text-4xl md:text-5xl font-black text-slate-900">
+            Agenda tu cubiculo en minutos
+          </h1>
+
+          <p className="mt-4 text-slate-600 max-w-2xl mx-auto">
+            Completa el formulario y tu reserva quedará registrada
+            automáticamente en nuestra plataforma.
+          </p>
+
+        </div>
+
+        {/* Card */}
+        <div className="mx-auto max-w-2xl rounded-3xl border border-sky-100 bg-white p-8 md:p-10 shadow-[0_20px_60px_rgba(14,165,233,0.15)]">
+
+          <form
+            onSubmit={handleSubmit}
+            className="space-y-6"
+          >
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                Nombre Completo
+              </label>
+
+              <input
+                type="text"
+                name="nombre"
+                required
+                value={formData.nombre}
+                onChange={handleChange}
+                placeholder="Juan Pérez"
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                RUT
+              </label>
+
+              <input
+                type="text"
+                name="rut"
+                required
+                value={formData.rut}
+                onChange={handleChange}
+                placeholder="12.345.678-9"
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                Fecha de Reserva
+              </label>
+
+              <input
+                type="date"
+                name="fecha"
+                required
+                value={formData.fecha}
+                onChange={handleChange}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100"
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="
+              w-full
+              rounded-2xl
+              bg-gradient-to-r
+              from-sky-500
+              to-sky-600
+              py-4
+              font-semibold
+              text-white
+              shadow-lg
+              hover:scale-[1.02]
+              transition-all
+              "
+            >
+              Confirmar Reserva
+            </button>
+
+          </form>
+
+        </div>
+
+      </div>
+
+    </div>
+  );
+}
