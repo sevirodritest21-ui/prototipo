@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
 const obtenerSessionId = () => {
   let sId = sessionStorage.getItem('chat_session_id');
@@ -10,12 +10,24 @@ const obtenerSessionId = () => {
 };
 
 export default function FormularioReserva() {
+  const [campusList, setCampusList] = useState([]);
   const [formData, setFormData] = useState({
     nombre: "",
     rut: "",
     fecha: "",
     hora: "",
+    campus_id: "",
   });
+
+  useEffect(() => {
+    fetch("http://localhost:8000/api/campus")
+      .then((res) => {
+        if (!res.ok) throw new Error("Error al obtener la lista de campus");
+        return res.json();
+      })
+      .then((data) => setCampusList(data))
+      .catch((err) => console.error(err));
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -39,6 +51,7 @@ export default function FormularioReserva() {
           },
           body: JSON.stringify({
             ...formData,
+            campus_id: parseInt(formData.campus_id, 10),
             sessionId: obtenerSessionId()
           }),
         }
@@ -52,6 +65,7 @@ export default function FormularioReserva() {
           rut: "",
           fecha: "",
           hora: "",
+          campus_id: "",
         });
       } else {
         const errorData = await response.json();
@@ -95,6 +109,28 @@ export default function FormularioReserva() {
             onSubmit={handleSubmit}
             className="space-y-6"
           >
+
+            {/* Selector de Campus */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                Selecciona el Campus
+              </label>
+
+              <select
+                name="campus_id"
+                required
+                value={formData.campus_id}
+                onChange={handleChange}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100 bg-white text-slate-800"
+              >
+                <option value="">-- Selecciona un Campus --</option>
+                {campusList.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
 
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">

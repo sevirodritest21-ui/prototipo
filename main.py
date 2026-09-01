@@ -38,15 +38,26 @@ async def shutdown():
         await pool.close()
 
 
+# --- Esquemas de Pydantic ---
+
 class ReservaBase(BaseModel):
     nombre: str
     rut: str
     fecha: str
     hora: str
+    campus_id: Optional[int] = None  # Para solicitudes desde el formulario React
+    campus: Optional[str] = None     # Para solicitudes desde el Chatbot (ej: "Campus A")
     sessionId: Optional[str] = None
 
-class ReservaResponse(ReservaBase):
+class ReservaResponse(BaseModel):
     id: str
+    nombre: str
+    rut: str
+    fecha: str
+    hora: str
+    campus_id: int
+    campus: str
+    sessionId: Optional[str] = None
 
 class MessageInput(BaseModel):
     message: str
@@ -63,11 +74,30 @@ class EsquemaConsulta(BaseModel):
 
 # --- Endpoints de la API ---
 
+@app.get("/api/campus")
+async def obtener_campus():
+    """
+    Endpoint utilizado tanto por el formulario web (para poblar el select)
+    como por el AI Agent de n8n para consultar dinámicamente qué campus existen.
+    """
+    try:
+        async with pool.acquire() as conn:
+            filas = await conn.fetch("SELECT id, nombre FROM campus ORDER BY id ASC")
+            return [{"id": f["id"], "nombre": f["nombre"]} for f in filas]
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al obtener la lista de campus: {str(e)}"
+        )
+
+
 @app.post("/api/reservas", status_code=status.HTTP_201_CREATED, response_model=ReservaResponse)
 async def crear_reserva(reserva: ReservaBase):
     try:
+        # 1. Normalización de RUT
         rut_limpio = reserva.rut.replace(".", "").upper().strip()
 
+        # 2. Normalización de Fecha
         fecha_original = reserva.fecha.strip()
         fecha_parsed = None
         formatos_fecha = ["%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"]
@@ -84,6 +114,7 @@ async def crear_reserva(reserva: ReservaBase):
                 detail=f"Formato de fecha inválido: '{fecha_original}'. Usa YYYY-MM-DD o DD/MM/YYYY."
             )
 
+        # 3. Normalización de Hora
         hora_original = reserva.hora.strip()
         hora_parsed = None
         formatos_hora = ["%H:%M", "%H:%M:%S", "%I:%M %p", "%I:%M%p"]
@@ -101,16 +132,44 @@ async def crear_reserva(reserva: ReservaBase):
             )
 
         async with pool.acquire() as conn:
-            # Insertar en la tabla 'reservas'
+            target_campus_id = None
+            target_campus_nombre = None
+
+            if reserva.campus_id:
+                row_c = await conn.fetchrow("SELECT id, nombre FROM campus WHERE id = $1", reserva.campus_id)
+                if row_c:
+                    target_campus_id = row_c["id"]
+                    target_campus_nombre = row_c["nombre"]
+            elif reserva.campus:
+                nombre_clean = reserva.campus.strip()
+                row_c = await conn.fetchrow("SELECT id, nombre FROM campus WHERE LOWER(nombre) = LOWER($1)", nombre_clean)
+                if row_c:
+                    target_campus_id = row_c["id"]
+                    target_campus_nombre = row_c["nombre"]
+
+           
+            if not target_campus_id:
+                filas_c = await conn.fetch("SELECT nombre FROM campus ORDER BY id ASC")
+                campus_disponibles = [f["nombre"] for f in filas_c]
+                nombres_formateados = ", ".join(campus_disponibles)
+                campus_recibido = reserva.campus or reserva.campus_id or "desconocido"
+
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"El campus '{campus_recibido}' no es válido. Los campus disponibles para reservar son: {nombres_formateados}."
+                )
+
+            # Insertar reserva en PostgreSQL
             row = await conn.fetchrow(
                 """
-                INSERT INTO reservas (nombre, rut, fecha, hora, session_id)
-                VALUES ($1, $2, $3, $4, $5)
-                RETURNING id, nombre, rut, fecha, hora, session_id
+                INSERT INTO reservas (nombre, rut, fecha, hora, campus_id, session_id)
+                VALUES ($1, $2, $3, $4, $5, $6)
+                RETURNING id, nombre, rut, fecha, hora, campus_id, session_id
                 """,
-                reserva.nombre, rut_limpio, fecha_parsed, hora_parsed, reserva.sessionId
+                reserva.nombre, rut_limpio, fecha_parsed, hora_parsed, target_campus_id, reserva.sessionId
             )
 
+            # Guardar o actualizar datos de la sesión si viene un sessionId
             if reserva.sessionId:
                 await conn.execute(
                     """
@@ -128,13 +187,15 @@ async def crear_reserva(reserva: ReservaBase):
             "rut": row["rut"],
             "fecha": row["fecha"].strftime("%Y-%m-%d"),
             "hora": row["hora"].strftime("%H:%M"),
+            "campus_id": target_campus_id,
+            "campus": target_campus_nombre,
             "sessionId": row["session_id"]
         }
 
     except asyncpg.UniqueViolationError:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Ya existe una reserva previa para el RUT {rut_limpio} en esa fecha y hora."
+            detail=f"Ya existe una reserva previa para el RUT {rut_limpio} en ese mismo campus, fecha y hora."
         )
     except HTTPException:
         raise
@@ -216,7 +277,6 @@ async def eliminar_reserva(data: EsquemaEliminar):
             rut_limpio = rut_consulta.replace(".", "").upper().strip()
             resultado = await conn.execute("DELETE FROM reservas WHERE rut = $1", rut_limpio)
             
-         
             deleted_count = int(resultado.split(" ")[1])
             if deleted_count >= 1:
                 return {"message": f"Reserva asociada al RUT {rut_limpio} eliminada con éxito"}
@@ -269,8 +329,15 @@ async def consultar_reservas(data: EsquemaConsulta):
                     detail="Debe proporcionar un RUT o tener una sesión activa con RUT asociado."
                 )
 
+            # Consulta con JOIN para obtener el nombre legible del campus
             reservas_usuario = await conn.fetch(
-                "SELECT id, nombre, rut, fecha, hora FROM reservas WHERE rut = $1 ORDER BY fecha ASC, hora ASC", 
+                """
+                SELECT r.id, r.nombre, r.rut, r.fecha, r.hora, c.nombre AS campus_nombre, r.campus_id
+                FROM reservas r
+                LEFT JOIN campus c ON r.campus_id = c.id
+                WHERE r.rut = $1 
+                ORDER BY r.fecha ASC, r.hora ASC
+                """, 
                 rut_consulta
             )
 
@@ -287,7 +354,9 @@ async def consultar_reservas(data: EsquemaConsulta):
                     "nombre": r["nombre"],
                     "rut": r["rut"],
                     "fecha": r["fecha"].strftime("%Y-%m-%d"),
-                    "hora": r["hora"].strftime("%H:%M")
+                    "hora": r["hora"].strftime("%H:%M"),
+                    "campus_id": r["campus_id"],
+                    "campus": r["campus_nombre"] or "Sin asignación"
                 })
 
             return {"success": True, "reservas": respuesta}

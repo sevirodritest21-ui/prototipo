@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 
-// Helper para obtener o generar un sessionId único por pestaña
 const obtenerSessionId = () => {
   let sId = sessionStorage.getItem('chat_session_id');
   if (!sId) {
@@ -13,11 +12,44 @@ const obtenerSessionId = () => {
 export default function ChatbotFlotante() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [mensajes, setMensajes] = useState([
-    { id: 1, texto: '¡Hola! Soy tu asistente de reservas. ¿En qué te puedo ayudar hoy?', esBot: true }
+    {
+      id: 1,
+      texto: '¡Hola! 👋 Soy tu asistente virtual de biblioteca.\n\n📅 Para agendar un cubículo, necesitaré los siguientes datos:\n• Nombre completo\n• RUT\n• Campus de preferencia\n• Fecha de reserva\n• Hora de reserva\n\n🏫 Cargando campus disponibles...',
+      esBot: true
+    }
   ]);
   const [nuevoMensaje, setNuevoMensaje] = useState('');
 
-  // Escuchar el evento personalizado de la página de inicio para abrir el chat
+
+  useEffect(() => {
+    fetch('http://localhost:8000/api/campus')
+      .then((res) => {
+        if (!res.ok) throw new Error('Error al obtener los campus');
+        return res.json();
+      })
+      .then((data) => {
+        const nombresCampus = data.map((c) => c.nombre).join(', ');
+
+        setMensajes((prev) => [
+          {
+            id: 1,
+            texto: `¡Hola! 👋 Soy tu asistente virtual de biblioteca.\n\n📅 Para agendar un cubículo, necesitaré los siguientes datos:\n• Nombre completo\n• RUT\n• Campus de preferencia (Disponibles: ${nombresCampus || 'Campus A, Campus B'})\n• Fecha de reserva\n• Hora de reserva\n\n💬 Si ya tienes una reserva y deseas consultarla o eliminarla, o si tienes alguna pregunta general sobre la biblioteca, ¡solo escríbeme y te ayudaré!`,
+            esBot: true
+          }
+        ]);
+      })
+      .catch((err) => {
+        console.error('Error al cargar la lista de campus:', err);
+        setMensajes((prev) => [
+          {
+            id: 1,
+            texto: `¡Hola! 👋 Soy tu asistente virtual de biblioteca.\n\n📅 Para agendar un cubículo, necesitaré los siguientes datos:\n• Nombre completo\n• RUT\n• Campus de preferencia (Disponibles: Campus A, Campus B)\n• Fecha de reserva\n• Hora de reserva\n\n💬 Si ya tienes una reserva y deseas consultarla o eliminarla, o si tienes alguna pregunta general, ¡escríbeme y te responderé!`,
+            esBot: true
+          }
+        ]);
+      });
+  }, []);
+
   useEffect(() => {
     const abrirChat = () => setIsChatOpen(true);
     window.addEventListener('open-chat', abrirChat);
@@ -40,7 +72,7 @@ export default function ChatbotFlotante() {
       const response = await fetch('http://localhost:8000/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           message: mensajeTexto,
           sessionId: obtenerSessionId()
         }),
@@ -65,7 +97,7 @@ export default function ChatbotFlotante() {
   return (
     <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
       {isChatOpen && (
-        <div className="mb-4 w-[calc(100vw-2rem)] sm:w-96 h-[500px] rounded-2xl bg-white shadow-2xl border border-slate-100 flex flex-col overflow-hidden transition-all duration-300 origin-bottom-right">
+        <div className="mb-4 w-[calc(100vw-2rem)] sm:w-96 h-[520px] rounded-2xl bg-white shadow-2xl border border-slate-100 flex flex-col overflow-hidden transition-all duration-300 origin-bottom-right">
           <div className="bg-sky-600 p-4 text-white flex justify-between items-center shadow-md">
             <div className="flex items-center space-x-3">
               <div className="relative flex h-2.5 w-2.5">
@@ -90,9 +122,9 @@ export default function ChatbotFlotante() {
           <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-slate-50/80">
             {mensajes.map((msg) => (
               <div key={msg.id} className={`flex ${msg.esBot ? 'justify-start' : 'justify-end'}`}>
-                <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm ${msg.esBot
-                    ? 'bg-white text-slate-700 rounded-tl-none border border-slate-200/60 shadow-sm shadow-slate-100'
-                    : 'bg-sky-600 text-white rounded-tr-none shadow-md shadow-sky-100'
+                <div className={`max-w-[88%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-line ${msg.esBot
+                  ? 'bg-white text-slate-700 rounded-tl-none border border-slate-200/60 shadow-sm shadow-slate-100'
+                  : 'bg-sky-600 text-white rounded-tr-none shadow-md shadow-sky-100'
                   } ${msg.texto === 'Escribiendo...' ? 'text-slate-400 italic bg-slate-100/50 animate-pulse' : ''}`}>
                   {msg.texto}
                 </div>
