@@ -1,16 +1,43 @@
 import React, { useState, useEffect } from "react";
+import DatePicker, { registerLocale } from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import es from "date-fns/locale/es";
+
+registerLocale("es", es);
+
+// Feriados oficiales de Chile 2026 (Formato YYYY-MM-DD)
+const FERIADOS_CHILE_2026 = [
+  "2026-01-01", // Año Nuevo
+  "2026-04-03", // Viernes Santo
+  "2026-04-04", // Sábado Santo
+  "2026-05-01", // Día del Trabajo
+  "2026-05-21", // Día de las Glorias Navales
+  "2026-06-21", // Día Nacional de los Pueblos Indígenas
+  "2026-06-29", // San Pedro y San Pablo
+  "2026-07-16", // Día de la Virgen del Carmen
+  "2026-08-15", // Asunción de la Virgen
+  "2026-09-18", // Fiestas Patrias
+  "2026-09-19", // Día de las Glorias del Ejército
+  "2026-10-12", // Encuentro de Dos Mundos
+  "2026-10-31", // Día de las Iglesias Evangélicas
+  "2026-11-01", // Día de Todos los Santos
+  "2026-12-08", // Inmaculada Concepción
+  "2026-12-25", // Navidad
+];
 
 const obtenerSessionId = () => {
-  let sId = sessionStorage.getItem('chat_session_id');
+  let sId = sessionStorage.getItem("chat_session_id");
   if (!sId) {
-    sId = 'session_' + Math.random().toString(36).substring(2, 15) + '_' + Date.now();
-    sessionStorage.setItem('chat_session_id', sId);
+    sId = "session_" + Math.random().toString(36).substring(2, 15) + "_" + Date.now();
+    sessionStorage.setItem("chat_session_id", sId);
   }
   return sId;
 };
 
 export default function FormularioReserva() {
   const [campusList, setCampusList] = useState([]);
+  const [feriados, setFeriados] = useState(FERIADOS_CHILE_2026);
+  const [fechaSeleccionada, setFechaSeleccionada] = useState(null);
   const [formData, setFormData] = useState({
     nombre: "",
     rut: "",
@@ -19,6 +46,7 @@ export default function FormularioReserva() {
     campus_id: "",
   });
 
+  // 1. Cargar campus desde el backend
   useEffect(() => {
     fetch("http://localhost:8000/api/campus")
       .then((res) => {
@@ -29,37 +57,86 @@ export default function FormularioReserva() {
       .catch((err) => console.error(err));
   }, []);
 
+  // 2. Intentar cargar feriados dinámicos de la API de Chile
+  useEffect(() => {
+    const yearActual = new Date().getFullYear();
+
+    fetch(`https://api.feriadosdev.com/api/v1/feriados/${yearActual}`)
+      .then((res) => res.json())
+      .then((resData) => {
+        // Maneja las distintas estructuras posibles de respuesta de la API
+        const lista = resData?.data?.feriados || resData?.feriados || resData;
+        if (Array.isArray(lista) && lista.length > 0) {
+          const fechasApi = lista.map((f) => f.fecha);
+          setFeriados(fechasApi);
+        }
+      })
+      .catch((err) => {
+        console.warn("Usando feriados estáticos de respaldo debido a:", err);
+      });
+  }, []);
+
+  // Validar si un día es laboral
+  const esDiaLaboral = (date) => {
+    const day = date.getDay();
+    const esFinDeSemana = day === 0 || day === 6; // 0 = Domingo, 6 = Sábado
+
+    // Generar string YYYY-MM-DD ajustado a la zona horaria local
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const dayOfMonth = String(date.getDate()).padStart(2, "0");
+    const fechaString = `${year}-${month}-${dayOfMonth}`;
+
+    const esFeriado = feriados.includes(fechaString);
+
+    // Retorna true SOLO si no es fin de semana Y no es feriado
+    return !esFinDeSemana && !esFeriado;
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
-
     setFormData({
       ...formData,
       [name]: value,
     });
   };
 
+  const handleFechaChange = (date) => {
+    setFechaSeleccionada(date);
+    if (date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      setFormData((prev) => ({ ...prev, fecha: `${year}-${month}-${day}` }));
+    } else {
+      setFormData((prev) => ({ ...prev, fecha: "" }));
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (!formData.fecha) {
+      alert("Por favor selecciona una fecha válida.");
+      return;
+    }
+
     try {
-      const response = await fetch(
-        "http://localhost:8000/api/reservas",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            ...formData,
-            campus_id: parseInt(formData.campus_id, 10),
-            sessionId: obtenerSessionId()
-          }),
-        }
-      );
+      const response = await fetch("http://localhost:8000/api/reservas", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...formData,
+          campus_id: parseInt(formData.campus_id, 10),
+          sessionId: obtenerSessionId(),
+        }),
+      });
 
       if (response.ok) {
         alert("¡Reserva creada con éxito!");
-
+        setFechaSeleccionada(null);
         setFormData({
           nombre: "",
           rut: "",
@@ -79,14 +156,11 @@ export default function FormularioReserva() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-white via-sky-50 to-amber-50 pt-28 pb-16 px-4">
-
       <div className="absolute top-20 left-0 h-96 w-96 rounded-full bg-sky-300/20 blur-3xl" />
       <div className="absolute bottom-0 right-0 h-96 w-96 rounded-full bg-amber-300/20 blur-3xl" />
 
       <div className="relative mx-auto max-w-5xl">
-
         <div className="text-center mb-12">
-
           <span className="inline-flex items-center rounded-full border border-sky-200 bg-white px-4 py-2 text-sm font-medium text-sky-700 shadow-sm">
             📅 Reserva tu cubículo
           </span>
@@ -99,18 +173,11 @@ export default function FormularioReserva() {
             Completa el formulario y tu reserva quedará registrada
             automáticamente en nuestra plataforma.
           </p>
-
         </div>
 
         {/* Card */}
         <div className="mx-auto max-w-2xl rounded-3xl border border-sky-100 bg-white p-8 md:p-10 shadow-[0_20px_60px_rgba(14,165,233,0.15)]">
-
-          <form
-            onSubmit={handleSubmit}
-            className="space-y-6"
-          >
-
-            {/* Selector de Campus */}
+          <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">
                 Selecciona el Campus
@@ -170,13 +237,16 @@ export default function FormularioReserva() {
                   Fecha de Reserva
                 </label>
 
-                <input
-                  type="date"
-                  name="fecha"
+                <DatePicker
+                  selected={fechaSeleccionada}
+                  onChange={handleFechaChange}
+                  filterDate={esDiaLaboral}
+                  minDate={new Date()}
+                  locale="es"
+                  dateFormat="dd/MM/yyyy"
+                  placeholderText="Selecciona una fecha"
                   required
-                  value={formData.fecha}
-                  onChange={handleChange}
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100"
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100 bg-white"
                 />
               </div>
 
@@ -198,29 +268,13 @@ export default function FormularioReserva() {
 
             <button
               type="submit"
-              className="
-              w-full
-              rounded-2xl
-              bg-gradient-to-r
-              from-sky-500
-              to-sky-600
-              py-4
-              font-semibold
-              text-white
-              shadow-lg
-              hover:scale-[1.02]
-              transition-all
-              "
+              className="w-full rounded-2xl bg-gradient-to-r from-sky-500 to-sky-600 py-4 font-semibold text-white shadow-lg hover:scale-[1.02] transition-all"
             >
               Confirmar Reserva
             </button>
-
           </form>
-
         </div>
-
       </div>
-
     </div>
   );
 }
