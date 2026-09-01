@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 
-// Helper para obtener o generar un sessionId único por pestaña
 const obtenerSessionId = () => {
   let sId = sessionStorage.getItem('chat_session_id');
   if (!sId) {
@@ -15,6 +14,7 @@ export default function FormularioReserva() {
     nombre: "",
     rut: "",
     fecha: "",
+    hora: "",
   });
 
   const handleChange = (e) => {
@@ -51,9 +51,11 @@ export default function FormularioReserva() {
           nombre: "",
           rut: "",
           fecha: "",
+          hora: "",
         });
       } else {
-        alert("Error al crear la reserva");
+        const errorData = await response.json();
+        alert(errorData.detail || "Error al crear la reserva");
       }
     } catch (error) {
       console.error(error);
@@ -64,21 +66,19 @@ export default function FormularioReserva() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-white via-sky-50 to-amber-50 pt-28 pb-16 px-4">
 
-      {/* Decoraciones */}
       <div className="absolute top-20 left-0 h-96 w-96 rounded-full bg-sky-300/20 blur-3xl" />
       <div className="absolute bottom-0 right-0 h-96 w-96 rounded-full bg-amber-300/20 blur-3xl" />
 
       <div className="relative mx-auto max-w-5xl">
 
-        {/* Encabezado */}
         <div className="text-center mb-12">
 
           <span className="inline-flex items-center rounded-full border border-sky-200 bg-white px-4 py-2 text-sm font-medium text-sky-700 shadow-sm">
-            📅 Reserva tu cubiculo
+            📅 Reserva tu cubículo
           </span>
 
           <h1 className="mt-6 text-4xl md:text-5xl font-black text-slate-900">
-            Agenda tu cubiculo en minutos
+            Agenda tu cubículo en minutos
           </h1>
 
           <p className="mt-4 text-slate-600 max-w-2xl mx-auto">
@@ -128,19 +128,36 @@ export default function FormularioReserva() {
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">
-                Fecha de Reserva
-              </label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  Fecha de Reserva
+                </label>
 
-              <input
-                type="date"
-                name="fecha"
-                required
-                value={formData.fecha}
-                onChange={handleChange}
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100"
-              />
+                <input
+                  type="date"
+                  name="fecha"
+                  required
+                  value={formData.fecha}
+                  onChange={handleChange}
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  Hora de Reserva
+                </label>
+
+                <input
+                  type="time"
+                  name="hora"
+                  required
+                  value={formData.hora}
+                  onChange={handleChange}
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100"
+                />
+              </div>
             </div>
 
             <button
