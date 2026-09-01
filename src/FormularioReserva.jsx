@@ -38,6 +38,11 @@ export default function FormularioReserva() {
   const [campusList, setCampusList] = useState([]);
   const [feriados, setFeriados] = useState(FERIADOS_CHILE_2026);
   const [fechaSeleccionada, setFechaSeleccionada] = useState(null);
+
+  // Estado para los bloques de horas devueltos por el backend
+  const [bloquesHorarios, setBloquesHorarios] = useState([]);
+  const [cargandoHorarios, setCargandoHorarios] = useState(false);
+
   const [formData, setFormData] = useState({
     nombre: "",
     rut: "",
@@ -64,7 +69,6 @@ export default function FormularioReserva() {
     fetch(`https://api.feriadosdev.com/api/v1/feriados/${yearActual}`)
       .then((res) => res.json())
       .then((resData) => {
-        // Maneja las distintas estructuras posibles de respuesta de la API
         const lista = resData?.data?.feriados || resData?.feriados || resData;
         if (Array.isArray(lista) && lista.length > 0) {
           const fechasApi = lista.map((f) => f.fecha);
@@ -76,12 +80,33 @@ export default function FormularioReserva() {
       });
   }, []);
 
+  // 3. Consultar disponibilidad al cambiar Campus o Fecha
+  useEffect(() => {
+    if (formData.campus_id && formData.fecha) {
+      setCargandoHorarios(true);
+      fetch(`http://localhost:8000/api/disponibilidad?campus_id=${formData.campus_id}&fecha=${formData.fecha}`)
+        .then((res) => {
+          if (!res.ok) throw new Error("Error al obtener disponibilidad");
+          return res.json();
+        })
+        .then((data) => {
+          setBloquesHorarios(data.bloques || []);
+          setCargandoHorarios(false);
+        })
+        .catch((err) => {
+          console.error("Error al cargar disponibilidad:", err);
+          setCargandoHorarios(false);
+        });
+    } else {
+      setBloquesHorarios([]);
+    }
+  }, [formData.campus_id, formData.fecha]);
+
   // Validar si un día es laboral
   const esDiaLaboral = (date) => {
     const day = date.getDay();
-    const esFinDeSemana = day === 0 || day === 6; // 0 = Domingo, 6 = Sábado
+    const esFinDeSemana = day === 0 || day === 6;
 
-    // Generar string YYYY-MM-DD ajustado a la zona horaria local
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const dayOfMonth = String(date.getDate()).padStart(2, "0");
@@ -89,16 +114,17 @@ export default function FormularioReserva() {
 
     const esFeriado = feriados.includes(fechaString);
 
-    // Retorna true SOLO si no es fin de semana Y no es feriado
     return !esFinDeSemana && !esFeriado;
   };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData({
-      ...formData,
+    setFormData((prev) => ({
+      ...prev,
       [name]: value,
-    });
+      // Si cambia el campus, resetea la hora elegida
+      ...(name === "campus_id" ? { hora: "" } : {})
+    }));
   };
 
   const handleFechaChange = (date) => {
@@ -107,9 +133,13 @@ export default function FormularioReserva() {
       const year = date.getFullYear();
       const month = String(date.getMonth() + 1).padStart(2, "0");
       const day = String(date.getDate()).padStart(2, "0");
-      setFormData((prev) => ({ ...prev, fecha: `${year}-${month}-${day}` }));
+      setFormData((prev) => ({
+        ...prev,
+        fecha: `${year}-${month}-${day}`,
+        hora: "" // Resetea la hora si se cambia la fecha
+      }));
     } else {
-      setFormData((prev) => ({ ...prev, fecha: "" }));
+      setFormData((prev) => ({ ...prev, fecha: "", hora: "" }));
     }
   };
 
@@ -118,6 +148,11 @@ export default function FormularioReserva() {
 
     if (!formData.fecha) {
       alert("Por favor selecciona una fecha válida.");
+      return;
+    }
+
+    if (!formData.hora) {
+      alert("Por favor selecciona un bloque de horario disponible.");
       return;
     }
 
@@ -137,6 +172,7 @@ export default function FormularioReserva() {
       if (response.ok) {
         alert("¡Reserva creada con éxito!");
         setFechaSeleccionada(null);
+        setBloquesHorarios([]);
         setFormData({
           nombre: "",
           rut: "",
@@ -178,6 +214,8 @@ export default function FormularioReserva() {
         {/* Card */}
         <div className="mx-auto max-w-2xl rounded-3xl border border-sky-100 bg-white p-8 md:p-10 shadow-[0_20px_60px_rgba(14,165,233,0.15)]">
           <form onSubmit={handleSubmit} className="space-y-6">
+
+            {/* Campus */}
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">
                 Selecciona el Campus
@@ -199,6 +237,7 @@ export default function FormularioReserva() {
               </select>
             </div>
 
+            {/* Nombre */}
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">
                 Nombre Completo
@@ -215,6 +254,7 @@ export default function FormularioReserva() {
               />
             </div>
 
+            {/* RUT */}
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">
                 RUT
@@ -231,44 +271,78 @@ export default function FormularioReserva() {
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  Fecha de Reserva
-                </label>
+            {/* Fecha */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                Fecha de Reserva
+              </label>
 
-                <DatePicker
-                  selected={fechaSeleccionada}
-                  onChange={handleFechaChange}
-                  filterDate={esDiaLaboral}
-                  minDate={new Date()}
-                  locale="es"
-                  dateFormat="dd/MM/yyyy"
-                  placeholderText="Selecciona una fecha"
-                  required
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100 bg-white"
-                />
-              </div>
+              <DatePicker
+                selected={fechaSeleccionada}
+                onChange={handleFechaChange}
+                filterDate={esDiaLaboral}
+                minDate={new Date()}
+                locale="es"
+                dateFormat="dd/MM/yyyy"
+                placeholderText="Selecciona una fecha"
+                required
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100 bg-white"
+              />
+            </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  Hora de Reserva
-                </label>
+            {/* Bloques de Horarios Dinámicos */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                Selecciona el Horario (Bloques de 1 Hora)
+              </label>
 
-                <input
-                  type="time"
-                  name="hora"
-                  required
-                  value={formData.hora}
-                  onChange={handleChange}
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100"
-                />
-              </div>
+              {!formData.campus_id || !formData.fecha ? (
+                <p className="text-sm text-slate-400 bg-slate-50 p-4 rounded-2xl text-center border border-dashed border-slate-200">
+                  👈 Primero selecciona un campus y una fecha para ver los bloques disponibles.
+                </p>
+              ) : cargandoHorarios ? (
+                <p className="text-sm text-sky-600 bg-sky-50 p-4 rounded-2xl text-center animate-pulse">
+                  Cargando disponibilidad de cubículos...
+                </p>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {bloquesHorarios.map((b) => {
+                    const esSeleccionado = formData.hora === b.hora;
+                    return (
+                      <button
+                        key={b.hora}
+                        type="button"
+                        disabled={b.agotado}
+                        onClick={() => setFormData((prev) => ({ ...prev, hora: b.hora }))}
+                        className={`
+                          p-3 rounded-2xl text-left border transition-all flex flex-col justify-between
+                          ${b.agotado
+                            ? "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-60"
+                            : esSeleccionado
+                              ? "bg-sky-600 border-sky-600 text-white shadow-md shadow-sky-200 ring-2 ring-sky-300 ring-offset-1"
+                              : "bg-white border-slate-200 text-slate-700 hover:border-sky-400 hover:bg-sky-50/50"
+                          }
+                        `}
+                      >
+                        <span className="font-bold text-sm">{b.rango}</span>
+                        <span className={`text-[11px] mt-1 font-medium ${b.agotado
+                            ? "text-rose-500"
+                            : esSeleccionado
+                              ? "text-sky-100"
+                              : "text-emerald-600"
+                          }`}>
+                          {b.agotado ? "Agotado (0/10)" : `${b.disponibles} libres`}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             <button
               type="submit"
-              className="w-full rounded-2xl bg-gradient-to-r from-sky-500 to-sky-600 py-4 font-semibold text-white shadow-lg hover:scale-[1.02] transition-all"
+              className="w-full rounded-2xl bg-gradient-to-r from-sky-500 to-sky-600 py-4 font-semibold text-white shadow-lg hover:scale-[1.02] transition-all active:scale-95"
             >
               Confirmar Reserva
             </button>

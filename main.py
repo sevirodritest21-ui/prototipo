@@ -24,6 +24,21 @@ DATABASE_URL = "postgresql://postgres:postgre@localhost:5432/reservas_db"
 
 pool: Optional[asyncpg.Pool] = None
 
+# Configuración de Bloques Horarios y Límite de Capacidad
+BLOQUES_HORARIOS = [
+    {"hora": "08:00", "rango": "08:00 - 09:00"},
+    {"hora": "09:00", "rango": "09:00 - 10:00"},
+    {"hora": "10:00", "rango": "10:00 - 11:00"},
+    {"hora": "11:00", "rango": "11:00 - 12:00"},
+    {"hora": "12:00", "rango": "12:00 - 13:00"},
+    {"hora": "13:00", "rango": "13:00 - 14:00"},
+    {"hora": "14:00", "rango": "14:00 - 15:00"},
+    {"hora": "15:00", "rango": "15:00 - 16:00"},
+    {"hora": "16:00", "rango": "16:00 - 17:00"},
+    {"hora": "17:00", "rango": "17:00 - 18:00"},
+]
+CAPACIDAD_MAXIMA_POR_HORA = 10
+
 
 @app.on_event("startup")
 async def startup():
@@ -76,10 +91,6 @@ class EsquemaConsulta(BaseModel):
 
 @app.get("/api/campus")
 async def obtener_campus():
-    """
-    Endpoint utilizado tanto por el formulario web (para poblar el select)
-    como por el AI Agent de n8n para consultar dinámicamente qué campus existen.
-    """
     try:
         async with pool.acquire() as conn:
             filas = await conn.fetch("SELECT id, nombre FROM campus ORDER BY id ASC")
@@ -88,6 +99,67 @@ async def obtener_campus():
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al obtener la lista de campus: {str(e)}"
+        )
+
+
+@app.get("/api/disponibilidad")
+async def consultar_disponibilidad(campus_id: int, fecha: str):
+    """
+    Consulta cuántas reservas existen para un campus y fecha específicos,
+    retornando cada rango de hora con sus cupos restantes y su estado de agotado.
+    """
+    try:
+        # Validar formato de fecha recibido (YYYY-MM-DD)
+        try:
+            fecha_parsed = datetime.strptime(fecha.strip(), "%Y-%m-%d").date()
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Formato de fecha inválido. Usa YYYY-MM-DD."
+            )
+
+        async with pool.acquire() as conn:
+            # Contar reservas en PostgreSQL agrupadas por hora
+            filas = await conn.fetch(
+                """
+                SELECT TO_CHAR(hora, 'HH24:MI') as hora_str, COUNT(*) as ocupados
+                FROM reservas
+                WHERE campus_id = $1 AND fecha = $2
+                GROUP BY hora
+                """,
+                campus_id, fecha_parsed
+            )
+
+            # Mapear conteo por hora: {"08:00": 2, "09:00": 10}
+            ocupacion_map = {f["hora_str"]: f["ocupados"] for f in filas}
+
+        # Cruzar bloques fijos con la ocupación real
+        resultado = []
+        for bloque in BLOQUES_HORARIOS:
+            hora_key = bloque["hora"]
+            ocupados = ocupacion_map.get(hora_key, 0)
+            disponibles = max(0, CAPACIDAD_MAXIMA_POR_HORA - ocupados)
+
+            resultado.append({
+                "hora": hora_key,
+                "rango": bloque["rango"],
+                "ocupados": ocupados,
+                "disponibles": disponibles,
+                "agotado": disponibles == 0
+            })
+
+        return {
+            "campus_id": campus_id,
+            "fecha": fecha_parsed.strftime("%Y-%m-%d"),
+            "bloques": resultado
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al consultar disponibilidad: {str(e)}"
         )
 
 
@@ -132,6 +204,7 @@ async def crear_reserva(reserva: ReservaBase):
             )
 
         async with pool.acquire() as conn:
+            # 4. Resolución de Campus (ID o Nombre enviado por el chatbot)
             target_campus_id = None
             target_campus_nombre = None
 
@@ -147,7 +220,6 @@ async def crear_reserva(reserva: ReservaBase):
                     target_campus_id = row_c["id"]
                     target_campus_nombre = row_c["nombre"]
 
-           
             if not target_campus_id:
                 filas_c = await conn.fetch("SELECT nombre FROM campus ORDER BY id ASC")
                 campus_disponibles = [f["nombre"] for f in filas_c]
@@ -157,6 +229,23 @@ async def crear_reserva(reserva: ReservaBase):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"El campus '{campus_recibido}' no es válido. Los campus disponibles para reservar son: {nombres_formateados}."
+                )
+
+            # 5. Validación de Capacidad Máxima (Límite 10 cubículos)
+            total_reservas = await conn.fetchval(
+                """
+                SELECT COUNT(*) 
+                FROM reservas 
+                WHERE campus_id = $1 AND fecha = $2 AND hora = $3
+                """,
+                target_campus_id, fecha_parsed, hora_parsed
+            )
+
+            if total_reservas >= CAPACIDAD_MAXIMA_POR_HORA:
+                hora_str = hora_parsed.strftime("%H:%M")
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"El bloque de las {hora_str} hrs en {target_campus_nombre} ya alcanzó su capacidad máxima de {CAPACIDAD_MAXIMA_POR_HORA} cubículos."
                 )
 
             # Insertar reserva en PostgreSQL
