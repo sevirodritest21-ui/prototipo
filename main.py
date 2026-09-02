@@ -7,20 +7,25 @@ import asyncpg
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from dotenv import load_dotenv
+
+# Cargar variables de entorno desde .env
+load_dotenv()
 
 app = FastAPI(title="API de Reservas y Chatbot (PostgreSQL)")
 
-N8N_WEBHOOK_URL = "http://localhost:5678/webhook/crear-reserva-chat"
+# Carga de variables de entorno con respaldos por defecto
+N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL", "http://localhost:5678/webhook/crear-reserva-chat")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgre@localhost:5432/reservas_db")
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173").split(",")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-DATABASE_URL = "postgresql://postgres:postgre@localhost:5432/reservas_db"
 
 pool: Optional[asyncpg.Pool] = None
 
@@ -55,14 +60,19 @@ async def shutdown():
 
 # --- Esquemas de Pydantic ---
 
+class AcompananteBase(BaseModel):
+    nombre: str
+    rut: Optional[str] = None
+
 class ReservaBase(BaseModel):
     nombre: str
     rut: str
     fecha: str
     hora: str
-    campus_id: Optional[int] = None  # Para solicitudes desde el formulario React
-    campus: Optional[str] = None     # Para solicitudes desde el Chatbot (ej: "Campus A")
+    campus_id: Optional[int] = None 
+    campus: Optional[str] = None     
     sessionId: Optional[str] = None
+    acompanantes: Optional[List[AcompananteBase]] = []
 
 class ReservaResponse(BaseModel):
     id: str
@@ -73,6 +83,7 @@ class ReservaResponse(BaseModel):
     campus_id: int
     campus: str
     sessionId: Optional[str] = None
+    acompanantes: Optional[List[AcompananteBase]] = []
 
 class MessageInput(BaseModel):
     message: str
@@ -102,14 +113,57 @@ async def obtener_campus():
         )
 
 
+@app.get("/api/dashboard/resumen")
+async def obtener_resumen_dashboard(campus_id: Optional[int] = None):
+    try:
+        fecha_hoy = date.today()
+        CAPACIDAD_TOTAL_DIARIA = len(BLOQUES_HORARIOS) * CAPACIDAD_MAXIMA_POR_HORA
+
+        async with pool.acquire() as conn:
+            if not campus_id:
+                first_campus = await conn.fetchrow("SELECT id FROM campus ORDER BY id ASC LIMIT 1")
+                if not first_campus:
+                    return {
+                        "campus_id": 0,
+                        "fecha": fecha_hoy.strftime("%Y-%m-%d"),
+                        "ocupados": 0,
+                        "disponibles": CAPACIDAD_TOTAL_DIARIA,
+                        "capacidad_total": CAPACIDAD_TOTAL_DIARIA,
+                        "porcentaje_ocupacion": 0.0
+                    }
+                campus_id = first_campus["id"]
+
+            reservas_hoy = await conn.fetchval(
+                """
+                SELECT COUNT(*) 
+                FROM reservas 
+                WHERE campus_id = $1 AND fecha = $2
+                """,
+                campus_id, fecha_hoy
+            )
+
+            ocupados = reservas_hoy or 0
+            disponibles = max(0, CAPACIDAD_TOTAL_DIARIA - ocupados)
+            porcentaje = round((ocupados / CAPACIDAD_TOTAL_DIARIA) * 100, 1)
+
+            return {
+                "campus_id": campus_id,
+                "fecha": fecha_hoy.strftime("%Y-%m-%d"),
+                "ocupados": ocupados,
+                "disponibles": disponibles,
+                "capacidad_total": CAPACIDAD_TOTAL_DIARIA,
+                "porcentaje_ocupacion": porcentaje
+            }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al obtener métricas del dashboard: {str(e)}"
+        )
+
+
 @app.get("/api/disponibilidad")
 async def consultar_disponibilidad(campus_id: int, fecha: str):
-    """
-    Consulta cuántas reservas existen para un campus y fecha específicos,
-    retornando cada rango de hora con sus cupos restantes y su estado de agotado.
-    """
     try:
-        # Validar formato de fecha recibido (YYYY-MM-DD)
         try:
             fecha_parsed = datetime.strptime(fecha.strip(), "%Y-%m-%d").date()
         except ValueError:
@@ -119,7 +173,6 @@ async def consultar_disponibilidad(campus_id: int, fecha: str):
             )
 
         async with pool.acquire() as conn:
-            # Contar reservas en PostgreSQL agrupadas por hora
             filas = await conn.fetch(
                 """
                 SELECT TO_CHAR(hora, 'HH24:MI') as hora_str, COUNT(*) as ocupados
@@ -130,10 +183,8 @@ async def consultar_disponibilidad(campus_id: int, fecha: str):
                 campus_id, fecha_parsed
             )
 
-            # Mapear conteo por hora: {"08:00": 2, "09:00": 10}
             ocupacion_map = {f["hora_str"]: f["ocupados"] for f in filas}
 
-        # Cruzar bloques fijos con la ocupación real
         resultado = []
         for bloque in BLOQUES_HORARIOS:
             hora_key = bloque["hora"]
@@ -165,6 +216,7 @@ async def consultar_disponibilidad(campus_id: int, fecha: str):
 
 @app.post("/api/reservas", status_code=status.HTTP_201_CREATED, response_model=ReservaResponse)
 async def crear_reserva(reserva: ReservaBase):
+    print(">>> JSON RECIBIDO DE N8N:", reserva.dict())
     try:
         # 1. Normalización de RUT
         rut_limpio = reserva.rut.replace(".", "").upper().strip()
@@ -204,71 +256,105 @@ async def crear_reserva(reserva: ReservaBase):
             )
 
         async with pool.acquire() as conn:
-            # 4. Resolución de Campus (ID o Nombre enviado por el chatbot)
-            target_campus_id = None
-            target_campus_nombre = None
+            async with conn.transaction():
+                # 4. Resolución Robusta de Campus
+                target_campus_id = None
+                target_campus_nombre = None
 
-            if reserva.campus_id:
-                row_c = await conn.fetchrow("SELECT id, nombre FROM campus WHERE id = $1", reserva.campus_id)
-                if row_c:
-                    target_campus_id = row_c["id"]
-                    target_campus_nombre = row_c["nombre"]
-            elif reserva.campus:
-                nombre_clean = reserva.campus.strip()
-                row_c = await conn.fetchrow("SELECT id, nombre FROM campus WHERE LOWER(nombre) = LOWER($1)", nombre_clean)
-                if row_c:
-                    target_campus_id = row_c["id"]
-                    target_campus_nombre = row_c["nombre"]
+                if not reserva.campus_id and reserva.campus and reserva.campus.strip().isdigit():
+                    reserva.campus_id = int(reserva.campus.strip())
 
-            if not target_campus_id:
-                filas_c = await conn.fetch("SELECT nombre FROM campus ORDER BY id ASC")
-                campus_disponibles = [f["nombre"] for f in filas_c]
-                nombres_formateados = ", ".join(campus_disponibles)
-                campus_recibido = reserva.campus or reserva.campus_id or "desconocido"
+                if reserva.campus_id:
+                    row_c = await conn.fetchrow("SELECT id, nombre FROM campus WHERE id = $1", reserva.campus_id)
+                    if row_c:
+                        target_campus_id = row_c["id"]
+                        target_campus_nombre = row_c["nombre"]
 
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"El campus '{campus_recibido}' no es válido. Los campus disponibles para reservar son: {nombres_formateados}."
-                )
+                if not target_campus_id and reserva.campus:
+                    nombre_clean = reserva.campus.strip().lower()
+                    nombre_sin_prefijo = re.sub(r'^campus\s+', '', nombre_clean, flags=re.IGNORECASE).strip()
 
-            # 5. Validación de Capacidad Máxima (Límite 10 cubículos)
-            total_reservas = await conn.fetchval(
-                """
-                SELECT COUNT(*) 
-                FROM reservas 
-                WHERE campus_id = $1 AND fecha = $2 AND hora = $3
-                """,
-                target_campus_id, fecha_parsed, hora_parsed
-            )
+                    row_c = await conn.fetchrow(
+                        """
+                        SELECT id, nombre FROM campus 
+                        WHERE LOWER(nombre) = $1 
+                           OR LOWER(nombre) LIKE $2
+                        LIMIT 1
+                        """,
+                        nombre_clean, f"%{nombre_sin_prefijo}%"
+                    )
+                    if row_c:
+                        target_campus_id = row_c["id"]
+                        target_campus_nombre = row_c["nombre"]
 
-            if total_reservas >= CAPACIDAD_MAXIMA_POR_HORA:
-                hora_str = hora_parsed.strftime("%H:%M")
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail=f"El bloque de las {hora_str} hrs en {target_campus_nombre} ya alcanzó su capacidad máxima de {CAPACIDAD_MAXIMA_POR_HORA} cubículos."
-                )
+                if not target_campus_id:
+                    filas_c = await conn.fetch("SELECT nombre FROM campus ORDER BY id ASC")
+                    campus_disponibles = [f["nombre"] for f in filas_c]
+                    nombres_formateados = ", ".join(campus_disponibles)
+                    campus_recibido = reserva.campus or reserva.campus_id or "desconocido"
 
-            # Insertar reserva en PostgreSQL
-            row = await conn.fetchrow(
-                """
-                INSERT INTO reservas (nombre, rut, fecha, hora, campus_id, session_id)
-                VALUES ($1, $2, $3, $4, $5, $6)
-                RETURNING id, nombre, rut, fecha, hora, campus_id, session_id
-                """,
-                reserva.nombre, rut_limpio, fecha_parsed, hora_parsed, target_campus_id, reserva.sessionId
-            )
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"El campus '{campus_recibido}' no coincide con ninguna sede registrada. Campus disponibles: {nombres_formateados}."
+                    )
 
-            # Guardar o actualizar datos de la sesión si viene un sessionId
-            if reserva.sessionId:
-                await conn.execute(
+                # 5. Validación de Capacidad Máxima (Límite 10 cubículos)
+                total_reservas = await conn.fetchval(
                     """
-                    INSERT INTO sesiones (session_id, rut, nombre, updated_at)
-                    VALUES ($1, $2, $3, NOW())
-                    ON CONFLICT (session_id) 
-                    DO UPDATE SET rut = EXCLUDED.rut, nombre = EXCLUDED.nombre, updated_at = NOW()
+                    SELECT COUNT(*) 
+                    FROM reservas 
+                    WHERE campus_id = $1 AND fecha = $2 AND hora = $3
                     """,
-                    reserva.sessionId, rut_limpio, reserva.nombre
+                    target_campus_id, fecha_parsed, hora_parsed
                 )
+
+                if total_reservas >= CAPACIDAD_MAXIMA_POR_HORA:
+                    hora_str = hora_parsed.strftime("%H:%M")
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail=f"El bloque de las {hora_str} hrs en {target_campus_nombre} ya alcanzó su capacidad máxima de {CAPACIDAD_MAXIMA_POR_HORA} cubículos."
+                    )
+
+                # Insertar reserva principal en PostgreSQL
+                row = await conn.fetchrow(
+                    """
+                    INSERT INTO reservas (nombre, rut, fecha, hora, campus_id, session_id)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                    RETURNING id, nombre, rut, fecha, hora, campus_id, session_id
+                    """,
+                    reserva.nombre, rut_limpio, fecha_parsed, hora_parsed, target_campus_id, reserva.sessionId
+                )
+                reserva_id_creada = row["id"]
+
+                # Insertar acompañantes si fueron proporcionados
+                acompanantes_guardados = []
+                if reserva.acompanantes:
+                    for ac in reserva.acompanantes:
+                        rut_ac_limpio = ac.rut.replace(".", "").upper().strip() if ac.rut else ""
+                        row_ac = await conn.fetchrow(
+                            """
+                            INSERT INTO reserva_acompanantes (reserva_id, nombre, rut)
+                            VALUES ($1, $2, $3)
+                            RETURNING nombre, rut
+                            """,
+                            reserva_id_creada, ac.nombre, rut_ac_limpio
+                        )
+                        acompanantes_guardados.append({
+                            "nombre": row_ac["nombre"],
+                            "rut": row_ac["rut"]
+                        })
+
+                # Guardar o actualizar datos de la sesión
+                if reserva.sessionId:
+                    await conn.execute(
+                        """
+                        INSERT INTO sesiones (session_id, rut, nombre, updated_at)
+                        VALUES ($1, $2, $3, NOW())
+                        ON CONFLICT (session_id) 
+                        DO UPDATE SET rut = EXCLUDED.rut, nombre = EXCLUDED.nombre, updated_at = NOW()
+                        """,
+                        reserva.sessionId, rut_limpio, reserva.nombre
+                    )
 
         return {
             "id": str(row["id"]),
@@ -278,7 +364,8 @@ async def crear_reserva(reserva: ReservaBase):
             "hora": row["hora"].strftime("%H:%M"),
             "campus_id": target_campus_id,
             "campus": target_campus_nombre,
-            "sessionId": row["session_id"]
+            "sessionId": row["session_id"],
+            "acompanantes": acompanantes_guardados
         }
 
     except asyncpg.UniqueViolationError:
@@ -418,7 +505,6 @@ async def consultar_reservas(data: EsquemaConsulta):
                     detail="Debe proporcionar un RUT o tener una sesión activa con RUT asociado."
                 )
 
-            # Consulta con JOIN para obtener el nombre legible del campus
             reservas_usuario = await conn.fetch(
                 """
                 SELECT r.id, r.nombre, r.rut, r.fecha, r.hora, c.nombre AS campus_nombre, r.campus_id
@@ -438,6 +524,12 @@ async def consultar_reservas(data: EsquemaConsulta):
 
             respuesta = []
             for r in reservas_usuario:
+                filas_ac = await conn.fetch(
+                    "SELECT nombre, rut FROM reserva_acompanantes WHERE reserva_id = $1",
+                    r["id"]
+                )
+                lista_ac = [{"nombre": ac["nombre"], "rut": ac["rut"]} for ac in filas_ac]
+
                 respuesta.append({
                     "id": str(r["id"]),
                     "nombre": r["nombre"],
@@ -445,7 +537,8 @@ async def consultar_reservas(data: EsquemaConsulta):
                     "fecha": r["fecha"].strftime("%Y-%m-%d"),
                     "hora": r["hora"].strftime("%H:%M"),
                     "campus_id": r["campus_id"],
-                    "campus": r["campus_nombre"] or "Sin asignación"
+                    "campus": r["campus_nombre"] or "Sin asignación",
+                    "acompanantes": lista_ac
                 })
 
             return {"success": True, "reservas": respuesta}

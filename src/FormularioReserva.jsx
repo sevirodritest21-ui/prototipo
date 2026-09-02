@@ -7,22 +7,10 @@ registerLocale("es", es);
 
 // Feriados oficiales de Chile 2026 (Formato YYYY-MM-DD)
 const FERIADOS_CHILE_2026 = [
-  "2026-01-01", // Año Nuevo
-  "2026-04-03", // Viernes Santo
-  "2026-04-04", // Sábado Santo
-  "2026-05-01", // Día del Trabajo
-  "2026-05-21", // Día de las Glorias Navales
-  "2026-06-21", // Día Nacional de los Pueblos Indígenas
-  "2026-06-29", // San Pedro y San Pablo
-  "2026-07-16", // Día de la Virgen del Carmen
-  "2026-08-15", // Asunción de la Virgen
-  "2026-09-18", // Fiestas Patrias
-  "2026-09-19", // Día de las Glorias del Ejército
-  "2026-10-12", // Encuentro de Dos Mundos
-  "2026-10-31", // Día de las Iglesias Evangélicas
-  "2026-11-01", // Día de Todos los Santos
-  "2026-12-08", // Inmaculada Concepción
-  "2026-12-25", // Navidad
+  "2026-01-01", "2026-04-03", "2026-04-04", "2026-05-01",
+  "2026-05-21", "2026-06-21", "2026-06-29", "2026-07-16",
+  "2026-08-15", "2026-09-18", "2026-09-19", "2026-10-12",
+  "2026-10-31", "2026-11-01", "2026-12-08", "2026-12-25"
 ];
 
 const obtenerSessionId = () => {
@@ -43,6 +31,10 @@ export default function FormularioReserva() {
   const [bloquesHorarios, setBloquesHorarios] = useState([]);
   const [cargandoHorarios, setCargandoHorarios] = useState(false);
 
+  // Estado para gestión de acompañantes
+  const [tieneAcompanantes, setTieneAcompanantes] = useState(false);
+  const [listAcompanantes, setListAcompanantes] = useState([]);
+
   const [formData, setFormData] = useState({
     nombre: "",
     rut: "",
@@ -62,7 +54,7 @@ export default function FormularioReserva() {
       .catch((err) => console.error(err));
   }, []);
 
-  // 2. Intentar cargar feriados dinámicos de la API de Chile
+  // 2. Cargar feriados dinámicos de la API de Chile
   useEffect(() => {
     const yearActual = new Date().getFullYear();
 
@@ -122,7 +114,6 @@ export default function FormularioReserva() {
     setFormData((prev) => ({
       ...prev,
       [name]: value,
-      // Si cambia el campus, resetea la hora elegida
       ...(name === "campus_id" ? { hora: "" } : {})
     }));
   };
@@ -136,11 +127,41 @@ export default function FormularioReserva() {
       setFormData((prev) => ({
         ...prev,
         fecha: `${year}-${month}-${day}`,
-        hora: "" // Resetea la hora si se cambia la fecha
+        hora: ""
       }));
     } else {
       setFormData((prev) => ({ ...prev, fecha: "", hora: "" }));
     }
+  };
+
+  // --- Funciones para Acompañantes ---
+  const handleToggleAcompanantes = (e) => {
+    const quiereAcompanantes = e.target.value === "si";
+    setTieneAcompanantes(quiereAcompanantes);
+    if (quiereAcompanantes && listAcompanantes.length === 0) {
+      setListAcompanantes([{ nombre: "", rut: "" }]);
+    } else if (!quiereAcompanantes) {
+      setListAcompanantes([]);
+    }
+  };
+
+  const handleAgregarAcompanante = () => {
+    setListAcompanantes((prev) => [...prev, { nombre: "", rut: "" }]);
+  };
+
+  const handleRemoverAcompanante = (index) => {
+    setListAcompanantes((prev) => prev.filter((_, i) => i !== index));
+    if (listAcompanantes.length === 1) {
+      setTieneAcompanantes(false);
+    }
+  };
+
+  const handleAcompananteChange = (index, field, value) => {
+    setListAcompanantes((prev) => {
+      const nuevaLista = [...prev];
+      nuevaLista[index][field] = value;
+      return nuevaLista;
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -156,6 +177,11 @@ export default function FormularioReserva() {
       return;
     }
 
+    // Filtrar acompañantes vacíos antes de enviar
+    const acompanantesPayload = tieneAcompanantes
+      ? listAcompanantes.filter((ac) => ac.nombre.trim() !== "")
+      : [];
+
     try {
       const response = await fetch("http://localhost:8000/api/reservas", {
         method: "POST",
@@ -166,6 +192,7 @@ export default function FormularioReserva() {
           ...formData,
           campus_id: parseInt(formData.campus_id, 10),
           sessionId: obtenerSessionId(),
+          acompanantes: acompanantesPayload,
         }),
       });
 
@@ -173,6 +200,8 @@ export default function FormularioReserva() {
         alert("¡Reserva creada con éxito!");
         setFechaSeleccionada(null);
         setBloquesHorarios([]);
+        setTieneAcompanantes(false);
+        setListAcompanantes([]);
         setFormData({
           nombre: "",
           rut: "",
@@ -240,7 +269,7 @@ export default function FormularioReserva() {
             {/* Nombre */}
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">
-                Nombre Completo
+                Nombre Completo (Titular)
               </label>
 
               <input
@@ -257,7 +286,7 @@ export default function FormularioReserva() {
             {/* RUT */}
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">
-                RUT
+                RUT (Titular)
               </label>
 
               <input
@@ -269,6 +298,80 @@ export default function FormularioReserva() {
                 placeholder="12.345.678-9"
                 className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100"
               />
+            </div>
+
+            {/* Pregunta Acompañantes */}
+            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200">
+              <label className="block text-sm font-semibold text-slate-800 mb-3">
+                ¿Asistirás con acompañantes?
+              </label>
+              <div className="flex items-center gap-6">
+                <label className="inline-flex items-center cursor-pointer">
+                  <input
+                    type="radio"
+                    name="tiene_acompanantes"
+                    value="no"
+                    checked={!tieneAcompanantes}
+                    onChange={handleToggleAcompanantes}
+                    className="w-4 h-4 text-sky-600 focus:ring-sky-500 border-slate-300"
+                  />
+                  <span className="ml-2 text-sm text-slate-700 font-medium">No (Asistiré solo)</span>
+                </label>
+                <label className="inline-flex items-center cursor-pointer">
+                  <input
+                    type="radio"
+                    name="tiene_acompanantes"
+                    value="si"
+                    checked={tieneAcompanantes}
+                    onChange={handleToggleAcompanantes}
+                    className="w-4 h-4 text-sky-600 focus:ring-sky-500 border-slate-300"
+                  />
+                  <span className="ml-2 text-sm text-slate-700 font-medium">Sí</span>
+                </label>
+              </div>
+
+              {/* Lista Dinámica de Acompañantes */}
+              {tieneAcompanantes && (
+                <div className="mt-4 space-y-3">
+                  <p className="text-xs text-slate-500 font-medium">
+                    Registra los datos de cada acompañante para el aforo y trazabilidad:
+                  </p>
+                  {listAcompanantes.map((ac, index) => (
+                    <div key={index} className="flex flex-col sm:flex-row gap-2 items-start sm:items-center bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+                      <input
+                        type="text"
+                        required
+                        placeholder={`Nombre acompañante ${index + 1}`}
+                        value={ac.nombre}
+                        onChange={(e) => handleAcompananteChange(index, "nombre", e.target.value)}
+                        className="w-full sm:flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none"
+                      />
+                      <input
+                        type="text"
+                        placeholder="RUT (Opcional)"
+                        value={ac.rut}
+                        onChange={(e) => handleAcompananteChange(index, "rut", e.target.value)}
+                        className="w-full sm:w-36 rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleRemoverAcompanante(index)}
+                        className="text-rose-500 hover:text-rose-700 text-xs font-semibold px-2 py-1"
+                      >
+                        ✕ Quitar
+                      </button>
+                    </div>
+                  ))}
+
+                  <button
+                    type="button"
+                    onClick={handleAgregarAcompanante}
+                    className="mt-2 text-xs font-bold text-sky-600 hover:text-sky-700 bg-sky-100/60 px-3 py-2 rounded-xl border border-sky-200"
+                  >
+                    + Agregar otro acompañante
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Fecha */}
@@ -326,10 +429,10 @@ export default function FormularioReserva() {
                       >
                         <span className="font-bold text-sm">{b.rango}</span>
                         <span className={`text-[11px] mt-1 font-medium ${b.agotado
-                            ? "text-rose-500"
-                            : esSeleccionado
-                              ? "text-sky-100"
-                              : "text-emerald-600"
+                          ? "text-rose-500"
+                          : esSeleccionado
+                            ? "text-sky-100"
+                            : "text-emerald-600"
                           }`}>
                           {b.agotado ? "Agotado (0/10)" : `${b.disponibles} libres`}
                         </span>
