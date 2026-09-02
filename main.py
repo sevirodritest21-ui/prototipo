@@ -10,14 +10,14 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 
 # Cargar variables de entorno desde .env
-load_dotenv()
+load_dotenv("backend.env")
 
 app = FastAPI(title="API de Reservas y Chatbot (PostgreSQL)")
 
 # Carga de variables de entorno con respaldos por defecto
-N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL", "http://localhost:5678/webhook/crear-reserva-chat")
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgre@localhost:5432/reservas_db")
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173").split(",")
+N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL")
+DATABASE_URL = os.getenv("DATABASE_URL")
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS").split(",")
 
 app.add_middleware(
     CORSMiddleware,
