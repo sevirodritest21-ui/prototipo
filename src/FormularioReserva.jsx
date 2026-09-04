@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import DatePicker, { registerLocale } from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import es from "date-fns/locale/es";
+import { useAuth } from "./context/AuthContext";
 
 registerLocale("es", es);
 
@@ -23,6 +25,10 @@ const obtenerSessionId = () => {
 };
 
 export default function FormularioReserva() {
+  const { user } = useAuth();
+  const isAdmin = user?.rol === "admin";
+  const isEstudiante = user?.rol === "estudiante";
+
   const [campusList, setCampusList] = useState([]);
   const [feriados, setFeriados] = useState(FERIADOS_CHILE_2026);
   const [fechaSeleccionada, setFechaSeleccionada] = useState(null);
@@ -42,6 +48,17 @@ export default function FormularioReserva() {
     hora: "",
     campus_id: "",
   });
+
+  // Autocompletar datos del estudiante autenticado automáticamente
+  useEffect(() => {
+    if (user && isEstudiante) {
+      setFormData((prev) => ({
+        ...prev,
+        nombre: user.nombre || "",
+        rut: user.rut || "",
+      }));
+    }
+  }, [user, isEstudiante]);
 
   // 1. Cargar campus desde el backend
   useEffect(() => {
@@ -110,6 +127,7 @@ export default function FormularioReserva() {
   };
 
   const handleChange = (e) => {
+    if (isAdmin) return;
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
@@ -119,6 +137,7 @@ export default function FormularioReserva() {
   };
 
   const handleFechaChange = (date) => {
+    if (isAdmin) return;
     setFechaSeleccionada(date);
     if (date) {
       const year = date.getFullYear();
@@ -136,6 +155,7 @@ export default function FormularioReserva() {
 
   // --- Funciones para Acompañantes ---
   const handleToggleAcompanantes = (e) => {
+    if (isAdmin) return;
     const quiereAcompanantes = e.target.value === "si";
     setTieneAcompanantes(quiereAcompanantes);
     if (quiereAcompanantes && listAcompanantes.length === 0) {
@@ -146,10 +166,12 @@ export default function FormularioReserva() {
   };
 
   const handleAgregarAcompanante = () => {
+    if (isAdmin) return;
     setListAcompanantes((prev) => [...prev, { nombre: "", rut: "" }]);
   };
 
   const handleRemoverAcompanante = (index) => {
+    if (isAdmin) return;
     setListAcompanantes((prev) => prev.filter((_, i) => i !== index));
     if (listAcompanantes.length === 1) {
       setTieneAcompanantes(false);
@@ -157,6 +179,7 @@ export default function FormularioReserva() {
   };
 
   const handleAcompananteChange = (index, field, value) => {
+    if (isAdmin) return;
     setListAcompanantes((prev) => {
       const nuevaLista = [...prev];
       nuevaLista[index][field] = value;
@@ -166,6 +189,11 @@ export default function FormularioReserva() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (isAdmin) {
+      alert("Los administradores no pueden realizar reservas.");
+      return;
+    }
 
     if (!formData.fecha) {
       alert("Por favor selecciona una fecha válida.");
@@ -197,14 +225,14 @@ export default function FormularioReserva() {
       });
 
       if (response.ok) {
-        alert("¡Reserva creada con éxito!");
+        alert(`¡Reserva creada con éxito para ${formData.nombre}!`);
         setFechaSeleccionada(null);
         setBloquesHorarios([]);
         setTieneAcompanantes(false);
         setListAcompanantes([]);
         setFormData({
-          nombre: "",
-          rut: "",
+          nombre: isEstudiante ? user.nombre : "",
+          rut: isEstudiante ? user.rut : "",
           fecha: "",
           hora: "",
           campus_id: "",
@@ -221,27 +249,67 @@ export default function FormularioReserva() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-white via-sky-50 to-amber-50 pt-28 pb-16 px-4">
-      <div className="absolute top-20 left-0 h-96 w-96 rounded-full bg-sky-300/20 blur-3xl" />
-      <div className="absolute bottom-0 right-0 h-96 w-96 rounded-full bg-amber-300/20 blur-3xl" />
+      <div className="absolute top-20 left-0 h-96 w-96 rounded-full bg-sky-300/20 blur-3xl pointer-events-none" />
+      <div className="absolute bottom-0 right-0 h-96 w-96 rounded-full bg-amber-300/20 blur-3xl pointer-events-none" />
 
       <div className="relative mx-auto max-w-5xl">
-        <div className="text-center mb-12">
+        <div className="text-center mb-10">
           <span className="inline-flex items-center rounded-full border border-sky-200 bg-white px-4 py-2 text-sm font-medium text-sky-700 shadow-sm">
-            📅 Reserva tu cubículo
+            📅 Reserva Inteligente
           </span>
 
-          <h1 className="mt-6 text-4xl md:text-5xl font-black text-slate-900">
-            Agenda tu cubículo en minutos
+          <h1 className="mt-4 text-4xl md:text-5xl font-black text-slate-900">
+            Agenda tu cubículo en segundos
           </h1>
 
-          <p className="mt-4 text-slate-600 max-w-2xl mx-auto">
-            Completa el formulario y tu reserva quedará registrada
-            automáticamente en nuestra plataforma.
+          <p className="mt-3 text-slate-600 max-w-2xl mx-auto">
+            {isEstudiante
+              ? `Hola, ${user.nombre}. Tus datos han sido autocompletados. Selecciona sede, fecha y hora.`
+              : "Completa el formulario para registrar tu reserva en el sistema de la biblioteca."}
           </p>
         </div>
 
-        {/* Card */}
+        {/* Card Formulario */}
         <div className="mx-auto max-w-2xl rounded-3xl border border-sky-100 bg-white p-8 md:p-10 shadow-[0_20px_60px_rgba(14,165,233,0.15)]">
+
+          {/* Banner para Estudiante Autenticado */}
+          {isEstudiante && (
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4 text-slate-800 text-sm flex items-start gap-3 shadow-sm mb-6">
+              <span className="text-xl flex-shrink-0">🎓</span>
+              <div>
+                <strong className="block font-bold text-emerald-900">Sesión Estudiantil Activa</strong>
+                <span>Estás autenticado como <strong>{user.nombre}</strong> (RUT: {user.rut}). Tus datos principales se completaron automáticamente para agilizar la reserva.</span>
+              </div>
+            </div>
+          )}
+
+          {/* Banner para Administrador */}
+          {isAdmin && (
+            <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-slate-800 text-sm flex items-start gap-3 shadow-sm mb-6">
+              <span className="text-xl flex-shrink-0">🔒</span>
+              <div>
+                <strong className="block font-bold text-amber-900">Modo Administrador (Vista Previa)</strong>
+                <span>Has iniciado sesión como administrador. El formulario está bloqueado ya que las reservas corresponden a los estudiantes.</span>
+              </div>
+            </div>
+          )}
+
+          {/* Banner para Usuario Invitado no logueado */}
+          {!user && (
+            <div className="rounded-2xl border border-sky-200 bg-sky-50/80 p-4 text-slate-800 text-xs flex items-center justify-between gap-3 shadow-sm mb-6">
+              <div className="flex items-center gap-2">
+                <span className="text-base">💡</span>
+                <span>¿Eres estudiante? <strong className="text-sky-800">Inicia sesión</strong> para autocompletar tus datos.</span>
+              </div>
+              <Link
+                to="/login"
+                className="px-3 py-1.5 rounded-xl bg-white border border-sky-300 text-sky-700 font-bold hover:bg-sky-100 transition-all text-xs shrink-0"
+              >
+                Iniciar sesión →
+              </Link>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-6">
 
             {/* Campus */}
@@ -253,9 +321,10 @@ export default function FormularioReserva() {
               <select
                 name="campus_id"
                 required
+                disabled={isAdmin}
                 value={formData.campus_id}
                 onChange={handleChange}
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100 bg-white text-slate-800"
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100 bg-white text-slate-800 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
               >
                 <option value="">-- Selecciona un Campus --</option>
                 {campusList.map((c) => (
@@ -268,35 +337,39 @@ export default function FormularioReserva() {
 
             {/* Nombre */}
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">
-                Nombre Completo (Titular)
+              <label className="block text-sm font-semibold text-slate-700 mb-2 flex justify-between items-center">
+                <span>Nombre Completo (Titular)</span>
+                {isEstudiante && <span className="text-[11px] text-emerald-600 font-bold">✓ Autocompletado</span>}
               </label>
 
               <input
                 type="text"
                 name="nombre"
                 required
+                disabled={isAdmin || isEstudiante}
                 value={formData.nombre}
                 onChange={handleChange}
                 placeholder="Juan Pérez"
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100"
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100 disabled:bg-slate-100 disabled:text-slate-700 font-medium disabled:cursor-not-allowed"
               />
             </div>
 
             {/* RUT */}
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">
-                RUT (Titular)
+              <label className="block text-sm font-semibold text-slate-700 mb-2 flex justify-between items-center">
+                <span>RUT (Titular)</span>
+                {isEstudiante && <span className="text-[11px] text-emerald-600 font-bold">✓ Autocompletado</span>}
               </label>
 
               <input
                 type="text"
                 name="rut"
                 required
+                disabled={isAdmin || isEstudiante}
                 value={formData.rut}
                 onChange={handleChange}
                 placeholder="12.345.678-9"
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100"
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100 disabled:bg-slate-100 disabled:text-slate-700 font-medium disabled:cursor-not-allowed"
               />
             </div>
 
@@ -306,22 +379,24 @@ export default function FormularioReserva() {
                 ¿Asistirás con acompañantes?
               </label>
               <div className="flex items-center gap-6">
-                <label className="inline-flex items-center cursor-pointer">
+                <label className={`inline-flex items-center ${isAdmin ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
                   <input
                     type="radio"
                     name="tiene_acompanantes"
                     value="no"
+                    disabled={isAdmin}
                     checked={!tieneAcompanantes}
                     onChange={handleToggleAcompanantes}
                     className="w-4 h-4 text-sky-600 focus:ring-sky-500 border-slate-300"
                   />
                   <span className="ml-2 text-sm text-slate-700 font-medium">No (Asistiré solo)</span>
                 </label>
-                <label className="inline-flex items-center cursor-pointer">
+                <label className={`inline-flex items-center ${isAdmin ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
                   <input
                     type="radio"
                     name="tiene_acompanantes"
                     value="si"
+                    disabled={isAdmin}
                     checked={tieneAcompanantes}
                     onChange={handleToggleAcompanantes}
                     className="w-4 h-4 text-sky-600 focus:ring-sky-500 border-slate-300"
@@ -341,22 +416,25 @@ export default function FormularioReserva() {
                       <input
                         type="text"
                         required
+                        disabled={isAdmin}
                         placeholder={`Nombre acompañante ${index + 1}`}
                         value={ac.nombre}
                         onChange={(e) => handleAcompananteChange(index, "nombre", e.target.value)}
-                        className="w-full sm:flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none"
+                        className="w-full sm:flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none disabled:bg-slate-100 disabled:cursor-not-allowed"
                       />
                       <input
                         type="text"
+                        disabled={isAdmin}
                         placeholder="RUT (Opcional)"
                         value={ac.rut}
                         onChange={(e) => handleAcompananteChange(index, "rut", e.target.value)}
-                        className="w-full sm:w-36 rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none"
+                        className="w-full sm:w-36 rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none disabled:bg-slate-100 disabled:cursor-not-allowed"
                       />
                       <button
                         type="button"
+                        disabled={isAdmin}
                         onClick={() => handleRemoverAcompanante(index)}
-                        className="text-rose-500 hover:text-rose-700 text-xs font-semibold px-2 py-1"
+                        className="text-rose-500 hover:text-rose-700 text-xs font-semibold px-2 py-1 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         ✕ Quitar
                       </button>
@@ -365,8 +443,9 @@ export default function FormularioReserva() {
 
                   <button
                     type="button"
+                    disabled={isAdmin}
                     onClick={handleAgregarAcompanante}
-                    className="mt-2 text-xs font-bold text-sky-600 hover:text-sky-700 bg-sky-100/60 px-3 py-2 rounded-xl border border-sky-200"
+                    className="mt-2 text-xs font-bold text-sky-600 hover:text-sky-700 bg-sky-100/60 px-3 py-2 rounded-xl border border-sky-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     + Agregar otro acompañante
                   </button>
@@ -383,13 +462,14 @@ export default function FormularioReserva() {
               <DatePicker
                 selected={fechaSeleccionada}
                 onChange={handleFechaChange}
+                disabled={isAdmin}
                 filterDate={esDiaLaboral}
                 minDate={new Date()}
                 locale="es"
                 dateFormat="dd/MM/yyyy"
                 placeholderText="Selecciona una fecha"
                 required
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100 bg-white"
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100 bg-white disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed cursor-pointer"
               />
             </div>
 
@@ -415,11 +495,11 @@ export default function FormularioReserva() {
                       <button
                         key={b.hora}
                         type="button"
-                        disabled={b.agotado}
+                        disabled={b.agotado || isAdmin}
                         onClick={() => setFormData((prev) => ({ ...prev, hora: b.hora }))}
                         className={`
-                          p-3 rounded-2xl text-left border transition-all flex flex-col justify-between
-                          ${b.agotado
+                          p-3 rounded-2xl text-left border transition-all flex flex-col justify-between cursor-pointer
+                          ${b.agotado || isAdmin
                             ? "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-60"
                             : esSeleccionado
                               ? "bg-sky-600 border-sky-600 text-white shadow-md shadow-sky-200 ring-2 ring-sky-300 ring-offset-1"
@@ -443,11 +523,17 @@ export default function FormularioReserva() {
               )}
             </div>
 
+            {/* Botón Submit */}
             <button
               type="submit"
-              className="w-full rounded-2xl bg-gradient-to-r from-sky-500 to-sky-600 py-4 font-semibold text-white shadow-lg hover:scale-[1.02] transition-all active:scale-95"
+              disabled={isAdmin}
+              className={`w-full rounded-2xl py-4 font-semibold text-white transition-all ${
+                isAdmin
+                  ? "bg-slate-300 text-slate-500 cursor-not-allowed shadow-none"
+                  : "bg-gradient-to-r from-sky-500 to-sky-600 shadow-lg hover:scale-[1.02] active:scale-95 cursor-pointer"
+              }`}
             >
-              Confirmar Reserva
+              {isAdmin ? "🔒 Formulario Bloqueado para Administradores" : "Confirmar Reserva"}
             </button>
           </form>
         </div>

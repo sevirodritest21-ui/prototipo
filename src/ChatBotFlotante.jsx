@@ -1,27 +1,30 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from './context/AuthContext';
+import { apiPost } from './services/api';
 
-const obtenerSessionId = () => {
-  let sId = sessionStorage.getItem('chat_session_id');
+// Reemplaza la función obtenerSessionId por esta:
+const obtenerSessionId = (userId) => {
+  const claveStorage = `chat_session_id_${userId || 'anon'}`;
+  let sId = sessionStorage.getItem(claveStorage);
   if (!sId) {
-    sId = 'session_' + Math.random().toString(36).substring(2, 15) + '_' + Date.now();
-    sessionStorage.setItem('chat_session_id', sId);
+    sId = 'session_' + (userId || 'anon') + '_' + Date.now();
+    sessionStorage.setItem(claveStorage, sId);
   }
   return sId;
 };
 
 export default function ChatbotFlotante() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [isChatOpen, setIsChatOpen] = useState(false);
-  const [mensajes, setMensajes] = useState([
-    {
-      id: 1,
-      texto: '¡Hola! 👋 Soy tu asistente virtual de biblioteca.\n\n📅 Para agendar un cubículo, necesitaré los siguientes datos:\n• Nombre completo\n• RUT\n• Campus de preferencia\n• Fecha de reserva\n• Hora de reserva\n\n🏫 Cargando campus disponibles...',
-      esBot: true
-    }
-  ]);
+  const [mensajes, setMensajes] = useState([]);
   const [nuevoMensaje, setNuevoMensaje] = useState('');
 
-
+  // Cargar saludo inicial solo si el estudiante está autenticado
   useEffect(() => {
+    if (!user) return;
+
     fetch('http://localhost:8000/api/campus')
       .then((res) => {
         if (!res.ok) throw new Error('Error al obtener los campus');
@@ -29,26 +32,24 @@ export default function ChatbotFlotante() {
       })
       .then((data) => {
         const nombresCampus = data.map((c) => c.nombre).join(', ');
-
-        setMensajes((prev) => [
+        setMensajes([
           {
             id: 1,
-            texto: `¡Hola! 👋 Soy tu asistente virtual de biblioteca.\n\n📅 Para agendar un cubículo, necesitaré los siguientes datos:\n• Nombre completo\n• RUT\n• Campus de preferencia (Disponibles: ${nombresCampus || 'Campus A, Campus B'})\n• Fecha de reserva\n• Hora de reserva\n\n💬 Si ya tienes una reserva y deseas consultarla o eliminarla, o si tienes alguna pregunta general sobre la biblioteca, ¡solo escríbeme y te ayudaré!`,
+            texto: `¡Hola, ${user.nombre}! 👋 Soy tu asistente de biblioteca.\n\n✅ Estás autenticado como ${user.rol} (RUT: ${user.rut || 'Registrado'}).\n\n📅 Dime qué fecha, hora y campus (Disponibles: ${nombresCampus || 'Campus San Juan Pablo II, Campus San Francisco'}) deseas para agendar tu cubículo.`,
             esBot: true
           }
         ]);
       })
-      .catch((err) => {
-        console.error('Error al cargar la lista de campus:', err);
-        setMensajes((prev) => [
+      .catch(() => {
+        setMensajes([
           {
             id: 1,
-            texto: `¡Hola! 👋 Soy tu asistente virtual de biblioteca.\n\n📅 Para agendar un cubículo, necesitaré los siguientes datos:\n• Nombre completo\n• RUT\n• Campus de preferencia (Disponibles: Campus A, Campus B)\n• Fecha de reserva\n• Hora de reserva\n\n💬 Si ya tienes una reserva y deseas consultarla o eliminarla, o si tienes alguna pregunta general, ¡escríbeme y te responderé!`,
+            texto: `¡Hola, ${user.nombre}! 👋 Estás autenticado. Dime la fecha, hora y campus que necesitas para tu reserva.`,
             esBot: true
           }
         ]);
       });
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     const abrirChat = () => setIsChatOpen(true);
@@ -56,8 +57,20 @@ export default function ChatbotFlotante() {
     return () => window.removeEventListener('open-chat', abrirChat);
   }, []);
 
+  // Limpiar historial de mensajes en pantalla cuando cambia el usuario autenticado
+  useEffect(() => {
+    if (user) {
+      setMensajes([]); // Reinicia la conversación visual del bot
+    }
+  }, [user?.id, user?.rut]);
+
   const handleEnviarMensaje = async (e) => {
     e.preventDefault();
+    if (!user) {
+      setIsChatOpen(false);
+      navigate('/login');
+      return;
+    }
     if (!nuevoMensaje.trim()) return;
 
     const mensajeTexto = nuevoMensaje;
@@ -69,49 +82,57 @@ export default function ChatbotFlotante() {
     setMensajes((prev) => [...prev, { id: botPensandoId, texto: 'Escribiendo...', esBot: true }]);
 
     try {
-      const response = await fetch('http://localhost:8000/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: mensajeTexto,
-          sessionId: obtenerSessionId()
-        }),
-      });
+      const payload = {
+        message: mensajeTexto,
+        sessionId: obtenerSessionId(user.id || user.rut),
+        rut: user.rut,
+        nombre: user.nombre,
+        email: user.email,
+      };
 
-      if (response.ok) {
-        const data = await response.json();
-        setMensajes((prev) =>
-          prev.map((msg) => msg.id === botPensandoId ? { ...msg, texto: data.response } : msg)
-        );
-      } else {
-        throw new Error('Error en la respuesta del servidor');
-      }
+      // Utilizar apiPost que inyecta automáticamente el token JWT en Authorization Header
+      const data = await apiPost('/api/chat', payload);
+      setMensajes((prev) =>
+        prev.map((msg) => msg.id === botPensandoId ? { ...msg, texto: data.response } : msg)
+      );
     } catch (error) {
       console.error('Error al conectar con el bot:', error);
+      const errorMsg = error.message.includes('401')
+        ? 'Tu sesión ha expirado. Por favor inicia sesión nuevamente.'
+        : 'Lo siento, tuve un problema al procesar tu mensaje. Inténtalo de nuevo.';
+
       setMensajes((prev) =>
-        prev.map((msg) => msg.id === botPensandoId ? { ...msg, texto: 'Lo siento, tuve un problema al procesar tu mensaje. Inténtalo de nuevo.' } : msg)
+        prev.map((msg) => msg.id === botPensandoId ? { ...msg, texto: errorMsg } : msg)
       );
     }
+  };
+
+  const irALogin = () => {
+    setIsChatOpen(false);
+    navigate('/login');
   };
 
   return (
     <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
       {isChatOpen && (
         <div className="mb-4 w-[calc(100vw-2rem)] sm:w-96 h-[520px] rounded-2xl bg-white shadow-2xl border border-slate-100 flex flex-col overflow-hidden transition-all duration-300 origin-bottom-right">
+          {/* Header del Chatbot */}
           <div className="bg-sky-600 p-4 text-white flex justify-between items-center shadow-md">
             <div className="flex items-center space-x-3">
               <div className="relative flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-300 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-400"></span>
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${user ? 'bg-amber-300' : 'bg-rose-300'} opacity-75`}></span>
+                <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${user ? 'bg-amber-400' : 'bg-rose-400'}`}></span>
               </div>
               <div>
-                <p className="font-semibold text-sm tracking-wide leading-tight">Asistente Virtual</p>
-                <p className="text-[11px] text-sky-100">En línea</p>
+                <p className="font-semibold text-sm tracking-wide leading-tight">Asistente Virtual IA</p>
+                <p className="text-[11px] text-sky-100">
+                  {user ? `${user.nombre}` : 'Acceso Restringido (Requiere Login)'}
+                </p>
               </div>
             </div>
             <button
               onClick={() => setIsChatOpen(false)}
-              className="text-sky-200 hover:text-white transition-colors p-1 rounded-lg hover:bg-sky-700/50"
+              className="text-sky-200 hover:text-white transition-colors p-1 rounded-lg hover:bg-sky-700/50 cursor-pointer"
             >
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -119,53 +140,72 @@ export default function ChatbotFlotante() {
             </button>
           </div>
 
-          <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-slate-50/80">
-            {mensajes.map((msg) => (
-              <div key={msg.id} className={`flex ${msg.esBot ? 'justify-start' : 'justify-end'}`}>
-                <div className={`max-w-[88%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-line ${msg.esBot
-                  ? 'bg-white text-slate-700 rounded-tl-none border border-slate-200/60 shadow-sm shadow-slate-100'
-                  : 'bg-sky-600 text-white rounded-tr-none shadow-md shadow-sky-100'
-                  } ${msg.texto === 'Escribiendo...' ? 'text-slate-400 italic bg-slate-100/50 animate-pulse' : ''}`}>
-                  {msg.texto}
-                </div>
+          {/* Cuerpo del Chatbot: Si NO está logueado, muestra tarjeta de bloqueo */}
+          {!user ? (
+            <div className="flex-1 p-6 flex flex-col items-center justify-center text-center bg-slate-50">
+              <div className="w-16 h-16 rounded-full bg-amber-100 border border-amber-200 flex items-center justify-center mb-4 text-2xl shadow-inner">
+                🔒
               </div>
-            ))}
-          </div>
+              <h3 className="text-base font-bold text-slate-800 mb-1">
+                Chatbot Bloqueado
+              </h3>
+              <p className="text-xs text-slate-500 mb-6 max-w-xs leading-relaxed">
+                Debes iniciar sesión con tu cuenta institucional para utilizar el asistente virtual IA y solicitar reservas de cubículos.
+              </p>
+              <button
+                onClick={irALogin}
+                className="w-full max-w-xs py-2.5 px-4 bg-sky-600 hover:bg-sky-700 text-white rounded-xl font-semibold text-sm transition-all shadow-md shadow-sky-500/20 flex items-center justify-center space-x-2 cursor-pointer"
+              >
+                <span>🔑 Iniciar Sesión</span>
+              </button>
+            </div>
+          ) : (
+            /* Lista de Mensajes cuando el usuario está Autenticado */
+            <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-slate-50/80">
+              {mensajes.map((msg) => (
+                <div key={msg.id} className={`flex ${msg.esBot ? 'justify-start' : 'justify-end'}`}>
+                  <div className={`max-w-[88%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-line ${msg.esBot
+                    ? 'bg-white text-slate-700 rounded-tl-none border border-slate-200/60 shadow-sm shadow-slate-100'
+                    : 'bg-sky-600 text-white rounded-tr-none shadow-md shadow-sky-100'
+                    } ${msg.texto === 'Escribiendo...' ? 'text-slate-400 italic bg-slate-100/50 animate-pulse' : ''}`}>
+                    {msg.texto}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
+          {/* Formulario de Entrada */}
           <form onSubmit={handleEnviarMensaje} className="p-3 border-t border-slate-100 bg-white flex space-x-2">
             <input
               type="text"
               value={nuevoMensaje}
               onChange={(e) => setNuevoMensaje(e.target.value)}
-              placeholder="Escribe tu mensaje aquí..."
-              className="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 placeholder-slate-400 focus:outline-none focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-50"
+              disabled={!user}
+              placeholder={user ? "Pídeme una reserva (ej: mañana a las 10:00)..." : "Debes iniciar sesión para chatear..."}
+              className="flex-1 px-4 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
             />
             <button
               type="submit"
-              className="bg-sky-600 hover:bg-sky-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-all active:scale-95 flex items-center justify-center shadow-md shadow-sky-100"
+              disabled={!user}
+              className="bg-sky-600 hover:bg-sky-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors shadow-sm cursor-pointer disabled:bg-slate-300 disabled:cursor-not-allowed"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
-              </svg>
+              Enviar
             </button>
           </form>
         </div>
       )}
 
+      {/* Botón Flotante de Apertura */}
       <button
-        onClick={() => setIsChatOpen(!isChatOpen)}
-        className="flex h-14 w-14 items-center justify-center rounded-full bg-sky-600 text-white shadow-xl shadow-sky-200 hover:bg-sky-700 hover:border-2 hover:border-amber-400 transition-all duration-300 transform hover:scale-105 active:scale-95"
+        onClick={() => setIsChatOpen((prev) => !prev)}
+        className="bg-gradient-to-r from-sky-500 to-sky-700 hover:from-sky-600 hover:to-sky-800 text-white p-4 rounded-full shadow-2xl transition-all duration-300 hover:scale-110 flex items-center justify-center space-x-2 border-2 border-white/20 cursor-pointer"
       >
-        {isChatOpen ? (
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-6 h-6">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-          </svg>
-        ) : (
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
-          </svg>
-        )}
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" className="w-7 h-7">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a.75.75 0 01-.81-.54.75.75 0 01.144-.792 4.004 4.004 0 00.973-2.122A8.134 8.134 0 013 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
+        </svg>
       </button>
     </div>
   );
 }
+
