@@ -72,7 +72,7 @@ export default function Login() {
       <div className="absolute bottom-0 right-0 h-96 w-96 rounded-full bg-amber-300/20 blur-3xl pointer-events-none" />
 
       <div className="w-full max-w-md rounded-3xl border border-sky-100 bg-white/90 backdrop-blur-xl p-8 md:p-10 shadow-[0_20px_60px_rgba(14,165,233,0.15)] relative z-10">
-        
+
         {/* Logo e Identidad */}
         <div className="flex flex-col items-center mb-6 text-center">
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-sky-700 text-white font-black text-2xl shadow-lg shadow-sky-500/30 mb-3">
@@ -91,39 +91,23 @@ export default function Login() {
           <button
             type="button"
             onClick={() => handleTabChange("estudiante")}
-            className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-              tipoUsuario === "estudiante"
+            className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${tipoUsuario === "estudiante"
                 ? "bg-white text-sky-700 shadow-md shadow-sky-900/5 border border-sky-200/60"
                 : "text-slate-500 hover:text-slate-800"
-            }`}
+              }`}
           >
             <span>🎓</span> Estudiante
           </button>
           <button
             type="button"
             onClick={() => handleTabChange("admin")}
-            className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-              tipoUsuario === "admin"
+            className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${tipoUsuario === "admin"
                 ? "bg-white text-amber-700 shadow-md shadow-amber-900/5 border border-amber-200/60"
                 : "text-slate-500 hover:text-slate-800"
-            }`}
+              }`}
           >
             <span>🛡️</span> Administrador
           </button>
-        </div>
-
-        {/* Banner con credenciales de prueba rápidas */}
-        <div className="mb-5 p-3 rounded-2xl bg-gradient-to-r from-sky-50 to-amber-50 border border-sky-100 text-xs text-slate-600">
-          <span className="font-bold text-slate-800">💡 Credencial de prueba:</span>
-          {tipoUsuario === "estudiante" ? (
-            <p className="mt-0.5 text-[11px] text-slate-600">
-              <code className="bg-white px-1.5 py-0.5 rounded border border-sky-200 text-sky-700">juan.perez@alumnos.cl</code> / pass: <code className="bg-white px-1.5 py-0.5 rounded border border-sky-200 text-sky-700">estudiante1234</code>
-            </p>
-          ) : (
-            <p className="mt-0.5 text-[11px] text-slate-600">
-              <code className="bg-white px-1.5 py-0.5 rounded border border-amber-200 text-amber-700">admin@biblioteca.cl</code> / pass: <code className="bg-white px-1.5 py-0.5 rounded border border-amber-200 text-amber-700">admin1234</code>
-            </p>
-          )}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -207,11 +191,10 @@ export default function Login() {
             id="login-submit"
             type="submit"
             disabled={loading}
-            className={`w-full py-3.5 px-6 rounded-2xl font-bold text-sm shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer mt-2 hover:scale-[1.02] active:scale-[0.98] ${
-              tipoUsuario === "estudiante"
+            className={`w-full py-3.5 px-6 rounded-2xl font-bold text-sm shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer mt-2 hover:scale-[1.02] active:scale-[0.98] ${tipoUsuario === "estudiante"
                 ? "bg-gradient-to-r from-sky-500 to-sky-600 text-white shadow-sky-500/25"
                 : "bg-gradient-to-r from-amber-400 to-amber-500 text-slate-900 shadow-amber-500/20"
-            }`}
+              }`}
           >
             {loading ? (
               <>

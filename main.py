@@ -15,12 +15,10 @@ from dotenv import load_dotenv
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
-# Cargar variables de entorno desde backend.env
 load_dotenv("backend.env")
 
-app = FastAPI(title="API de Reservas y Chatbot (PostgreSQL + Redis)")
+app = FastAPI(title="API de Reservas y Chatbot UCT (PostgreSQL + Redis)")
 
-# Carga de variables de entorno
 N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL")
 DATABASE_URL = os.getenv("DATABASE_URL")
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
@@ -41,7 +39,6 @@ pool: Optional[asyncpg.Pool] = None
 httpx_client: Optional[httpx.AsyncClient] = None
 redis_client: Optional[aioredis.Redis] = None
 
-# Configuración de Bloques Horarios y Límite de Capacidad
 BLOQUES_HORARIOS = [
     {"hora": "08:00", "rango": "08:00 - 09:00"},
     {"hora": "09:00", "rango": "09:00 - 10:00"},
@@ -54,7 +51,6 @@ BLOQUES_HORARIOS = [
     {"hora": "16:00", "rango": "16:00 - 17:00"},
     {"hora": "17:00", "rango": "17:00 - 18:00"},
 ]
-CAPACIDAD_MAXIMA_POR_HORA = 10
 
 
 @app.on_event("startup")
@@ -75,15 +71,22 @@ async def startup():
         r_client = aioredis.from_url(REDIS_URL, decode_responses=True, socket_connect_timeout=1.5)
         await r_client.ping()
         redis_client = r_client
-        print("✅ Conexión con Redis establecida exitosamente para Caching y Rate Limiting.")
+        print("✅ Conexión con Redis establecida exitosamente.")
     except Exception as e:
         redis_client = None
-        print(f"⚠️ Redis no está activo ({e}). Ejecutando en modo Fallback directo a PostgreSQL.")
+        print(f"⚠️ Redis no activo ({e}). Modo Fallback PostgreSQL.")
 
     async with pool.acquire() as conn:
         await conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_reservas_campus_fecha_hora 
-            ON reservas (campus_id, fecha, hora);
+            CREATE TABLE IF NOT EXISTS cubiculos (
+                id SERIAL PRIMARY KEY,
+                codigo VARCHAR(20) NOT NULL UNIQUE,
+                campus_id INT NOT NULL REFERENCES campus(id) ON DELETE CASCADE,
+                estado VARCHAR(20) DEFAULT 'disponible'
+            );
+            ALTER TABLE reservas ADD COLUMN IF NOT EXISTS cubiculo_id INT REFERENCES cubiculos(id) ON DELETE SET NULL;
+            CREATE INDEX IF NOT EXISTS idx_reservas_campus_fecha_hora ON reservas (campus_id, fecha, hora);
+            CREATE INDEX IF NOT EXISTS idx_reservas_cubiculo_fecha_hora ON reservas (cubiculo_id, fecha, hora);
         """)
 
 
@@ -98,8 +101,6 @@ async def shutdown():
         await redis_client.close()
 
 
-# --- Funciones de Apoyo para Redis ---
-
 async def check_rate_limit(key_prefix: str, identifier: str, max_requests: int = 15, window_seconds: int = 60) -> bool:
     if not redis_client:
         return True
@@ -109,9 +110,9 @@ async def check_rate_limit(key_prefix: str, identifier: str, max_requests: int =
         if requests == 1:
             await redis_client.expire(key, window_seconds)
         return requests <= max_requests
-    except Exception as e:
-        print(f"⚠️ Fallback Rate Limit (Redis Error): {e}")
+    except Exception:
         return True
+
 
 async def invalidar_caches_disponibilidad(campus_id: Optional[int] = None, fecha_str: Optional[str] = None):
     if not redis_client:
@@ -129,10 +130,10 @@ async def invalidar_caches_disponibilidad(campus_id: Optional[int] = None, fecha
             if all_keys:
                 await redis_client.delete(*all_keys)
     except Exception as e:
-        print(f"⚠️ Error al invalidar caché en Redis: {e}")
+        print(f"⚠️ Error invalidando caché: {e}")
 
 
-# --- Esquemas de Pydantic ---
+# --- Esquemas Pydantic ---
 
 class AcompananteBase(BaseModel):
     nombre: Optional[str] = "Acompañante"
@@ -145,6 +146,7 @@ class AcompananteBase(BaseModel):
                 if field in values and values[field] is not None:
                     values[field] = str(values[field])
         return values
+
 
 class ReservaBase(BaseModel):
     nombre: Optional[str] = "Usuario Chatbot"
@@ -177,18 +179,17 @@ class ReservaBase(BaseModel):
         if "acompanantes[0]" in values and not values.get("acompanantes"):
             ac_raw = values["acompanantes[0]"]
             if isinstance(ac_raw, dict):
-                values["acompanantes"] = [
-                    {
-                        "nombre": str(ac_raw.get("nombre", "Acompañante")),
-                        "rut": str(ac_raw.get("rut", "")) if ac_raw.get("rut") else None
-                    }
-                ]
+                values["acompanantes"] = [{
+                    "nombre": str(ac_raw.get("nombre", "Acompañante")),
+                    "rut": str(ac_raw.get("rut", "")) if ac_raw.get("rut") else None
+                }]
 
         for field in ["nombre", "rut", "fecha", "hora", "campus", "sessionId"]:
             if field in values and values[field] is not None:
                 values[field] = str(values[field])
 
         return values
+
 
 class ReservaResponse(BaseModel):
     id: str
@@ -198,8 +199,10 @@ class ReservaResponse(BaseModel):
     hora: str
     campus_id: int
     campus: str
+    cubiculo_codigo: str
     sessionId: Optional[str] = None
     acompanantes: Optional[List[AcompananteBase]] = []
+
 
 class MessageInput(BaseModel):
     message: str
@@ -208,24 +211,41 @@ class MessageInput(BaseModel):
     nombre: Optional[str] = None
     email: Optional[str] = None
 
+
 class EsquemaEliminar(BaseModel):
     rut: Optional[str] = None
     sessionId: Optional[str] = None
+
 
 class EsquemaConsulta(BaseModel):
     rut: Optional[str] = None
     sessionId: Optional[str] = None
 
 
-# --- Esquemas de Autenticación ---
+class CrearCampusRequest(BaseModel):
+    nombre: str
+    cubiculas_fisicos: Optional[int] = 10
+
+
+class ActualizarCampusRequest(BaseModel):
+    nombre: Optional[str] = None
+    cubiculas_fisicos: Optional[int] = None
+
+
+class CrearCubiculoRequest(BaseModel):
+    codigo: str
+    campus_id: int
+
 
 class LoginRequest(BaseModel):
     email: str
     password: str
 
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str
+
 
 class UsuarioResponse(BaseModel):
     id: int
@@ -234,8 +254,6 @@ class UsuarioResponse(BaseModel):
     rut: Optional[str] = None
     rol: str
 
-class CrearCampusRequest(BaseModel):
-    nombre: str
 
 class CrearUsuarioRequest(BaseModel):
     email: str
@@ -245,16 +263,19 @@ class CrearUsuarioRequest(BaseModel):
     rol: str = "estudiante"
 
 
-# --- Lógica de Seguridad JWT ---
+# --- Autenticación JWT ---
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 bearer_scheme = HTTPBearer(auto_error=False)
 
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
+
 def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
+
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
@@ -262,19 +283,18 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
+
 async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)) -> dict:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Token inválido o expirado.",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    
     if not credentials or not credentials.credentials:
         raise credentials_exception
 
     try:
-        token = credentials.credentials
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
         email: str = payload.get("sub")
         if email is None:
             raise credentials_exception
@@ -282,9 +302,7 @@ async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] =
         raise credentials_exception
 
     async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            "SELECT id, email, nombre, rut, rol FROM usuarios WHERE email = $1", email
-        )
+        row = await conn.fetchrow("SELECT id, email, nombre, rut, rol FROM usuarios WHERE email = $1", email)
         if row is None:
             raise credentials_exception
         return dict(row)
@@ -335,157 +353,158 @@ async def get_me(current_user: dict = Depends(get_current_user)):
     return current_user
 
 
-# --- Endpoints de la API ---
+# --- Endpoints de Gestión de Cubículos ---
+
+@app.get("/api/cubiculos")
+async def obtener_cubiculos(campus_id: Optional[int] = None):
+    async with pool.acquire() as conn:
+        if campus_id:
+            filas = await conn.fetch(
+                "SELECT id, codigo, campus_id, estado FROM cubiculos WHERE campus_id = $1 ORDER BY codigo ASC", campus_id
+            )
+        else:
+            filas = await conn.fetch("SELECT id, codigo, campus_id, estado FROM cubiculos ORDER BY campus_id, codigo ASC")
+        return [dict(f) for f in filas]
+
+
+@app.post("/api/cubiculos", status_code=status.HTTP_201_CREATED)
+async def crear_cubiculo(data: CrearCubiculoRequest, current_user: dict = Depends(get_current_user)):
+    if current_user.get("rol") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
+
+    codigo_clean = data.codigo.strip().upper()
+    async with pool.acquire() as conn:
+        try:
+            row = await conn.fetchrow(
+                "INSERT INTO cubiculos (codigo, campus_id) VALUES ($1, $2) RETURNING id, codigo, campus_id, estado",
+                codigo_clean, data.campus_id
+            )
+            await conn.execute(
+                "UPDATE campus SET cubiculas_fisicos = (SELECT COUNT(*) FROM cubiculos WHERE campus_id = $1) WHERE id = $1",
+                data.campus_id
+            )
+            await invalidar_caches_disponibilidad()
+            return dict(row)
+        except asyncpg.UniqueViolationError:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Ya existe un cubículo registrado con el código '{codigo_clean}'."
+            )
+
+
+# --- Endpoints Públicos y Admin ---
 
 @app.get("/api/campus")
 async def obtener_campus():
     try:
         async with pool.acquire() as conn:
-            filas = await conn.fetch("SELECT id, nombre FROM campus ORDER BY id ASC")
-            return [{"id": f["id"], "nombre": f["nombre"]} for f in filas]
+            filas = await conn.fetch(
+                """
+                SELECT c.id, c.nombre, 
+                       COALESCE(COUNT(cb.id), c.cubiculas_fisicos) AS cubiculas_fisicos
+                FROM campus c
+                LEFT JOIN cubiculos cb ON c.id = cb.campus_id
+                GROUP BY c.id ORDER BY c.id ASC
+                """
+            )
+            return [dict(f) for f in filas]
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error al obtener la lista de campus: {str(e)}"
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
 @app.post("/api/campus", status_code=status.HTTP_201_CREATED)
-async def crear_campus(
-    data: CrearCampusRequest, 
-    current_user: dict = Depends(get_current_user)
-):
+async def crear_campus(data: CrearCampusRequest, current_user: dict = Depends(get_current_user)):
     if current_user.get("rol") != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Solo los usuarios con rol Administrador pueden crear sedes o campus."
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso restringido a administradores.")
 
     nombre_limpio = data.nombre.strip()
-    if not nombre_limpio:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El nombre del campus no puede estar vacío."
-        )
+    capacidad = data.cubiculas_fisicos if data.cubiculas_fisicos and data.cubiculas_fisicos > 0 else 10
 
     async with pool.acquire() as conn:
-        row_exist = await conn.fetchrow(
-            "SELECT id FROM campus WHERE LOWER(nombre) = LOWER($1)", 
-            nombre_limpio
-        )
-        if row_exist:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Ya existe una sede o campus registrada con el nombre '{nombre_limpio}'."
-            )
+        async with conn.transaction():
+            row_exist = await conn.fetchrow("SELECT id FROM campus WHERE LOWER(nombre) = LOWER($1)", nombre_limpio)
+            if row_exist:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"El campus '{nombre_limpio}' ya existe.")
 
-        row = await conn.fetchrow(
-            "INSERT INTO campus (nombre) VALUES ($1) RETURNING id, nombre",
-            nombre_limpio
-        )
-    
+            row = await conn.fetchrow(
+                "INSERT INTO campus (nombre, cubiculas_fisicos) VALUES ($1, $2) RETURNING id, nombre, cubiculas_fisicos",
+                nombre_limpio, capacidad
+            )
+            campus_id = row["id"]
+
+            # Generar automáticamente registros en la tabla 'cubiculos' para este campus
+            sigla = "".join([palabra[0] for palabra in nombre_limpio.split()]).upper()[:3] or "SED"
+            for i in range(1, capacidad + 1):
+                codigo_cub = f"CUB{i:02d}-{sigla}"
+                await conn.execute("INSERT INTO cubiculos (codigo, campus_id) VALUES ($1, $2)", codigo_cub, campus_id)
+
     await invalidar_caches_disponibilidad()
-    return {"id": row["id"], "nombre": row["nombre"]}
+    return {"id": campus_id, "nombre": nombre_limpio, "cubiculas_fisicos": capacidad}
 
 
 @app.delete("/api/campus/{campus_id}")
-async def eliminar_campus_por_id(
-    campus_id: int, 
-    current_user: dict = Depends(get_current_user)
-):
+async def eliminar_campus_por_id(campus_id: int, current_user: dict = Depends(get_current_user)):
     if current_user.get("rol") != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Solo los usuarios con rol Administrador pueden eliminar sedes o campus."
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso restringido a administradores.")
 
     async with pool.acquire() as conn:
         async with conn.transaction():
             row_c = await conn.fetchrow("SELECT nombre FROM campus WHERE id = $1", campus_id)
             if not row_c:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"No se encontró ninguna sede o campus con el ID {campus_id}."
-                )
+                raise HTTPException(status_code=404, detail="Campus no encontrado.")
 
             nombre_campus = row_c["nombre"]
-
-            await conn.execute(
-                """
-                DELETE FROM reserva_acompanantes 
-                WHERE reserva_id IN (SELECT id FROM reservas WHERE campus_id = $1)
-                """,
-                campus_id
-            )
+            await conn.execute("DELETE FROM reserva_acompanantes WHERE reserva_id IN (SELECT id FROM reservas WHERE campus_id = $1)", campus_id)
             await conn.execute("DELETE FROM reservas WHERE campus_id = $1", campus_id)
+            await conn.execute("DELETE FROM cubiculos WHERE campus_id = $1", campus_id)
             await conn.execute("DELETE FROM campus WHERE id = $1", campus_id)
 
     await invalidar_caches_disponibilidad()
-    return {"message": f"El campus '{nombre_campus}' y todas sus reservas registradas fueron eliminados con éxito."}
+    return {"message": f"El campus '{nombre_campus}', sus cubículos y reservas asociadas fueron eliminados."}
 
 
 @app.get("/api/dashboard/resumen")
-async def obtener_resumen_dashboard(
-    campus_id: Optional[int] = None,
-    fecha: Optional[str] = None,
-    current_user: dict = Depends(get_current_user)
-):
+async def obtener_resumen_dashboard(campus_id: Optional[int] = None, fecha: Optional[str] = None, current_user: dict = Depends(get_current_user)):
     try:
-        if fecha and fecha.strip():
-            try:
-                target_fecha = datetime.strptime(fecha.strip(), "%Y-%m-%d").date()
-            except ValueError:
-                target_fecha = date.today()
-        else:
-            target_fecha = date.today()
-
-        CUBICULOS_FISICOS = CAPACIDAD_MAXIMA_POR_HORA
-        CUPOS_TOTALES_DIARIOS = len(BLOQUES_HORARIOS) * CUBICULOS_FISICOS
-
-        if redis_client and campus_id:
-            cache_key = f"dashboard:{campus_id}:{target_fecha.strftime('%Y-%m-%d')}"
-            try:
-                cached_data = await redis_client.get(cache_key)
-                if cached_data:
-                    return json.loads(cached_data)
-            except Exception:
-                pass
+        target_fecha = datetime.strptime(fecha.strip(), "%Y-%m-%d").date() if fecha and fecha.strip() else date.today()
 
         async with pool.acquire() as conn:
             if not campus_id:
                 first_campus = await conn.fetchrow("SELECT id FROM campus ORDER BY id ASC LIMIT 1")
                 if not first_campus:
                     return {
-                        "campus_id": 0,
-                        "fecha": target_fecha.strftime("%Y-%m-%d"),
-                        "cubiculas_fisicos": CUBICULOS_FISICOS,
-                        "total_reservas_dia": 0,
-                        "cupos_disponibles_dia": CUPOS_TOTALES_DIARIOS,
-                        "cupos_totales_diarios": CUPOS_TOTALES_DIARIOS,
-                        "porcentaje_ocupacion": 0.0,
-                        "bloques": []
+                        "campus_id": 0, "fecha": target_fecha.strftime("%Y-%m-%d"),
+                        "cubiculas_fisicos": 0, "total_reservas_dia": 0,
+                        "cupos_disponibles_dia": 0, "cupos_totales_diarios": 0,
+                        "porcentaje_ocupacion": 0.0, "bloques": []
                     }
                 campus_id = first_campus["id"]
 
-            reservas_dia = await conn.fetchval(
-                """
-                SELECT COUNT(*) 
-                FROM reservas 
-                WHERE campus_id = $1 AND fecha = $2
-                """,
-                campus_id, target_fecha
-            )
+            total_cub_bd = await conn.fetchval("SELECT COUNT(*) FROM cubiculos WHERE campus_id = $1", campus_id)
+            if not total_cub_bd or total_cub_bd == 0:
+                row_c = await conn.fetchrow("SELECT cubiculas_fisicos FROM campus WHERE id = $1", campus_id)
+                total_cub_bd = row_c["cubiculas_fisicos"] if row_c else 10
 
-            total_reservas = reservas_dia or 0
+            CUPOS_TOTALES_DIARIOS = len(BLOQUES_HORARIOS) * total_cub_bd
+
+            if redis_client:
+                cache_key = f"dashboard:{campus_id}:{target_fecha.strftime('%Y-%m-%d')}"
+                cached_data = await redis_client.get(cache_key)
+                if cached_data:
+                    return json.loads(cached_data)
+
+            total_reservas = await conn.fetchval(
+                "SELECT COUNT(*) FROM reservas WHERE campus_id = $1 AND fecha = $2",
+                campus_id, target_fecha
+            ) or 0
+
             cupos_disponibles = max(0, CUPOS_TOTALES_DIARIOS - total_reservas)
-            porcentaje = round((total_reservas / CUPOS_TOTALES_DIARIOS) * 100, 1)
+            porcentaje = round((total_reservas / CUPOS_TOTALES_DIARIOS) * 100, 1) if CUPOS_TOTALES_DIARIOS > 0 else 0.0
 
             filas_bloques = await conn.fetch(
                 """
                 SELECT TO_CHAR(hora, 'HH24:MI') as hora_str, COUNT(*) as ocupados
-                FROM reservas
-                WHERE campus_id = $1 AND fecha = $2
-                GROUP BY hora
+                FROM reservas WHERE campus_id = $1 AND fecha = $2 GROUP BY hora
                 """,
                 campus_id, target_fecha
             )
@@ -499,13 +518,13 @@ async def obtener_resumen_dashboard(
                     "hora": h_key,
                     "rango": bloque["rango"],
                     "ocupados": b_ocu,
-                    "disponibles": max(0, CUBICULOS_FISICOS - b_ocu)
+                    "disponibles": max(0, total_cub_bd - b_ocu)
                 })
 
-            respuesta_resumen = {
+            respuesta = {
                 "campus_id": campus_id,
                 "fecha": target_fecha.strftime("%Y-%m-%d"),
-                "cubiculas_fisicos": CUBICULOS_FISICOS,
+                "cubiculas_fisicos": total_cub_bd,
                 "total_reservas_dia": total_reservas,
                 "cupos_disponibles_dia": cupos_disponibles,
                 "cupos_totales_diarios": CUPOS_TOTALES_DIARIOS,
@@ -514,103 +533,73 @@ async def obtener_resumen_dashboard(
             }
 
             if redis_client:
-                cache_key = f"dashboard:{campus_id}:{target_fecha.strftime('%Y-%m-%d')}"
-                try:
-                    await redis_client.setex(cache_key, 300, json.dumps(respuesta_resumen))
-                except Exception:
-                    pass
+                await redis_client.setex(f"dashboard:{campus_id}:{target_fecha.strftime('%Y-%m-%d')}", 300, json.dumps(respuesta))
 
-            return respuesta_resumen
-
+            return respuesta
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error al obtener métricas del dashboard: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/disponibilidad")
 async def consultar_disponibilidad(campus_id: int, fecha: str):
     try:
-        try:
-            fecha_parsed = datetime.strptime(fecha.strip(), "%Y-%m-%d").date()
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Formato de fecha inválido. Usa YYYY-MM-DD."
-            )
-
+        fecha_parsed = datetime.strptime(fecha.strip(), "%Y-%m-%d").date()
         fecha_str = fecha_parsed.strftime("%Y-%m-%d")
-        cache_key = f"disponibilidad:{campus_id}:{fecha_str}"
 
         if redis_client:
-            try:
-                cached_data = await redis_client.get(cache_key)
-                if cached_data:
-                    return json.loads(cached_data)
-            except Exception:
-                pass
+            cached_data = await redis_client.get(f"disponibilidad:{campus_id}:{fecha_str}")
+            if cached_data:
+                return json.loads(cached_data)
 
         async with pool.acquire() as conn:
+            capacidad_campus = await conn.fetchval("SELECT COUNT(*) FROM cubiculos WHERE campus_id = $1", campus_id)
+            if not capacidad_campus or capacidad_campus == 0:
+                row_c = await conn.fetchrow("SELECT cubiculas_fisicos FROM campus WHERE id = $1", campus_id)
+                capacidad_campus = row_c["cubiculas_fisicos"] if row_c else 10
+
             filas = await conn.fetch(
                 """
                 SELECT TO_CHAR(hora, 'HH24:MI') as hora_str, COUNT(*) as ocupados
-                FROM reservas
-                WHERE campus_id = $1 AND fecha = $2
-                GROUP BY hora
+                FROM reservas WHERE campus_id = $1 AND fecha = $2 GROUP BY hora
                 """,
                 campus_id, fecha_parsed
             )
-
             ocupacion_map = {f["hora_str"]: f["ocupados"] for f in filas}
 
-        resultado = []
-        for bloque in BLOQUES_HORARIOS:
-            hora_key = bloque["hora"]
-            ocupados = ocupacion_map.get(hora_key, 0)
-            disponibles = max(0, CAPACIDAD_MAXIMA_POR_HORA - ocupados)
+            resultado = []
+            for bloque in BLOQUES_HORARIOS:
+                hora_key = bloque["hora"]
+                ocupados = ocupacion_map.get(hora_key, 0)
+                disponibles = max(0, capacidad_campus - ocupados)
+                resultado.append({
+                    "hora": hora_key,
+                    "rango": bloque["rango"],
+                    "ocupados": ocupados,
+                    "disponibles": disponibles,
+                    "capacidad_total": capacidad_campus,
+                    "agotado": disponibles == 0
+                })
 
-            resultado.append({
-                "hora": hora_key,
-                "rango": bloque["rango"],
-                "ocupados": ocupados,
-                "disponibles": disponibles,
-                "agotado": disponibles == 0
-            })
-
-        respuesta_disponibilidad = {
-            "campus_id": campus_id,
-            "fecha": fecha_str,
-            "bloques": resultado
-        }
+            respuesta = {
+                "campus_id": campus_id,
+                "fecha": fecha_str,
+                "cubiculas_fisicos": capacidad_campus,
+                "bloques": resultado
+            }
 
         if redis_client:
-            try:
-                await redis_client.setex(cache_key, 300, json.dumps(respuesta_disponibilidad))
-            except Exception:
-                pass
+            await redis_client.setex(f"disponibilidad:{campus_id}:{fecha_str}", 300, json.dumps(respuesta))
 
-        return respuesta_disponibilidad
-
-    except HTTPException:
-        raise
+        return respuesta
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error al consultar disponibilidad: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/reservas", status_code=status.HTTP_201_CREATED, response_model=ReservaResponse)
-async def crear_reserva(
-    reserva: ReservaBase, 
-    request: Request
-):
-    # 1. Recuperar RUT y Nombre enviados desde n8n/Pydantic
+async def crear_reserva(reserva: ReservaBase, request: Request):
     rut_final = reserva.rut
     nombre_final = reserva.nombre
 
-    # Si no vienen en la reserva, intentar rescatarlos de la sesión activa
     if (not rut_final or "[" in str(rut_final)) and reserva.sessionId:
         async with pool.acquire() as conn:
             row_s = await conn.fetchrow("SELECT rut, nombre FROM sesiones WHERE session_id = $1", reserva.sessionId)
@@ -620,164 +609,96 @@ async def crear_reserva(
                     nombre_final = row_s["nombre"]
 
     if not rut_final or not reserva.fecha or not reserva.hora:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Faltan datos obligatorios para crear la reserva (RUT, fecha u hora)."
-        )
+        raise HTTPException(status_code=400, detail="Faltan datos obligatorios (RUT, fecha u hora).")
 
-    # Validar RUT para descartar etiquetas basura
     rut_limpio = str(rut_final).replace(".", "").upper().strip()
     if "[" in rut_limpio or "RUT_" in rut_limpio or len(rut_limpio) > 12:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No se ha proporcionado un RUT válido."
-        )
-
-    # ... RESTO DEL CÓDIGO DEL ENDPOINT PERMANECE IGUAL ...
-
-    # Limpiar y Validar RUT para descartar etiquetas basura ([RUT_DEL_USUARIO_AUTENTICADO])
-    rut_limpio = str(rut_final).replace(".", "").upper().strip()
-    if "[" in rut_limpio or "RUT_" in rut_limpio or len(rut_limpio) > 12:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No se ha proporcionado un RUT válido."
-        )
+        raise HTTPException(status_code=400, detail="El RUT proporcionado no es válido.")
 
     client_id = rut_limpio or reserva.sessionId or (request.client.host if request.client else "anon")
     if not await check_rate_limit("reserva", client_id, max_requests=10, window_seconds=60):
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Has alcanzado el límite de intentos de reserva por minuto. Por favor intenta nuevamente en breve."
-        )
+        raise HTTPException(status_code=429, detail="Límite de solicitudes alcanzado. Intenta de nuevo en un minuto.")
 
     try:
-        # Normalización de Fecha
-        fecha_original = reserva.fecha.strip()
-        fecha_parsed = None
-        formatos_fecha = ["%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"]
-        for fmt in formatos_fecha:
-            try:
-                fecha_parsed = datetime.strptime(fecha_original, fmt).date()
-                break
-            except ValueError:
-                continue
-
-        if not fecha_parsed:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Formato de fecha inválido: '{fecha_original}'. Usa YYYY-MM-DD o DD/MM/YYYY."
-            )
-
-        # Normalización de Hora
-        hora_original = reserva.hora.strip()
-        hora_parsed = None
-        formatos_hora = ["%H:%M", "%H:%M:%S", "%I:%M %p", "%I:%M%p"]
-        for fmt in formatos_hora:
-            try:
-                hora_parsed = datetime.strptime(hora_original, fmt).time()
-                break
-            except ValueError:
-                continue
-
-        if not hora_parsed:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Formato de hora inválido: '{hora_original}'. Usa HH:MM."
-            )
+        fecha_parsed = datetime.strptime(reserva.fecha.strip(), "%Y-%m-%d").date()
+        hora_parsed = datetime.strptime(reserva.hora.strip(), "%H:%M").time()
 
         async with pool.acquire() as conn:
             async with conn.transaction():
-                # Resolución Robusta de Campus
-                target_campus_id = None
-                target_campus_nombre = None
-
-                if not reserva.campus_id and reserva.campus and reserva.campus.strip().isdigit():
-                    reserva.campus_id = int(reserva.campus.strip())
-
+                # Resolución de campus
+                target_campus_id, target_campus_nombre = None, None
                 if reserva.campus_id:
                     row_c = await conn.fetchrow("SELECT id, nombre FROM campus WHERE id = $1", reserva.campus_id)
                     if row_c:
-                        target_campus_id = row_c["id"]
-                        target_campus_nombre = row_c["nombre"]
+                        target_campus_id, target_campus_nombre = row_c["id"], row_c["nombre"]
 
                 if not target_campus_id and reserva.campus:
                     nombre_clean = reserva.campus.strip().lower()
                     nombre_sin_prefijo = re.sub(r'^campus\s+', '', nombre_clean, flags=re.IGNORECASE).strip()
-
                     row_c = await conn.fetchrow(
-                        """
-                        SELECT id, nombre FROM campus 
-                        WHERE LOWER(nombre) = $1 
-                           OR LOWER(nombre) LIKE $2
-                        LIMIT 1
-                        """,
+                        "SELECT id, nombre FROM campus WHERE LOWER(nombre) = $1 OR LOWER(nombre) LIKE $2 LIMIT 1",
                         nombre_clean, f"%{nombre_sin_prefijo}%"
                     )
                     if row_c:
-                        target_campus_id = row_c["id"]
-                        target_campus_nombre = row_c["nombre"]
+                        target_campus_id, target_campus_nombre = row_c["id"], row_c["nombre"]
 
                 if not target_campus_id:
                     filas_c = await conn.fetch("SELECT nombre FROM campus ORDER BY id ASC")
-                    campus_disponibles = [f["nombre"] for f in filas_c]
-                    nombres_formateados = ", ".join(campus_disponibles)
-                    campus_recibido = reserva.campus or reserva.campus_id or "desconocido"
+                    nombres_formateados = ", ".join([f["nombre"] for f in filas_c])
+                    raise HTTPException(status_code=400, detail=f"Sede no válida. Disponibles: {nombres_formateados}.")
 
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"El campus '{campus_recibido}' no coincide con ninguna sede registrada. Campus disponibles: {nombres_formateados}."
-                    )
-
-                # Bloqueo Pesimista
                 await conn.fetchrow("SELECT id FROM campus WHERE id = $1 FOR UPDATE", target_campus_id)
 
-                # Validación de Capacidad
-                total_reservas = await conn.fetchval(
+                # ASIGNACIÓN DINÁMICA DE CUBÍCULO FÍSICO LIBRE
+                cubiculo_libre = await conn.fetchrow(
                     """
-                    SELECT COUNT(*) 
-                    FROM reservas 
-                    WHERE campus_id = $1 AND fecha = $2 AND hora = $3
+                    SELECT cb.id, cb.codigo 
+                    FROM cubiculos cb
+                    WHERE cb.campus_id = $1 
+                      AND cb.id NOT IN (
+                          SELECT r.cubiculo_id 
+                          FROM reservas r 
+                          WHERE r.campus_id = $1 AND r.fecha = $2 AND r.hora = $3 AND r.cubiculo_id IS NOT NULL
+                      )
+                    ORDER BY cb.codigo ASC
+                    LIMIT 1
+                    FOR UPDATE OF cb
                     """,
                     target_campus_id, fecha_parsed, hora_parsed
                 )
 
-                if total_reservas >= CAPACIDAD_MAXIMA_POR_HORA:
+                if not cubiculo_libre:
                     hora_str = hora_parsed.strftime("%H:%M")
                     raise HTTPException(
                         status_code=status.HTTP_409_CONFLICT,
-                        detail=f"El bloque de las {hora_str} hrs en {target_campus_nombre} ya alcanzó su capacidad máxima de {CAPACIDAD_MAXIMA_POR_HORA} cubículos."
+                        detail=f"Todos los cubículos de la sede {target_campus_nombre} se encuentran reservados a las {hora_str} hrs."
                     )
 
-                # Guardar reserva asociada estrictamente al usuario logueado
+                cubiculo_id_asignado = cubiculo_libre["id"]
+                cubiculo_codigo_asignado = cubiculo_libre["codigo"]
+
+                # Insertar reserva vinculando el ID del cubículo asignado
                 row = await conn.fetchrow(
                     """
-                    INSERT INTO reservas (nombre, rut, fecha, hora, campus_id, session_id)
-                    VALUES ($1, $2, $3, $4, $5, $6)
+                    INSERT INTO reservas (nombre, rut, fecha, hora, campus_id, session_id, cubiculo_id)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
                     RETURNING id, nombre, rut, fecha, hora, campus_id, session_id
                     """,
-                    nombre_final or "Usuario Chatbot", rut_limpio, fecha_parsed, hora_parsed, target_campus_id, reserva.sessionId
+                    nombre_final or "Usuario Chatbot", rut_limpio, fecha_parsed, hora_parsed,
+                    target_campus_id, reserva.sessionId, cubiculo_id_asignado
                 )
                 reserva_id_creada = row["id"]
 
-                # Acompañantes
                 acompanantes_guardados = []
                 if reserva.acompanantes:
                     for ac in reserva.acompanantes:
                         rut_ac_limpio = ac.rut.replace(".", "").upper().strip() if ac.rut else ""
                         row_ac = await conn.fetchrow(
-                            """
-                            INSERT INTO reserva_acompanantes (reserva_id, nombre, rut)
-                            VALUES ($1, $2, $3)
-                            RETURNING nombre, rut
-                            """,
+                            "INSERT INTO reserva_acompanantes (reserva_id, nombre, rut) VALUES ($1, $2, $3) RETURNING nombre, rut",
                             reserva_id_creada, ac.nombre or "Acompañante", rut_ac_limpio
                         )
-                        acompanantes_guardados.append({
-                            "nombre": row_ac["nombre"],
-                            "rut": row_ac["rut"]
-                        })
+                        acompanantes_guardados.append({"nombre": row_ac["nombre"], "rut": row_ac["rut"]})
 
-                # Actualizar la sesión con el RUT real autenticado
                 if reserva.sessionId:
                     await conn.execute(
                         """
@@ -799,6 +720,7 @@ async def crear_reserva(
             "hora": row["hora"].strftime("%H:%M"),
             "campus_id": target_campus_id,
             "campus": target_campus_nombre,
+            "cubiculo_codigo": cubiculo_codigo_asignado,
             "sessionId": row["session_id"],
             "acompanantes": acompanantes_guardados
         }
@@ -806,32 +728,17 @@ async def crear_reserva(
     except asyncpg.UniqueViolationError:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Ya existe una reserva previa para el RUT {rut_limpio} en ese mismo campus, fecha y hora."
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error al guardar en PostgreSQL: {str(e)}"
+            detail=f"Ya existe una reserva previa para el RUT {rut_limpio} en esta fecha y hora."
         )
 
 
 @app.post("/api/chat")
-async def hablar_con_bot(
-    input_data: MessageInput, 
-    request: Request,
-    current_user: dict = Depends(get_current_user)
-):
+async def hablar_con_bot(input_data: MessageInput, request: Request, current_user: dict = Depends(get_current_user)):
     client_id = input_data.sessionId or current_user.get("rut") or (request.client.host if request.client else "anon")
     if not await check_rate_limit("chat", client_id, max_requests=15, window_seconds=60):
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Has realizado demasiadas consultas al chatbot en poco tiempo. Por favor espera 1 minuto."
-        )
+        raise HTTPException(status_code=429, detail="Límite de solicitudes alcanzado. Por favor espera un minuto.")
 
     try:
-        # Prioridad absoluta al usuario en sesión
         rut_a_guardar = current_user.get("rut") or input_data.rut
         nombre_a_guardar = current_user.get("nombre") or input_data.nombre
         email_a_guardar = current_user.get("email") or input_data.email
@@ -860,37 +767,21 @@ async def hablar_con_bot(
             payload["nombre"] = nombre_a_guardar
         if email_a_guardar:
             payload["email"] = email_a_guardar
-            
-        response = await httpx_client.post(
-            N8N_WEBHOOK_URL,
-            json=payload,
-            timeout=30.0
-        )
-            
+
+        response = await httpx_client.post(N8N_WEBHOOK_URL, json=payload, timeout=30.0)
         if response.status_code != 200:
-            raise HTTPException(
-                status_code=500, 
-                detail="n8n no respondió correctamente al mensaje."
-            )
-            
+            raise HTTPException(status_code=500, detail="Error en respuesta de n8n.")
+
         data = response.json()
         bot_response = data.get("output", "Reserva procesada con éxito.")
         return {"response": bot_response}
-        
-    except HTTPException:
-        raise
+
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error de conexión con el flujo de n8n: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error en webhook n8n: {str(e)}")
 
 
 @app.delete("/api/reservas")
-async def eliminar_reserva(
-    data: EsquemaEliminar,
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)
-):
+async def eliminar_reserva(data: EsquemaEliminar, credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)):
     try:
         rut_consulta = data.rut
         current_user = None
@@ -909,63 +800,41 @@ async def eliminar_reserva(
 
         if current_user and current_user.get("rut"):
             rut_consulta = current_user.get("rut")
-        
+
         async with pool.acquire() as conn:
             if not rut_consulta and data.sessionId:
-                row_sesion = await conn.fetchrow(
-                    "SELECT rut FROM sesiones WHERE session_id = $1", data.sessionId
-                )
+                row_sesion = await conn.fetchrow("SELECT rut FROM sesiones WHERE session_id = $1", data.sessionId)
                 if row_sesion:
                     rut_consulta = row_sesion["rut"]
 
             if not rut_consulta:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Debe proporcionar un RUT o tener una sesión activa con RUT asociado."
-                )
+                raise HTTPException(status_code=400, detail="RUT no especificado.")
 
             rut_limpio = str(rut_consulta).replace(".", "").upper().strip()
-            
+
             async with conn.transaction():
-                # 1. Eliminar acompañantes vinculados primero
-                await conn.execute(
-                    """
-                    DELETE FROM reserva_acompanantes 
-                    WHERE reserva_id IN (SELECT id FROM reservas WHERE rut = $1)
-                    """, 
-                    rut_limpio
-                )
-                # 2. Eliminar la reserva principal
+                await conn.execute("DELETE FROM reserva_acompanantes WHERE reserva_id IN (SELECT id FROM reservas WHERE rut = $1)", rut_limpio)
                 resultado = await conn.execute("DELETE FROM reservas WHERE rut = $1", rut_limpio)
-            
+
             deleted_count = int(resultado.split(" ")[1])
             if deleted_count >= 1:
                 await invalidar_caches_disponibilidad()
-                return {"message": f"Reserva asociada al RUT {rut_limpio} eliminada con éxito"}
-        
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, 
-            detail=f"No se encontró ninguna reserva asociada al RUT {rut_limpio}"
-        )
-        
-    except HTTPException as http_exc:
-        raise http_exc
+                return {"message": f"Reserva del RUT {rut_limpio} eliminada con éxito."}
+
+        raise HTTPException(status_code=404, detail=f"No hay reservas asociadas al RUT {rut_limpio}.")
+
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-            detail=f"Error al eliminar la reserva: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/api/reservas/consultar")
-async def consultar_reservas(
-    data: EsquemaConsulta,
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)
-):
+async def consultar_reservas(data: EsquemaConsulta, credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)):
     try:
         rut_consulta = data.rut
         current_user = None
 
-        # 1. Verificar si viene un Token JWT válido
         if credentials and credentials.credentials:
             try:
                 payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
@@ -978,49 +847,38 @@ async def consultar_reservas(
             except JWTError:
                 pass
 
-        # Si el Token JWT es válido y tiene RUT, se le da prioridad
         if current_user and current_user.get("rut"):
             rut_consulta = current_user.get("rut")
 
         async with pool.acquire() as conn:
-            # 2. Si no hay RUT explícito en el JSON ni en el token, buscar en la tabla 'sesiones'
             if not rut_consulta and data.sessionId:
                 row_sesion = await conn.fetchrow("SELECT rut FROM sesiones WHERE session_id = $1", data.sessionId)
                 if row_sesion:
                     rut_consulta = row_sesion["rut"]
 
             if not rut_consulta or "[" in str(rut_consulta):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Debe proporcionar un RUT válido o tener una sesión activa con RUT asociado."
-                )
+                raise HTTPException(status_code=400, detail="RUT no válido.")
 
             rut_limpio = str(rut_consulta).replace(".", "").upper().strip()
 
-            # 3. Buscar las reservas asociadas en PostgreSQL
             reservas_usuario = await conn.fetch(
                 """
-                SELECT r.id, r.nombre, r.rut, r.fecha, r.hora, c.nombre AS campus_nombre, r.campus_id
+                SELECT r.id, r.nombre, r.rut, r.fecha, r.hora, c.nombre AS campus_nombre, r.campus_id, cb.codigo AS cubiculo_codigo
                 FROM reservas r
                 LEFT JOIN campus c ON r.campus_id = c.id
+                LEFT JOIN cubiculos cb ON r.cubiculo_id = cb.id
                 WHERE r.rut = $1 
                 ORDER BY r.fecha ASC, r.hora ASC
-                """, 
+                """,
                 rut_limpio
             )
 
             if not reservas_usuario:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"No se encontraron reservas registradas para el RUT {rut_limpio}."
-                )
+                raise HTTPException(status_code=404, detail=f"No hay reservas registradas para el RUT {rut_limpio}.")
 
             respuesta = []
             for r in reservas_usuario:
-                filas_ac = await conn.fetch(
-                    "SELECT nombre, rut FROM reserva_acompanantes WHERE reserva_id = $1",
-                    r["id"]
-                )
+                filas_ac = await conn.fetch("SELECT nombre, rut FROM reserva_acompanantes WHERE reserva_id = $1", r["id"])
                 lista_ac = [{"nombre": ac["nombre"], "rut": ac["rut"]} for ac in filas_ac]
 
                 respuesta.append({
@@ -1031,6 +889,7 @@ async def consultar_reservas(
                     "hora": r["hora"].strftime("%H:%M"),
                     "campus_id": r["campus_id"],
                     "campus": r["campus_nombre"] or "Sin asignación",
+                    "cubiculo_codigo": r["cubiculo_codigo"] or "Sin asignación",
                     "acompanantes": lista_ac
                 })
 
@@ -1039,7 +898,75 @@ async def consultar_reservas(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-            detail=f"Error interno al consultar reservas: {str(e)}"
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/dashboard/reservas-bloque")
+async def obtener_reservas_bloque(campus_id: int, fecha: str, hora: str, current_user: dict = Depends(get_current_user)):
+    if current_user.get("rol") != "admin":
+        raise HTTPException(status_code=403, detail="Acceso restringido a administradores.")
+
+    try:
+        fecha_parsed = datetime.strptime(fecha.strip(), "%Y-%m-%d").date()
+        hora_parsed = datetime.strptime(hora.strip(), "%H:%M").time()
+
+        async with pool.acquire() as conn:
+            filas_reservas = await conn.fetch(
+                """
+                SELECT r.id, r.nombre, r.rut, r.session_id, cb.codigo AS cubiculo_codigo
+                FROM reservas r
+                LEFT JOIN cubiculos cb ON r.cubiculo_id = cb.id
+                WHERE r.campus_id = $1 AND r.fecha = $2 AND r.hora = $3
+                ORDER BY cb.codigo ASC, r.id ASC
+                """,
+                campus_id, fecha_parsed, hora_parsed
+            )
+
+            resultado = []
+            for r in filas_reservas:
+                filas_ac = await conn.fetch("SELECT nombre, rut FROM reserva_acompanantes WHERE reserva_id = $1", r["id"])
+                resultado.append({
+                    "id": str(r["id"]),
+                    "nombre": r["nombre"],
+                    "rut": r["rut"],
+                    "sessionId": r["session_id"],
+                    "cubiculo_codigo": r["cubiculo_codigo"] or "N/A",
+                    "acompanantes": [{"nombre": ac["nombre"], "rut": ac["rut"]} for ac in filas_ac]
+                })
+
+            return {"reservas": resultado}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/campus/{campus_id}")
+async def actualizar_campus(campus_id: int, data: ActualizarCampusRequest, current_user: dict = Depends(get_current_user)):
+    if current_user.get("rol") != "admin":
+        raise HTTPException(status_code=403, detail="Acceso restringido a administradores.")
+
+    async with pool.acquire() as conn:
+        row_c = await conn.fetchrow("SELECT id, nombre, cubiculas_fisicos FROM campus WHERE id = $1", campus_id)
+        if not row_c:
+            raise HTTPException(status_code=404, detail="Campus no encontrado.")
+
+        nuevo_nombre = data.nombre.strip() if data.nombre else row_c["nombre"]
+        nueva_capacidad = data.cubiculas_fisicos if (data.cubiculas_fisicos and data.cubiculas_fisicos > 0) else row_c["cubiculas_fisicos"]
+
+        row_upd = await conn.fetchrow(
+            """
+            UPDATE campus 
+            SET nombre = $1, cubiculas_fisicos = $2 
+            WHERE id = $3 
+            RETURNING id, nombre, cubiculas_fisicos
+            """,
+            nuevo_nombre, nueva_capacidad, campus_id
         )
+
+    await invalidar_caches_disponibilidad()
+
+    return {
+        "id": row_upd["id"],
+        "nombre": row_upd["nombre"],
+        "cubiculas_fisicos": row_upd["cubiculas_fisicos"]
+    }

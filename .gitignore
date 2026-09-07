@@ -23,3 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 *.env
+__pycache__/main.cpython-314.pyc
+__test_token.txt
+__pycache__/main.cpython-314.pyc

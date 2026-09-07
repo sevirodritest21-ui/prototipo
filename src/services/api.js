@@ -1,9 +1,4 @@
-﻿/**
- * api.js — Cliente HTTP centralizado para el frontend de BiblotecaIA.
- * Inyecta automáticamente el Bearer token desde localStorage en cada petición.
- */
-
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+﻿const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 function getAuthHeaders() {
   const token = localStorage.getItem('auth_token');
@@ -37,6 +32,15 @@ export async function apiGet(path) {
 export async function apiPost(path, body) {
   const response = await fetch(`${BASE_URL}${path}`, {
     method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(body),
+  });
+  return handleResponse(response);
+}
+
+export async function apiPut(path, body) {
+  const response = await fetch(`${BASE_URL}${path}`, {
+    method: 'PUT',
     headers: getAuthHeaders(),
     body: JSON.stringify(body),
   });
