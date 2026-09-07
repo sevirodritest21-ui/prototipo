@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { apiPost } from './services/api';
@@ -22,6 +22,20 @@ export default function ChatbotFlotante() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [mensajes, setMensajes] = useState([]);
   const [nuevoMensaje, setNuevoMensaje] = useState('');
+
+  // Referencia para el Auto-Scroll al final de la conversación
+  const chatEndRef = useRef(null);
+
+  const scrollToBottom = () => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // Efecto para bajar automáticamente el scroll cada vez que cambien los mensajes o se abra el chat
+  useEffect(() => {
+    if (isChatOpen) {
+      scrollToBottom();
+    }
+  }, [mensajes, isChatOpen]);
 
   // Cargar saludo inicial solo si el estudiante está autenticado
   useEffect(() => {
@@ -172,6 +186,8 @@ export default function ChatbotFlotante() {
                   </div>
                 </div>
               ))}
+              {/* Elemento invisible para forzar el autoscroll hacia abajo */}
+              <div ref={chatEndRef} />
             </div>
           )}
 
