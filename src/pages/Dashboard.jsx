@@ -40,6 +40,7 @@ export default function Dashboard() {
   const [bloqueSeleccionado, setBloqueSeleccionado] = useState(null);
   const [reservasBloque, setReservasBloque] = useState([]);
   const [cargandoBloque, setCargandoBloque] = useState(false);
+  const [eliminandoReservaId, setEliminandoReservaId] = useState(null);
 
   // Cargar lista de campus
   const fetchCampus = async () => {
@@ -81,26 +82,27 @@ export default function Dashboard() {
   }, [campusSeleccionado]);
 
   // Cargar datos del resumen al cambiar campus o fecha
-  useEffect(() => {
+  const fetchResumen = async () => {
     if (!campusSeleccionado) {
       setResumen(null);
       setLoadingData(false);
       return;
     }
-    const fetchResumen = async () => {
-      setLoadingData(true);
-      setError("");
-      try {
-        const data = await apiGet(
-          `/api/dashboard/resumen?campus_id=${campusSeleccionado}&fecha=${fechaSeleccionada}`
-        );
-        setResumen(data);
-      } catch (err) {
-        setError(err.message || "Error al cargar datos del dashboard.");
-      } finally {
-        setLoadingData(false);
-      }
-    };
+    setLoadingData(true);
+    setError("");
+    try {
+      const data = await apiGet(
+        `/api/dashboard/resumen?campus_id=${campusSeleccionado}&fecha=${fechaSeleccionada}`
+      );
+      setResumen(data);
+    } catch (err) {
+      setError(err.message || "Error al cargar datos del dashboard.");
+    } finally {
+      setLoadingData(false);
+    }
+  };
+
+  useEffect(() => {
     fetchResumen();
   }, [campusSeleccionado, fechaSeleccionada]);
 
@@ -122,6 +124,33 @@ export default function Dashboard() {
       setBloqueSeleccionado(null);
     } finally {
       setCargandoBloque(false);
+    }
+  };
+
+  // Handler para Eliminar Reserva desde el Modal
+  const handleEliminarReserva = async (reservaId) => {
+    if (!window.confirm(`¿Estás seguro de que deseas eliminar la reserva ID ${reservaId}?`)) {
+      return;
+    }
+
+    setEliminandoReservaId(reservaId);
+    try {
+      await apiDelete(`/api/reservas/${reservaId}`);
+
+      const reservasActualizadas = reservasBloque.filter((r) => r.id !== reservaId);
+      setReservasBloque(reservasActualizadas);
+
+      // Refrescar el resumen general del dashboard
+      await fetchResumen();
+
+      // Si ya no quedan reservas en este bloque, cerrar el modal
+      if (reservasActualizadas.length === 0) {
+        setBloqueSeleccionado(null);
+      }
+    } catch (err) {
+      alert("Error al eliminar la reserva: " + (err.message || "Intenta nuevamente"));
+    } finally {
+      setEliminandoReservaId(null);
     }
   };
 
@@ -406,7 +435,6 @@ export default function Dashboard() {
                 2. Crear Cubículo Individual y Asignar Sede Manualmente:
               </h3>
               <form onSubmit={handleCrearCubiculo} className="flex flex-col sm:flex-row gap-3">
-                {/* Desplegable para seleccionar el Campus */}
                 <div className="w-full sm:w-1/3">
                   <select
                     value={campusDestinoCubiculo}
@@ -421,7 +449,6 @@ export default function Dashboard() {
                   </select>
                 </div>
 
-                {/* Input de Código de Cubículo */}
                 <div className="flex-1">
                   <input
                     type="text"
@@ -441,7 +468,6 @@ export default function Dashboard() {
                 </button>
               </form>
 
-              {/* Muestra rápida de cubículos de la sede seleccionada en el filtro */}
               {cubiculosCampus.length > 0 && (
                 <div className="pt-2">
                   <p className="text-[11px] font-bold text-slate-500 mb-2">
@@ -830,7 +856,7 @@ export default function Dashboard() {
                     📋 Reservas en el Bloque {bloqueSeleccionado.rango}
                   </h3>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Fecha: {fechaSeleccionada} • Total reservas: {bloqueSeleccionado.ocupados} cubículo(s)
+                    Fecha: {fechaSeleccionada} • Total reservas: {reservasBloque.length} cubículo(s)
                   </p>
                 </div>
                 <button
@@ -849,7 +875,7 @@ export default function Dashboard() {
                   </div>
                 ) : reservasBloque.length === 0 ? (
                   <p className="py-8 text-center text-xs text-slate-500">
-                    No hay información disponible para este bloque.
+                    No hay reservas activas para este bloque.
                   </p>
                 ) : (
                   reservasBloque.map((res, idx) => (
@@ -861,7 +887,27 @@ export default function Dashboard() {
                         <span className="text-xs font-bold text-sky-800 bg-sky-100 px-2.5 py-0.5 rounded-full">
                           📍 Cubículo: {res.cubiculo_codigo || `CUB-${idx + 1}`}
                         </span>
-                        <span className="text-[11px] text-slate-400">ID Reserva: {res.id}</span>
+
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] text-slate-400">ID: {res.id}</span>
+
+                          {/* BOTÓN ELIMINAR RESERVA */}
+                          <button
+                            type="button"
+                            onClick={() => handleEliminarReserva(res.id)}
+                            disabled={eliminandoReservaId === res.id}
+                            className="px-3 py-1 rounded-xl bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 font-bold text-xs transition-all flex items-center gap-1 shadow-sm cursor-pointer disabled:opacity-50"
+                            title="Eliminar esta reserva"
+                          >
+                            {eliminandoReservaId === res.id ? (
+                              <span>Eliminando...</span>
+                            ) : (
+                              <>
+                                <span>🗑️</span> Eliminar
+                              </>
+                            )}
+                          </button>
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
