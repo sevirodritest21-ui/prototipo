@@ -20,12 +20,93 @@ load_dotenv("backend.env")
 app = FastAPI(title="API de Reservas y Chatbot UCT (PostgreSQL + Redis)")
 
 N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL")
+N8N_CANCELACION_WEBHOOK_URL = os.getenv("N8N_CANCELACION_WEBHOOK_URL")
+N8N_CREACION_WEBHOOK_URL = os.getenv("N8N_CREACION_WEBHOOK_URL")
 DATABASE_URL = os.getenv("DATABASE_URL")
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "480"))
+
+
+async def notificar_cancelacion_n8n(detalles: List[dict]):
+    webhook_url = os.getenv("N8N_CANCELACION_WEBHOOK_URL")
+    if not webhook_url or not httpx_client or not detalles:
+        return
+
+    for item in detalles:
+        try:
+            email_encontrado = item.get("email")
+            rut_item = item.get("rut", "")
+            rut_limpio = str(rut_item).replace(".", "").replace("-", "").upper().strip() if rut_item else ""
+
+            if not email_encontrado and pool and rut_limpio:
+                try:
+                    async with pool.acquire() as conn:
+                        row_u = await conn.fetchrow(
+                            "SELECT email FROM usuarios WHERE REPLACE(REPLACE(REPLACE(UPPER(rut), '.', ''), '-', ''), ' ', '') = $1 LIMIT 1",
+                            rut_limpio
+                        )
+                        if row_u:
+                            email_encontrado = row_u["email"]
+                except Exception as ex_db:
+                    print(f"⚠️ Error al buscar email de usuario: {ex_db}")
+
+            payload = {
+                "event": "reserva_cancelada",
+                "reserva_id": str(item.get("id", "")),
+                "nombre": item.get("nombre", "Estudiante"),
+                "email": email_encontrado or "",
+                "rut": rut_item,
+                "fecha": item.get("fecha").strftime("%Y-%m-%d") if item.get("fecha") else "",
+                "hora": item.get("hora").strftime("%H:%M") if item.get("hora") else "",
+                "campus": item.get("campus_nombre") or "Campus UCT",
+                "cubiculo_codigo": item.get("cubiculo_codigo") or "N/A"
+            }
+            await httpx_client.post(webhook_url, json=payload, timeout=5.0)
+            print(f"📧 Notificación de cancelación enviada a n8n para reserva ID {payload['reserva_id']} (Email: {payload['email']})")
+        except Exception as e:
+            print(f"⚠️ Error notificando cancelación a n8n: {e}")
+
+
+async def notificar_creacion_n8n(detalle: dict):
+    webhook_url = os.getenv("N8N_CREACION_WEBHOOK_URL") or os.getenv("N8N_CANCELACION_WEBHOOK_URL") or os.getenv("N8N_WEBHOOK_URL")
+    if not webhook_url or not httpx_client or not detalle:
+        return
+
+    try:
+        email_encontrado = detalle.get("email")
+        rut_item = detalle.get("rut", "")
+        rut_limpio = str(rut_item).replace(".", "").replace("-", "").upper().strip() if rut_item else ""
+
+        if not email_encontrado and pool and rut_limpio:
+            try:
+                async with pool.acquire() as conn:
+                    row_u = await conn.fetchrow(
+                        "SELECT email FROM usuarios WHERE REPLACE(REPLACE(REPLACE(UPPER(rut), '.', ''), '-', ''), ' ', '') = $1 LIMIT 1",
+                        rut_limpio
+                    )
+                    if row_u:
+                        email_encontrado = row_u["email"]
+            except Exception as ex_db:
+                print(f"⚠️ Error al buscar email de usuario: {ex_db}")
+
+        payload = {
+            "event": "reserva_creada",
+            "reserva_id": str(detalle.get("id", "")),
+            "nombre": detalle.get("nombre", "Estudiante"),
+            "email": email_encontrado or "",
+            "rut": rut_item,
+            "fecha": str(detalle.get("fecha", "")),
+            "hora": str(detalle.get("hora", "")),
+            "campus": detalle.get("campus") or "Campus UCT",
+            "cubiculo_codigo": detalle.get("cubiculo_codigo") or "N/A"
+        }
+        await httpx_client.post(webhook_url, json=payload, timeout=5.0)
+        print(f"📧 Notificación de creación enviada a n8n para reserva ID {payload['reserva_id']} (Email: {payload['email']})")
+    except Exception as e:
+        print(f"⚠️ Error notificando creación a n8n: {e}")
 
 app.add_middleware(
     CORSMiddleware,
@@ -664,6 +745,12 @@ async def crear_reserva(reserva: ReservaBase, request: Request):
         fecha_parsed = datetime.strptime(reserva.fecha.strip(), "%Y-%m-%d").date()
         hora_parsed = datetime.strptime(reserva.hora.strip(), "%H:%M").time()
 
+        if fecha_parsed.weekday() >= 5:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"No se permite agendar reservas los fines de semana (Sábado o Domingo). La fecha {reserva.fecha} corresponde a un día no hábil."
+            )
+
         async with pool.acquire() as conn:
             async with conn.transaction():
                 # Resolución de campus
@@ -776,7 +863,7 @@ async def crear_reserva(reserva: ReservaBase, request: Request):
 
         await invalidar_caches_disponibilidad(target_campus_id, row["fecha"].strftime("%Y-%m-%d"))
 
-        return {
+        res_data = {
             "id": str(row["id"]),
             "nombre": row["nombre"],
             "rut": row["rut"],
@@ -788,6 +875,9 @@ async def crear_reserva(reserva: ReservaBase, request: Request):
             "sessionId": row["session_id"],
             "acompanantes": acompanantes_guardados
         }
+        await notificar_creacion_n8n(res_data)
+
+        return res_data
 
     except asyncpg.UniqueViolationError:
         raise HTTPException(
@@ -883,6 +973,20 @@ async def eliminar_reserva(data: EsquemaEliminar, credentials: Optional[HTTPAuth
 
             rut_limpio = str(rut_consulta).replace(".", "").upper().strip()
 
+            # Obtener datos de la reserva antes de eliminar para notificar por email vía n8n
+            reservas_a_eliminar = await conn.fetch(
+                """
+                SELECT r.id, r.nombre, r.rut, r.fecha, r.hora, c.nombre AS campus_nombre, cb.codigo AS cubiculo_codigo, u.email
+                FROM reservas r
+                LEFT JOIN campus c ON r.campus_id = c.id
+                LEFT JOIN cubiculos cb ON r.cubiculo_id = cb.id
+                LEFT JOIN usuarios u ON (REPLACE(REPLACE(REPLACE(UPPER(u.rut), '.', ''), '-', ''), ' ', '') = REPLACE(REPLACE(REPLACE(UPPER($1), '.', ''), '-', ''), ' ', '') OR LOWER(u.nombre) = LOWER(r.nombre))
+                WHERE r.rut = $1
+                """,
+                rut_limpio
+            )
+            filas_canceladas = [dict(f) for f in reservas_a_eliminar]
+
             async with conn.transaction():
                 await conn.execute("DELETE FROM reserva_acompanantes WHERE reserva_id IN (SELECT id FROM reservas WHERE rut = $1)", rut_limpio)
                 resultado = await conn.execute("DELETE FROM reservas WHERE rut = $1", rut_limpio)
@@ -890,6 +994,7 @@ async def eliminar_reserva(data: EsquemaEliminar, credentials: Optional[HTTPAuth
             deleted_count = int(resultado.split(" ")[1])
             if deleted_count >= 1:
                 await invalidar_caches_disponibilidad()
+                await notificar_cancelacion_n8n(filas_canceladas)
                 return {"message": f"Reserva del RUT {rut_limpio} eliminada con éxito."}
 
         raise HTTPException(status_code=404, detail=f"No hay reservas asociadas al RUT {rut_limpio}.")
@@ -916,19 +1021,32 @@ async def eliminar_reserva_por_id(reserva_id: int, credentials: Optional[HTTPAut
             pass
 
     async with pool.acquire() as conn:
+        res_detalle = await conn.fetchrow(
+            """
+            SELECT r.id, r.nombre, r.rut, r.fecha, r.hora, c.nombre AS campus_nombre, cb.codigo AS cubiculo_codigo, u.email
+            FROM reservas r
+            LEFT JOIN campus c ON r.campus_id = c.id
+            LEFT JOIN cubiculos cb ON r.cubiculo_id = cb.id
+            LEFT JOIN usuarios u ON (REPLACE(REPLACE(REPLACE(UPPER(u.rut), '.', ''), '-', ''), ' ', '') = REPLACE(REPLACE(REPLACE(UPPER(r.rut), '.', ''), '-', ''), ' ', '') OR LOWER(u.nombre) = LOWER(r.nombre))
+            WHERE r.id = $1
+            """,
+            reserva_id
+        )
+        if not res_detalle:
+            raise HTTPException(status_code=404, detail="Reserva no encontrada.")
+
+        if current_user:
+            if current_user.get("rol") != "admin" and current_user.get("rut") != res_detalle["rut"]:
+                raise HTTPException(status_code=403, detail="No tienes permisos para eliminar esta reserva.")
+
+        res_dict = [dict(res_detalle)]
+
         async with conn.transaction():
-            res = await conn.fetchrow("SELECT id, rut FROM reservas WHERE id = $1", reserva_id)
-            if not res:
-                raise HTTPException(status_code=404, detail="Reserva no encontrada.")
-
-            if current_user:
-                if current_user.get("rol") != "admin" and current_user.get("rut") != res["rut"]:
-                    raise HTTPException(status_code=403, detail="No tienes permisos para eliminar esta reserva.")
-
             await conn.execute("DELETE FROM reserva_acompanantes WHERE reserva_id = $1", reserva_id)
             await conn.execute("DELETE FROM reservas WHERE id = $1", reserva_id)
 
     await invalidar_caches_disponibilidad()
+    await notificar_cancelacion_n8n(res_dict)
     return {"message": f"Reserva ID {reserva_id} eliminada con éxito."}
 
 
@@ -990,6 +1108,12 @@ async def procesar_edicion_reserva(
 
             nueva_fecha = datetime.strptime(data.fecha.strip(), "%Y-%m-%d").date() if data.fecha and data.fecha.strip() else res_existente["fecha"]
             nueva_hora = datetime.strptime(data.hora.strip(), "%H:%M").time() if data.hora and data.hora.strip() else res_existente["hora"]
+
+            if nueva_fecha.weekday() >= 5:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"No se permite trasladar reservas a los fines de semana (Sábado o Domingo). La fecha {nueva_fecha.strftime('%Y-%m-%d')} corresponde a un día no hábil."
+                )
 
             nuevo_campus_id = res_existente["campus_id"]
             nuevo_campus_nombre = None

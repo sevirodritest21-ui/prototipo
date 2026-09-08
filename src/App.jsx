@@ -1,17 +1,30 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, lazy, Suspense } from "react";
 import { BrowserRouter as Router, Routes, Route, Link, Navigate } from "react-router-dom";
 
 // IMPORTACIÓN DEL LOGO DESDE SRC/ASSETS
 import logoUCT from "./assets/logo.png";
 
-import PaginaInicio from "./PaginaInicio";
-import FormularioReserva from "./FormularioReserva";
-import ChatbotFlotante from "./ChatBotFlotante";
-import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
-import MisReservas from "./pages/MisReservas";
+// Code Splitting mediante React.lazy para reducir el tamaño del bundle inicial y acelerar carga
+const PaginaInicio = lazy(() => import("./PaginaInicio"));
+const FormularioReserva = lazy(() => import("./FormularioReserva"));
+const ChatbotFlotante = lazy(() => import("./ChatBotFlotante"));
+const Login = lazy(() => import("./pages/Login"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const MisReservas = lazy(() => import("./pages/MisReservas"));
+
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+
+function LoadingFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 pt-20">
+      <div className="flex flex-col items-center gap-3">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-sky-500 border-t-transparent" />
+        <span className="text-xs font-semibold text-slate-500">Cargando contenido...</span>
+      </div>
+    </div>
+  );
+}
 
 function PaginaContacto() {
   return (
@@ -179,27 +192,29 @@ export default function App() {
     <Router>
       <AuthProvider>
         <NavBar />
-        <Routes>
-          {/* Ruta Pública de Login */}
-          <Route path="/login" element={<Login />} />
+        <Suspense fallback={<LoadingFallback />}>
+          <Routes>
+            {/* Ruta Pública de Login */}
+            <Route path="/login" element={<Login />} />
 
-          {/* Rutas para cualquier usuario autenticado (Estudiante o Admin) */}
-          <Route element={<ProtectedRoute />}>
-            <Route path="/" element={<PaginaInicio />} />
-            <Route path="/reservar" element={<FormularioReserva />} />
-            <Route path="/mis-reservas" element={<MisReservas />} />
-            <Route path="/contacto" element={<PaginaContacto />} />
-          </Route>
+            {/* Rutas para cualquier usuario autenticado (Estudiante o Admin) */}
+            <Route element={<ProtectedRoute />}>
+              <Route path="/" element={<PaginaInicio />} />
+              <Route path="/reservar" element={<FormularioReserva />} />
+              <Route path="/mis-reservas" element={<MisReservas />} />
+              <Route path="/contacto" element={<PaginaContacto />} />
+            </Route>
 
-          {/* Ruta protegida EXCLUSIVA para Administradores */}
-          <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
-            <Route path="/dashboard" element={<Dashboard />} />
-          </Route>
+            {/* Ruta protegida EXCLUSIVA para Administradores */}
+            <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
+              <Route path="/dashboard" element={<Dashboard />} />
+            </Route>
 
-          {/* Redirección por defecto a /login */}
-          <Route path="*" element={<Navigate to="/login" replace />} />
-        </Routes>
-        <ChatbotFlotante />
+            {/* Redirección por defecto a /login */}
+            <Route path="*" element={<Navigate to="/login" replace />} />
+          </Routes>
+          <ChatbotFlotante />
+        </Suspense>
       </AuthProvider>
     </Router>
   );
