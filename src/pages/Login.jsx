@@ -1,10 +1,15 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 export default function Login() {
   const { user, loading: authLoading, login } = useAuth();
   const navigate = useNavigate();
+
+  // Limpiar credenciales temporales previa al montar la vista de Login
+  useEffect(() => {
+    sessionStorage.clear();
+  }, []);
 
   // Redirigir automáticamente si el usuario ya tiene sesión iniciada
   useEffect(() => {
@@ -32,7 +37,6 @@ export default function Login() {
   const handleTabChange = (nuevoTipo) => {
     setTipoUsuario(nuevoTipo);
     setError("");
-    // Limpiar o poner placeholder sugerido para facilitar pruebas
     if (nuevoTipo === "estudiante") {
       setForm({ email: "juan.perez@alumnos.cl", password: "estudiante1234" });
     } else {
@@ -51,11 +55,9 @@ export default function Login() {
     try {
       const userData = await login(form.email, form.password);
 
-      // Redirección basada en el ROL REAL devuelto por el servidor
       if (userData.rol === "admin") {
         navigate("/dashboard", { replace: true });
       } else {
-        // Estudiante redirige a la página de reserva para autocompletar sus datos
         navigate("/reservar", { replace: true });
       }
     } catch (err) {
@@ -92,8 +94,8 @@ export default function Login() {
             type="button"
             onClick={() => handleTabChange("estudiante")}
             className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${tipoUsuario === "estudiante"
-                ? "bg-white text-sky-700 shadow-md shadow-sky-900/5 border border-sky-200/60"
-                : "text-slate-500 hover:text-slate-800"
+              ? "bg-white text-sky-700 shadow-md shadow-sky-900/5 border border-sky-200/60"
+              : "text-slate-500 hover:text-slate-800"
               }`}
           >
             <span>🎓</span> Estudiante
@@ -102,8 +104,8 @@ export default function Login() {
             type="button"
             onClick={() => handleTabChange("admin")}
             className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${tipoUsuario === "admin"
-                ? "bg-white text-amber-700 shadow-md shadow-amber-900/5 border border-amber-200/60"
-                : "text-slate-500 hover:text-slate-800"
+              ? "bg-white text-amber-700 shadow-md shadow-amber-900/5 border border-amber-200/60"
+              : "text-slate-500 hover:text-slate-800"
               }`}
           >
             <span>🛡️</span> Administrador
@@ -192,8 +194,8 @@ export default function Login() {
             type="submit"
             disabled={loading}
             className={`w-full py-3.5 px-6 rounded-2xl font-bold text-sm shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer mt-2 hover:scale-[1.02] active:scale-[0.98] ${tipoUsuario === "estudiante"
-                ? "bg-gradient-to-r from-sky-500 to-sky-600 text-white shadow-sky-500/25"
-                : "bg-gradient-to-r from-amber-400 to-amber-500 text-slate-900 shadow-amber-500/20"
+              ? "bg-gradient-to-r from-sky-500 to-sky-600 text-white shadow-sky-500/25"
+              : "bg-gradient-to-r from-amber-400 to-amber-500 text-slate-900 shadow-amber-500/20"
               }`}
           >
             {loading ? (

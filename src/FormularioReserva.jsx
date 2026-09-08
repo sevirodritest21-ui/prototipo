@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import DatePicker, { registerLocale } from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -49,6 +49,67 @@ export default function FormularioReserva() {
     campus_id: "",
   });
 
+  const [reservaActivaUser, setReservaActivaUser] = useState(null);
+  const [cargandoReservaActiva, setCargandoReservaActiva] = useState(false);
+
+  const consultarReservaActiva = async (rutConsultar) => {
+    if (!rutConsultar) {
+      setReservaActivaUser(null);
+      return;
+    }
+    setCargandoReservaActiva(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("http://localhost:8000/api/reservas/consultar", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ rut: rutConsultar, sessionId: obtenerSessionId() })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const activa = (data.reservas || []).find((r) => r.activa);
+        setReservaActivaUser(activa || null);
+      } else {
+        setReservaActivaUser(null);
+      }
+    } catch (e) {
+      setReservaActivaUser(null);
+    } finally {
+      setCargandoReservaActiva(false);
+    }
+  };
+
+  const handleCancelarReservaActiva = async () => {
+    if (!reservaActivaUser) return;
+    if (!window.confirm("¿Estás seguro de que deseas cancelar tu reserva activa?")) return;
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`http://localhost:8000/api/reservas/${reservaActivaUser.id}`, {
+        method: "DELETE",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        }
+      });
+      if (res.ok) {
+        alert("Tu reserva activa ha sido cancelada exitosamente. Ahora puedes solicitar una nueva reserva.");
+        setReservaActivaUser(null);
+        if (formData.campus_id && formData.fecha) {
+          fetch(`http://localhost:8000/api/disponibilidad?campus_id=${formData.campus_id}&fecha=${formData.fecha}`)
+            .then((res) => res.json())
+            .then((data) => setBloquesHorarios(data.bloques || []));
+        }
+      } else {
+        const data = await res.json();
+        alert("Error al cancelar reserva: " + (data.detail || ""));
+      }
+    } catch (e) {
+      alert("Error al conectar con el servidor.");
+    }
+  };
+
   // Autocompletar datos del estudiante autenticado automáticamente
   useEffect(() => {
     if (user && isEstudiante) {
@@ -59,6 +120,14 @@ export default function FormularioReserva() {
       }));
     }
   }, [user, isEstudiante]);
+
+  useEffect(() => {
+    if (formData.rut && formData.rut.trim().length >= 7) {
+      consultarReservaActiva(formData.rut.trim());
+    } else {
+      setReservaActivaUser(null);
+    }
+  }, [formData.rut]);
 
   // 1. Cargar campus desde el backend
   useEffect(() => {
@@ -230,6 +299,7 @@ export default function FormularioReserva() {
         setBloquesHorarios([]);
         setTieneAcompanantes(false);
         setListAcompanantes([]);
+        const rutGuardado = isEstudiante ? user.rut : formData.rut;
         setFormData({
           nombre: isEstudiante ? user.nombre : "",
           rut: isEstudiante ? user.rut : "",
@@ -237,6 +307,9 @@ export default function FormularioReserva() {
           hora: "",
           campus_id: "",
         });
+        if (rutGuardado) {
+          consultarReservaActiva(rutGuardado);
+        }
       } else {
         const errorData = await response.json();
         alert(errorData.detail || "Error al crear la reserva");
@@ -271,6 +344,32 @@ export default function FormularioReserva() {
 
         {/* Card Formulario */}
         <div className="mx-auto max-w-2xl rounded-3xl border border-sky-100 bg-white p-8 md:p-10 shadow-[0_20px_60px_rgba(14,165,233,0.15)]">
+
+          {/* Banner de Reserva Activa Existente */}
+          {reservaActivaUser && (
+            <div className="rounded-2xl border border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50 p-4 text-slate-800 text-sm shadow-sm mb-6 flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <span className="text-2xl shrink-0">⚠️</span>
+                <div>
+                  <strong className="block font-bold text-amber-900">Tienes 1 reserva activa registrada</strong>
+                  <p className="mt-0.5 text-slate-700">
+                    Sede: <strong>{reservaActivaUser.campus}</strong> • Cubículo: <strong>{reservaActivaUser.cubiculo_codigo}</strong><br />
+                    Fecha: <strong>{reservaActivaUser.fecha}</strong> a las <strong>{reservaActivaUser.hora} hrs</strong>.
+                  </p>
+                  <span className="inline-block mt-1 text-xs text-amber-800 font-medium">
+                    (Solo se permite 1 reserva activa por usuario. Para agendar otro bloque, primero debes cancelar la reserva actual).
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleCancelarReservaActiva}
+                className="shrink-0 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl shadow transition-all flex items-center justify-center gap-1 self-end md:self-center"
+              >
+                <span>🗑️</span> Cancelar Reserva Activa
+              </button>
+            </div>
+          )}
 
           {/* Banner para Estudiante Autenticado */}
           {isEstudiante && (

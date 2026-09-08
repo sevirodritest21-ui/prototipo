@@ -224,7 +224,7 @@ class EsquemaConsulta(BaseModel):
 
 class CrearCampusRequest(BaseModel):
     nombre: str
-    cubiculas_fisicos: Optional[int] = 10
+    cubiculas_fisicos: Optional[int] = 0
 
 
 class ActualizarCampusRequest(BaseModel):
@@ -418,7 +418,7 @@ async def crear_campus(data: CrearCampusRequest, current_user: dict = Depends(ge
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso restringido a administradores.")
 
     nombre_limpio = data.nombre.strip()
-    capacidad = data.cubiculas_fisicos if data.cubiculas_fisicos and data.cubiculas_fisicos > 0 else 10
+    capacidad = data.cubiculas_fisicos if data.cubiculas_fisicos and data.cubiculas_fisicos > 0 else 0
 
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -649,6 +649,29 @@ async def crear_reserva(reserva: ReservaBase, request: Request):
 
                 await conn.fetchrow("SELECT id FROM campus WHERE id = $1 FOR UPDATE", target_campus_id)
 
+                # VERIFICACIÓN DE RESERVA ACTIVA (Máximo 1 reserva activa por usuario)
+                reserva_activa = await conn.fetchrow(
+                    """
+                    SELECT r.id, r.fecha, r.hora, c.nombre AS campus_nombre, cb.codigo AS cubiculo_codigo
+                    FROM reservas r
+                    LEFT JOIN campus c ON r.campus_id = c.id
+                    LEFT JOIN cubiculos cb ON r.cubiculo_id = cb.id
+                    WHERE r.rut = $1
+                      AND (r.fecha > CURRENT_DATE OR (r.fecha = CURRENT_DATE AND r.hora + INTERVAL '1 hour' > CURRENT_TIME))
+                    LIMIT 1
+                    """,
+                    rut_limpio
+                )
+                if reserva_activa:
+                    fecha_fmt = reserva_activa["fecha"].strftime("%Y-%m-%d")
+                    hora_fmt = reserva_activa["hora"].strftime("%H:%M")
+                    campus_nom = reserva_activa["campus_nombre"] or "Campus"
+                    cub_cod = reserva_activa["cubiculo_codigo"] or "N/A"
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"El usuario con RUT {rut_limpio} ya posee una reserva activa para el día {fecha_fmt} a las {hora_fmt} hrs en {campus_nom} (Cubículo {cub_cod}). Solo se permite 1 reserva activa por usuario."
+                    )
+
                 # ASIGNACIÓN DINÁMICA DE CUBÍCULO FÍSICO LIBRE
                 cubiculo_libre = await conn.fetchrow(
                     """
@@ -829,6 +852,38 @@ async def eliminar_reserva(data: EsquemaEliminar, credentials: Optional[HTTPAuth
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.delete("/api/reservas/{reserva_id}")
+async def eliminar_reserva_por_id(reserva_id: int, credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)):
+    current_user = None
+    if credentials and credentials.credentials:
+        try:
+            payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+            email: str = payload.get("sub")
+            if email:
+                async with pool.acquire() as conn:
+                    row_u = await conn.fetchrow("SELECT rut, rol FROM usuarios WHERE email = $1", email)
+                    if row_u:
+                        current_user = dict(row_u)
+        except JWTError:
+            pass
+
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            res = await conn.fetchrow("SELECT id, rut FROM reservas WHERE id = $1", reserva_id)
+            if not res:
+                raise HTTPException(status_code=404, detail="Reserva no encontrada.")
+
+            if current_user:
+                if current_user.get("rol") != "admin" and current_user.get("rut") != res["rut"]:
+                    raise HTTPException(status_code=403, detail="No tienes permisos para eliminar esta reserva.")
+
+            await conn.execute("DELETE FROM reserva_acompanantes WHERE reserva_id = $1", reserva_id)
+            await conn.execute("DELETE FROM reservas WHERE id = $1", reserva_id)
+
+    await invalidar_caches_disponibilidad()
+    return {"message": f"Reserva ID {reserva_id} eliminada con éxito."}
+
+
 @app.post("/api/reservas/consultar")
 async def consultar_reservas(data: EsquemaConsulta, credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)):
     try:
@@ -876,20 +931,29 @@ async def consultar_reservas(data: EsquemaConsulta, credentials: Optional[HTTPAu
             if not reservas_usuario:
                 raise HTTPException(status_code=404, detail=f"No hay reservas registradas para el RUT {rut_limpio}.")
 
+            now_date = date.today()
+            now_time = datetime.now().time()
+
             respuesta = []
             for r in reservas_usuario:
                 filas_ac = await conn.fetch("SELECT nombre, rut FROM reserva_acompanantes WHERE reserva_id = $1", r["id"])
                 lista_ac = [{"nombre": ac["nombre"], "rut": ac["rut"]} for ac in filas_ac]
 
+                r_fecha = r["fecha"]
+                r_hora = r["hora"]
+                hora_fin = (datetime.combine(r_fecha, r_hora) + timedelta(hours=1)).time()
+                es_activa = (r_fecha > now_date) or (r_fecha == now_date and hora_fin > now_time)
+
                 respuesta.append({
                     "id": str(r["id"]),
                     "nombre": r["nombre"],
                     "rut": r["rut"],
-                    "fecha": r["fecha"].strftime("%Y-%m-%d"),
-                    "hora": r["hora"].strftime("%H:%M"),
+                    "fecha": r_fecha.strftime("%Y-%m-%d"),
+                    "hora": r_hora.strftime("%H:%M"),
                     "campus_id": r["campus_id"],
                     "campus": r["campus_nombre"] or "Sin asignación",
                     "cubiculo_codigo": r["cubiculo_codigo"] or "Sin asignación",
+                    "activa": es_activa,
                     "acompanantes": lista_ac
                 })
 

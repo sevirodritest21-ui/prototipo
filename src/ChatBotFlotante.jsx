@@ -6,14 +6,11 @@ import { apiPost } from './services/api';
 // Importar el logo desde la carpeta assets
 import logoUCT from './assets/logoredondo.png';
 
-const obtenerSessionId = (userId) => {
-  const claveStorage = `chat_session_id_${userId || 'anon'}`;
-  let sId = sessionStorage.getItem(claveStorage);
-  if (!sId) {
-    sId = 'session_' + (userId || 'anon') + '_' + Date.now();
-    sessionStorage.setItem(claveStorage, sId);
-  }
-  return sId;
+// Generar sessionId determinista por RUT sin persistencia cruzada
+const obtenerSessionId = (rut) => {
+  if (!rut) return `anon_${Date.now()}`;
+  const rutLimpio = String(rut).replace(/\./g, '').trim().toUpperCase();
+  return `session_rut_${rutLimpio}`;
 };
 
 export default function ChatbotFlotante() {
@@ -100,7 +97,7 @@ export default function ChatbotFlotante() {
     try {
       const payload = {
         message: mensajeTexto,
-        sessionId: obtenerSessionId(user.id || user.rut),
+        sessionId: obtenerSessionId(user.rut),
         rut: user.rut,
         nombre: user.nombre,
         email: user.email,

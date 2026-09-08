@@ -13,7 +13,6 @@ export default function Dashboard() {
 
   // Estados para la gestión de campus (Crear / Eliminar)
   const [nuevoCampusNombre, setNuevoCampusNombre] = useState("");
-  const [nuevosCubiculos, setNuevosCubiculos] = useState(10);
   const [creandoCampus, setCreandoCampus] = useState(false);
   const [campusMsg, setCampusMsg] = useState({ tipo: "", texto: "" });
   const [campusAEliminar, setCampusAEliminar] = useState(null);
@@ -166,14 +165,12 @@ export default function Dashboard() {
     try {
       const nuevo = await apiPost("/api/campus", {
         nombre: nombreLimpio,
-        cubiculas_fisicos: Number(nuevosCubiculos) || 10,
       });
       setCampusMsg({
         tipo: "exito",
-        texto: `✅ Sede '${nuevo.nombre}' creada con éxito con ${nuevo.cubiculas_fisicos ?? nuevosCubiculos} cubículos asignados.`,
+        texto: `✅ Sede '${nuevo.nombre}' creada con éxito.`,
       });
       setNuevoCampusNombre("");
-      setNuevosCubiculos(10);
       await fetchCampus();
       setCampusSeleccionado(nuevo.id);
     } catch (err) {
@@ -396,7 +393,7 @@ export default function Dashboard() {
             {/* Formulario 1: Registrar Nueva Sede */}
             <div className="space-y-2">
               <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                1. Registrar Nueva Sede con Cubículos Iniciales:
+                1. Registrar Nueva Sede:
               </h3>
               <form onSubmit={handleCrearCampus} className="flex flex-col sm:flex-row gap-3">
                 <div className="flex-1">
@@ -405,17 +402,6 @@ export default function Dashboard() {
                     value={nuevoCampusNombre}
                     onChange={(e) => setNuevoCampusNombre(e.target.value)}
                     placeholder="Nombre de la nueva sede (ej: Campus San Miguel)..."
-                    className="w-full px-4 py-2.5 rounded-2xl border border-sky-200 bg-white text-sm font-medium text-slate-900 outline-none focus:border-sky-500 focus:ring-4 focus:ring-sky-100 shadow-sm"
-                  />
-                </div>
-                <div className="w-full sm:w-44">
-                  <input
-                    type="number"
-                    min="1"
-                    max="100"
-                    value={nuevosCubiculos}
-                    onChange={(e) => setNuevosCubiculos(e.target.value)}
-                    placeholder="N° Cubículos"
                     className="w-full px-4 py-2.5 rounded-2xl border border-sky-200 bg-white text-sm font-medium text-slate-900 outline-none focus:border-sky-500 focus:ring-4 focus:ring-sky-100 shadow-sm"
                   />
                 </div>
