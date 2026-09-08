@@ -222,6 +222,47 @@ class EsquemaConsulta(BaseModel):
     sessionId: Optional[str] = None
 
 
+class EsquemaEditarReserva(BaseModel):
+    reserva_id: Optional[int] = None
+    fecha: Optional[str] = None
+    hora: Optional[str] = None
+    campus_id: Optional[int] = None
+    campus: Optional[str] = None
+    sessionId: Optional[str] = None
+    rut: Optional[str] = None
+    acompanantes: Optional[List[AcompananteBase]] = None
+
+    @root_validator(pre=True)
+    def parse_n8n_and_types(cls, values: Dict[str, Any]):
+        if not isinstance(values, dict):
+            return values
+
+        if "parameters2_Value" in values and not values.get("fecha"):
+            values["fecha"] = values["parameters2_Value"]
+
+        if "parameters4_Value" in values and not values.get("hora"):
+            values["hora"] = values["parameters4_Value"]
+
+        if "parameters5_Value" in values and not values.get("campus_id") and not values.get("campus"):
+            raw_campus = str(values["parameters5_Value"]).strip()
+            if raw_campus.isdigit():
+                values["campus_id"] = int(raw_campus)
+            else:
+                values["campus"] = raw_campus
+
+        if "reserva_id" in values and values["reserva_id"]:
+            try:
+                values["reserva_id"] = int(values["reserva_id"])
+            except (ValueError, TypeError):
+                pass
+
+        for field in ["rut", "fecha", "hora", "campus", "sessionId"]:
+            if field in values and values[field] is not None:
+                values[field] = str(values[field])
+
+        return values
+
+
 class CrearCampusRequest(BaseModel):
     nombre: str
     cubiculas_fisicos: Optional[int] = 0
@@ -793,14 +834,21 @@ async def hablar_con_bot(input_data: MessageInput, request: Request, current_use
 
         response = await httpx_client.post(N8N_WEBHOOK_URL, json=payload, timeout=30.0)
         if response.status_code != 200:
-            raise HTTPException(status_code=500, detail="Error en respuesta de n8n.")
+            try:
+                err_data = response.json()
+                err_detail = err_data.get("message") or err_data.get("detail") or err_data.get("output") or f"Error {response.status_code} desde el servicio n8n."
+            except Exception:
+                err_detail = f"Error {response.status_code} al comunicarse con n8n."
+            raise HTTPException(status_code=response.status_code, detail=err_detail)
 
         data = response.json()
         bot_response = data.get("output", "Reserva procesada con éxito.")
         return {"response": bot_response}
 
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error en webhook n8n: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error en comunicación con chatbot: {str(e)}")
 
 
 @app.delete("/api/reservas")
@@ -882,6 +930,175 @@ async def eliminar_reserva_por_id(reserva_id: int, credentials: Optional[HTTPAut
 
     await invalidar_caches_disponibilidad()
     return {"message": f"Reserva ID {reserva_id} eliminada con éxito."}
+
+
+async def procesar_edicion_reserva(
+    reserva_id_target: Optional[int],
+    data: EsquemaEditarReserva,
+    credentials: Optional[HTTPAuthorizationCredentials] = None
+) -> dict:
+    current_user = None
+    if credentials and credentials.credentials:
+        try:
+            payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+            email: str = payload.get("sub")
+            if email:
+                async with pool.acquire() as conn:
+                    row_u = await conn.fetchrow("SELECT id, email, nombre, rut, rol FROM usuarios WHERE email = $1", email)
+                    if row_u:
+                        current_user = dict(row_u)
+        except JWTError:
+            pass
+
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            target_id = reserva_id_target or data.reserva_id
+            rut_consulta = current_user.get("rut") if (current_user and current_user.get("rut")) else data.rut
+
+            if not rut_consulta and data.sessionId:
+                row_sesion = await conn.fetchrow("SELECT rut FROM sesiones WHERE session_id = $1", data.sessionId)
+                if row_sesion:
+                    rut_consulta = row_sesion["rut"]
+
+            if target_id:
+                res_existente = await conn.fetchrow("SELECT id, nombre, rut, fecha, hora, campus_id, cubiculo_id, session_id FROM reservas WHERE id = $1 FOR UPDATE", target_id)
+            elif rut_consulta:
+                rut_limpio = str(rut_consulta).replace(".", "").upper().strip()
+                res_existente = await conn.fetchrow(
+                    """
+                    SELECT id, nombre, rut, fecha, hora, campus_id, cubiculo_id, session_id 
+                    FROM reservas 
+                    WHERE rut = $1 
+                      AND (fecha > CURRENT_DATE OR (fecha = CURRENT_DATE AND hora + INTERVAL '1 hour' > CURRENT_TIME))
+                    ORDER BY id DESC LIMIT 1
+                    FOR UPDATE
+                    """,
+                    rut_limpio
+                )
+            else:
+                raise HTTPException(status_code=400, detail="Debes especificar el ID de reserva, RUT o sessionId para editar.")
+
+            if not res_existente:
+                raise HTTPException(status_code=404, detail="No se encontró ninguna reserva activa para modificar.")
+
+            reserva_id = res_existente["id"]
+            rut_reserva = res_existente["rut"]
+
+            if current_user and current_user.get("rol") != "admin":
+                if current_user.get("rut") and current_user.get("rut") != rut_reserva:
+                    raise HTTPException(status_code=403, detail="No tienes permisos para modificar esta reserva.")
+
+            nueva_fecha = datetime.strptime(data.fecha.strip(), "%Y-%m-%d").date() if data.fecha and data.fecha.strip() else res_existente["fecha"]
+            nueva_hora = datetime.strptime(data.hora.strip(), "%H:%M").time() if data.hora and data.hora.strip() else res_existente["hora"]
+
+            nuevo_campus_id = res_existente["campus_id"]
+            nuevo_campus_nombre = None
+
+            if data.campus_id:
+                row_c = await conn.fetchrow("SELECT id, nombre FROM campus WHERE id = $1", data.campus_id)
+                if row_c:
+                    nuevo_campus_id, nuevo_campus_nombre = row_c["id"], row_c["nombre"]
+            elif data.campus:
+                nombre_clean = data.campus.strip().lower()
+                nombre_sin_prefijo = re.sub(r'^campus\s+', '', nombre_clean, flags=re.IGNORECASE).strip()
+                row_c = await conn.fetchrow(
+                    "SELECT id, nombre FROM campus WHERE LOWER(nombre) = $1 OR LOWER(nombre) LIKE $2 LIMIT 1",
+                    nombre_clean, f"%{nombre_sin_prefijo}%"
+                )
+                if row_c:
+                    nuevo_campus_id, nuevo_campus_nombre = row_c["id"], row_c["nombre"]
+
+            if not nuevo_campus_nombre:
+                row_c = await conn.fetchrow("SELECT nombre FROM campus WHERE id = $1", nuevo_campus_id)
+                nuevo_campus_nombre = row_c["nombre"] if row_c else "Campus"
+
+            cubiculo_libre = await conn.fetchrow(
+                """
+                SELECT cb.id, cb.codigo 
+                FROM cubiculos cb
+                WHERE cb.campus_id = $1 
+                  AND cb.id NOT IN (
+                      SELECT r.cubiculo_id 
+                      FROM reservas r 
+                      WHERE r.campus_id = $1 AND r.fecha = $2 AND r.hora = $3 
+                        AND r.id != $4 AND r.cubiculo_id IS NOT NULL
+                  )
+                ORDER BY cb.codigo ASC
+                LIMIT 1
+                FOR UPDATE OF cb
+                """,
+                nuevo_campus_id, nueva_fecha, nueva_hora, reserva_id
+            )
+
+            if not cubiculo_libre:
+                hora_str = nueva_hora.strftime("%H:%M")
+                fecha_str = nueva_fecha.strftime("%Y-%m-%d")
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"No hay cubículos disponibles en {nuevo_campus_nombre} para la fecha {fecha_str} a las {hora_str} hrs."
+                )
+
+            nuevo_cubiculo_id = cubiculo_libre["id"]
+            nuevo_cubiculo_codigo = cubiculo_libre["codigo"]
+
+            # Mantiene el nombre y rut originales del titular sin cambios
+            row_upd = await conn.fetchrow(
+                """
+                UPDATE reservas
+                SET fecha = $1, hora = $2, campus_id = $3, cubiculo_id = $4
+                WHERE id = $5
+                RETURNING id, nombre, rut, fecha, hora, campus_id, session_id
+                """,
+                nueva_fecha, nueva_hora, nuevo_campus_id, nuevo_cubiculo_id, reserva_id
+            )
+
+            if data.sessionId:
+                await conn.execute(
+                    """
+                    INSERT INTO sesiones (session_id, rut, nombre, updated_at)
+                    VALUES ($1, $2, $3, NOW())
+                    ON CONFLICT (session_id) 
+                    DO UPDATE SET rut = EXCLUDED.rut, nombre = EXCLUDED.nombre, updated_at = NOW()
+                    """,
+                    data.sessionId, row_upd["rut"], row_upd["nombre"]
+                )
+
+            if data.acompanantes is not None:
+                await conn.execute("DELETE FROM reserva_acompanantes WHERE reserva_id = $1", reserva_id)
+                for ac in data.acompanantes:
+                    rut_ac_limpio = ac.rut.replace(".", "").upper().strip() if ac.rut else ""
+                    row_ac = await conn.fetchrow(
+                        "INSERT INTO reserva_acompanantes (reserva_id, nombre, rut) VALUES ($1, $2, $3) RETURNING nombre, rut",
+                        reserva_id, ac.nombre or "Acompañante", rut_ac_limpio
+                    )
+            
+            filas_ac = await conn.fetch("SELECT nombre, rut FROM reserva_acompanantes WHERE reserva_id = $1", reserva_id)
+            acompanantes_guardados = [{"nombre": ac["nombre"], "rut": ac["rut"]} for ac in filas_ac]
+
+    await invalidar_caches_disponibilidad()
+
+    return {
+        "id": str(row_upd["id"]),
+        "nombre": row_upd["nombre"],
+        "rut": row_upd["rut"],
+        "fecha": row_upd["fecha"].strftime("%Y-%m-%d"),
+        "hora": row_upd["hora"].strftime("%H:%M"),
+        "campus_id": row_upd["campus_id"],
+        "campus": nuevo_campus_nombre,
+        "cubiculo_codigo": nuevo_cubiculo_codigo,
+        "sessionId": row_upd["session_id"],
+        "acompanantes": acompanantes_guardados
+    }
+
+
+@app.put("/api/reservas/{reserva_id}", response_model=ReservaResponse)
+async def editar_reserva_por_id(reserva_id: int, data: EsquemaEditarReserva, credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)):
+    return await procesar_edicion_reserva(reserva_id, data, credentials)
+
+
+@app.put("/api/reservas", response_model=ReservaResponse)
+async def editar_reserva(data: EsquemaEditarReserva, credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)):
+    return await procesar_edicion_reserva(None, data, credentials)
 
 
 @app.post("/api/reservas/consultar")

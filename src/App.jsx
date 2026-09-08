@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Link, Navigate } from "react-router-dom";
 
 // IMPORTACIÓN DEL LOGO DESDE SRC/ASSETS
@@ -9,6 +9,7 @@ import FormularioReserva from "./FormularioReserva";
 import ChatbotFlotante from "./ChatBotFlotante";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
+import MisReservas from "./pages/MisReservas";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 
@@ -31,6 +32,18 @@ function PaginaContacto() {
 
 function NavBar() {
   const { user, logout } = useAuth();
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 border-b-4 border-[#00A3E0] bg-[#00629B] text-white shadow-md">
@@ -51,7 +64,6 @@ function NavBar() {
                 <span className="text-white">C</span>
                 <span className="text-[#FFC20E]">T</span>
               </span>
-
             </div>
           </Link>
 
@@ -82,18 +94,61 @@ function NavBar() {
                   {user.nombre}
                 </span>
 
-                {user.rol === "admin" ? (
-                  <Link
-                    to="/dashboard"
-                    className="rounded px-2.5 py-1 text-[#00629B] bg-[#FFC20E] hover:bg-yellow-400 transition font-black flex items-center gap-1 uppercase tracking-wider"
-                  >
-                    🛡️ Admin
-                  </Link>
-                ) : (
-                  <span className="rounded px-2.5 py-1 text-white bg-[#7AB800] font-bold flex items-center gap-1 uppercase tracking-wider">
-                    🎓 Estudiante
-                  </span>
-                )}
+                <div className="relative" ref={dropdownRef}>
+                  {user.rol === "admin" ? (
+                    <Link
+                      to="/dashboard"
+                      className="rounded px-2.5 py-1 text-[#00629B] bg-[#FFC20E] hover:bg-yellow-400 transition font-black flex items-center gap-1 uppercase tracking-wider"
+                    >
+                      🛡️ Admin
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setDropdownOpen((prev) => !prev)}
+                      className="rounded px-2.5 py-1 text-white bg-[#7AB800] hover:bg-[#689c00] font-bold flex items-center gap-1.5 uppercase tracking-wider transition cursor-pointer shadow-sm select-none"
+                    >
+                      <span>🎓 Estudiante</span>
+                      <span className={`text-[10px] transition-transform duration-200 ${dropdownOpen ? "rotate-180" : ""}`}>
+                        ▼
+                      </span>
+                    </button>
+                  )}
+
+                  {/* Menú Desplegable */}
+                  {dropdownOpen && (
+                    <div className="absolute right-0 mt-2 w-48 rounded-2xl bg-white text-slate-800 shadow-2xl border border-sky-100 py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+                      <div className="px-4 py-2 border-b border-slate-100 text-[11px] text-slate-500 font-normal">
+                        Conectado como <strong className="block text-slate-800 font-bold truncate">{user.nombre}</strong>
+                      </div>
+                      <Link
+                        to="/mis-reservas"
+                        onClick={() => setDropdownOpen(false)}
+                        className="flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-sky-50 hover:text-sky-700 transition"
+                      >
+                        <span>📋</span> Mis Reservas
+                      </Link>
+                      <Link
+                        to="/reservar"
+                        onClick={() => setDropdownOpen(false)}
+                        className="flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-sky-50 hover:text-sky-700 transition"
+                      >
+                        <span>📅</span> Reservar Cubículo
+                      </Link>
+                      <div className="border-t border-slate-100 mt-1 pt-1">
+                        <button
+                          onClick={() => {
+                            setDropdownOpen(false);
+                            logout();
+                          }}
+                          className="w-full text-left flex items-center gap-2 px-4 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                        >
+                          <span>🚪</span> Cerrar Sesión
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 <button
                   id="nav-logout"
@@ -132,6 +187,7 @@ export default function App() {
           <Route element={<ProtectedRoute />}>
             <Route path="/" element={<PaginaInicio />} />
             <Route path="/reservar" element={<FormularioReserva />} />
+            <Route path="/mis-reservas" element={<MisReservas />} />
             <Route path="/contacto" element={<PaginaContacto />} />
           </Route>
 

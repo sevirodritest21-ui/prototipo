@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { apiPost } from './services/api';
@@ -109,9 +109,15 @@ export default function ChatbotFlotante() {
       );
     } catch (error) {
       console.error('Error al conectar con el bot:', error);
-      const errorMsg = error.message.includes('401')
-        ? 'Tu sesión ha expirado. Por favor inicia sesión nuevamente.'
-        : 'Lo siento, tuve un problema al procesar tu mensaje. Inténtalo de nuevo.';
+      let errorMsg = 'Lo siento, tuve un problema al procesar tu mensaje. Inténtalo de nuevo.';
+      
+      if (error?.message?.includes('401')) {
+        errorMsg = 'Tu sesión ha expirado. Por favor inicia sesión nuevamente.';
+      } else if (error?.detail) {
+        errorMsg = error.detail;
+      } else if (error?.message && !error.message.includes('HTTP error')) {
+        errorMsg = error.message;
+      }
 
       setMensajes((prev) =>
         prev.map((msg) => msg.id === botPensandoId ? { ...msg, texto: errorMsg } : msg)

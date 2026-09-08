@@ -50,11 +50,26 @@ export default function FormularioReserva() {
   });
 
   const [reservaActivaUser, setReservaActivaUser] = useState(null);
+  const [todasLasReservas, setTodasLasReservas] = useState([]);
   const [cargandoReservaActiva, setCargandoReservaActiva] = useState(false);
+
+  // Estado Modal Edición de Reserva
+  const [modalEdicionOpen, setModalEdicionOpen] = useState(false);
+  const [editFormData, setEditFormData] = useState({
+    id: null,
+    campus_id: "",
+    fecha: "",
+    hora: "",
+    fechaObj: null,
+    acompanantes: []
+  });
+  const [editBloques, setEditBloques] = useState([]);
+  const [cargandoEditBloques, setCargandoEditBloques] = useState(false);
 
   const consultarReservaActiva = async (rutConsultar) => {
     if (!rutConsultar) {
       setReservaActivaUser(null);
+      setTodasLasReservas([]);
       return;
     }
     setCargandoReservaActiva(true);
@@ -70,32 +85,36 @@ export default function FormularioReserva() {
       });
       if (res.ok) {
         const data = await res.json();
-        const activa = (data.reservas || []).find((r) => r.activa);
+        const lista = data.reservas || [];
+        setTodasLasReservas(lista);
+        const activa = lista.find((r) => r.activa);
         setReservaActivaUser(activa || null);
       } else {
         setReservaActivaUser(null);
+        setTodasLasReservas([]);
       }
     } catch (e) {
       setReservaActivaUser(null);
+      setTodasLasReservas([]);
     } finally {
       setCargandoReservaActiva(false);
     }
   };
 
-  const handleCancelarReservaActiva = async () => {
-    if (!reservaActivaUser) return;
-    if (!window.confirm("¿Estás seguro de que deseas cancelar tu reserva activa?")) return;
+  const handleCancelarReservaId = async (resId) => {
+    if (!window.confirm(`¿Estás seguro de que deseas cancelar la reserva ID ${resId}?`)) return;
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch(`http://localhost:8000/api/reservas/${reservaActivaUser.id}`, {
+      const res = await fetch(`http://localhost:8000/api/reservas/${resId}`, {
         method: "DELETE",
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         }
       });
       if (res.ok) {
-        alert("Tu reserva activa ha sido cancelada exitosamente. Ahora puedes solicitar una nueva reserva.");
-        setReservaActivaUser(null);
+        alert("Reserva cancelada exitosamente.");
+        const rutTarget = isEstudiante ? user.rut : formData.rut;
+        if (rutTarget) consultarReservaActiva(rutTarget.trim());
         if (formData.campus_id && formData.fecha) {
           fetch(`http://localhost:8000/api/disponibilidad?campus_id=${formData.campus_id}&fecha=${formData.fecha}`)
             .then((res) => res.json())
@@ -107,6 +126,74 @@ export default function FormularioReserva() {
       }
     } catch (e) {
       alert("Error al conectar con el servidor.");
+    }
+  };
+
+  const handleCancelarReservaActiva = async () => {
+    if (!reservaActivaUser) return;
+    await handleCancelarReservaId(reservaActivaUser.id);
+  };
+
+  const abrirModalEdicion = (reserva) => {
+    const [yr, mo, dy] = reserva.fecha.split("-").map(Number);
+    setEditFormData({
+      id: reserva.id,
+      campus_id: String(reserva.campus_id || ""),
+      fecha: reserva.fecha,
+      hora: reserva.hora,
+      fechaObj: new Date(yr, mo - 1, dy),
+      acompanantes: reserva.acompanantes ? JSON.parse(JSON.stringify(reserva.acompanantes)) : []
+    });
+    setModalEdicionOpen(true);
+  };
+
+  useEffect(() => {
+    if (modalEdicionOpen && editFormData.campus_id && editFormData.fecha) {
+      setCargandoEditBloques(true);
+      fetch(`http://localhost:8000/api/disponibilidad?campus_id=${editFormData.campus_id}&fecha=${editFormData.fecha}`)
+        .then((res) => res.json())
+        .then((data) => {
+          setEditBloques(data.bloques || []);
+          setCargandoEditBloques(false);
+        })
+        .catch(() => setCargandoEditBloques(false));
+    }
+  }, [modalEdicionOpen, editFormData.campus_id, editFormData.fecha]);
+
+  const handleGuardarEdicion = async (e) => {
+    e.preventDefault();
+    if (!editFormData.fecha || !editFormData.hora || !editFormData.campus_id) {
+      alert("Por favor selecciona campus, fecha y hora.");
+      return;
+    }
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`http://localhost:8000/api/reservas/${editFormData.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          campus_id: parseInt(editFormData.campus_id, 10),
+          fecha: editFormData.fecha,
+          hora: editFormData.hora,
+          acompanantes: editFormData.acompanantes,
+          sessionId: obtenerSessionId()
+        })
+      });
+
+      if (res.ok) {
+        alert("¡Reserva modificada exitosamente!");
+        setModalEdicionOpen(false);
+        const rutTarget = isEstudiante ? user.rut : formData.rut;
+        if (rutTarget) consultarReservaActiva(rutTarget.trim());
+      } else {
+        const errorData = await res.json();
+        alert(errorData.detail || "Error al modificar la reserva");
+      }
+    } catch (err) {
+      alert("No se pudo conectar con el servidor.");
     }
   };
 
@@ -361,13 +448,21 @@ export default function FormularioReserva() {
                   </span>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={handleCancelarReservaActiva}
-                className="shrink-0 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl shadow transition-all flex items-center justify-center gap-1 self-end md:self-center"
-              >
-                <span>🗑️</span> Cancelar Reserva Activa
-              </button>
+              <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+                <Link
+                  to="/mis-reservas"
+                  className="px-3.5 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl shadow transition-all flex items-center gap-1 cursor-pointer"
+                >
+                  📋 Mis Reservas
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => abrirModalEdicion(reservaActivaUser)}
+                  className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow transition-all flex items-center gap-1 cursor-pointer"
+                >
+                  ✏️ Editar
+                </button>
+              </div>
             </div>
           )}
 
@@ -637,6 +732,148 @@ export default function FormularioReserva() {
           </form>
         </div>
       </div>
+
+      {/* MODAL DE EDICIÓN DE RESERVA */}
+      {modalEdicionOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 md:p-8 shadow-2xl border border-sky-100 animate-in fade-in zoom-in duration-200 my-8">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
+              <div>
+                <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                  <span>✏️</span> Editar Reserva
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Modifica la sede, fecha, hora o acompañantes de tu reserva.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalEdicionOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 font-bold text-sm flex items-center justify-center transition-all cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleGuardarEdicion} className="space-y-5">
+              {/* Datos del Titular (Inmutables) */}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-2 text-xs">
+                <div className="flex items-center justify-between text-slate-600">
+                  <span>🔒 Titular:</span>
+                  <strong className="text-slate-800">{isEstudiante ? user.nombre : formData.nombre || "Estudiante"}</strong>
+                </div>
+                <div className="flex items-center justify-between text-slate-600">
+                  <span>🔒 RUT:</span>
+                  <strong className="text-slate-800">{isEstudiante ? user.rut : formData.rut || "N/A"}</strong>
+                </div>
+                <span className="block text-[10px] text-amber-700 font-medium italic pt-1">
+                  * Los datos personales del titular no son modificables.
+                </span>
+              </div>
+
+              {/* Sede / Campus */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Selecciona Campus
+                </label>
+                <select
+                  required
+                  value={editFormData.campus_id}
+                  onChange={(e) => setEditFormData((prev) => ({ ...prev, campus_id: e.target.value, hora: "" }))}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-800 focus:border-sky-500 focus:outline-none bg-white"
+                >
+                  <option value="">-- Selecciona Campus --</option>
+                  {campusList.map((c) => (
+                    <option key={c.id} value={c.id}>{c.nombre}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Fecha */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Selecciona Nueva Fecha
+                </label>
+                <DatePicker
+                  selected={editFormData.fechaObj}
+                  onChange={(date) => {
+                    if (!date) return;
+                    const yr = date.getFullYear();
+                    const mo = String(date.getMonth() + 1).padStart(2, "0");
+                    const dy = String(date.getDate()).padStart(2, "0");
+                    setEditFormData((prev) => ({
+                      ...prev,
+                      fechaObj: date,
+                      fecha: `${yr}-${mo}-${dy}`,
+                      hora: ""
+                    }));
+                  }}
+                  filterDate={esDiaLaboral}
+                  minDate={new Date()}
+                  dateFormat="yyyy-MM-dd"
+                  locale="es"
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-800 focus:border-sky-500 focus:outline-none bg-white cursor-pointer"
+                />
+              </div>
+
+              {/* Bloque Horario */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Selecciona Nuevo Horario
+                </label>
+                {cargandoEditBloques ? (
+                  <p className="text-xs text-sky-600 animate-pulse font-medium">Cargando disponibilidad...</p>
+                ) : editBloques.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic">Selecciona sede y fecha para ver bloques disponibles.</p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                    {editBloques.map((b) => {
+                      const esSeleccionado = editFormData.hora === b.hora;
+                      return (
+                        <button
+                          key={b.hora}
+                          type="button"
+                          disabled={b.disponibles === 0 && !esSeleccionado}
+                          onClick={() => setEditFormData((prev) => ({ ...prev, hora: b.hora }))}
+                          className={`p-2 rounded-xl text-left border text-xs transition-all flex flex-col justify-between cursor-pointer ${
+                            b.disponibles === 0 && !esSeleccionado
+                              ? "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-50"
+                              : esSeleccionado
+                                ? "bg-sky-600 border-sky-600 text-white font-bold shadow-sm"
+                                : "bg-white border-slate-200 text-slate-700 hover:border-sky-400"
+                          }`}
+                        >
+                          <span>{b.rango}</span>
+                          <span className={`text-[10px] ${esSeleccionado ? "text-sky-100" : "text-emerald-600"}`}>
+                            {b.disponibles} libres
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Botones Modal */}
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setModalEdicionOpen(false)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 text-xs font-bold transition-all cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-md transition-all cursor-pointer"
+                >
+                  Guardar Cambios
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
