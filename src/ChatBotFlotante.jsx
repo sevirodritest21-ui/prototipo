@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { apiPost } from './services/api';
@@ -19,6 +19,7 @@ export default function ChatbotFlotante() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [mensajes, setMensajes] = useState([]);
   const [nuevoMensaje, setNuevoMensaje] = useState('');
+  const [cargandoBot, setCargandoBot] = useState(false);
 
   // Referencia para el Auto-Scroll al final de la conversación
   const chatEndRef = useRef(null);
@@ -27,7 +28,7 @@ export default function ChatbotFlotante() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Efecto para bajar automáticamente el scroll cada vez que cambien los mensajes o se abra el chat
+  // Bajar automáticamente el scroll cada vez que cambien los mensajes o se abra el chat
   useEffect(() => {
     if (isChatOpen) {
       scrollToBottom();
@@ -84,15 +85,20 @@ export default function ChatbotFlotante() {
       navigate('/login');
       return;
     }
-    if (!nuevoMensaje.trim()) return;
+    if (!nuevoMensaje.trim() || cargandoBot) return;
 
     const mensajeTexto = nuevoMensaje;
     const mensajeUsuario = { id: Date.now(), texto: mensajeTexto, esBot: false };
     setMensajes((prev) => [...prev, mensajeUsuario]);
     setNuevoMensaje('');
+    setCargandoBot(true);
 
     const botPensandoId = Date.now() + 1;
     setMensajes((prev) => [...prev, { id: botPensandoId, texto: 'Escribiendo...', esBot: true }]);
+
+    // AbortController para otorgar un timeout extendido de 90 segundos al procesamiento de n8n
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 90000);
 
     try {
       const payload = {
@@ -103,16 +109,21 @@ export default function ChatbotFlotante() {
         email: user.email,
       };
 
-      const data = await apiPost('/api/chat', payload);
+      const data = await apiPost('/api/chat', payload, { signal: controller.signal });
+      clearTimeout(timeoutId);
+
       setMensajes((prev) =>
         prev.map((msg) => msg.id === botPensandoId ? { ...msg, texto: data.response } : msg)
       );
       window.dispatchEvent(new CustomEvent("reservaActualizada"));
     } catch (error) {
+      clearTimeout(timeoutId);
       console.error('Error al conectar con el bot:', error);
       let errorMsg = 'Lo siento, tuve un problema al procesar tu mensaje. Inténtalo de nuevo.';
-      
-      if (error?.message?.includes('401')) {
+
+      if (error.name === 'AbortError') {
+        errorMsg = 'La respuesta del asistente está tomando más tiempo del habitual. La solicitud continúa procesándose, te sugiero revisar tus reservas en unos momentos.';
+      } else if (error?.message?.includes('401')) {
         errorMsg = 'Tu sesión ha expirado. Por favor inicia sesión nuevamente.';
       } else if (error?.detail) {
         errorMsg = error.detail;
@@ -123,6 +134,8 @@ export default function ChatbotFlotante() {
       setMensajes((prev) =>
         prev.map((msg) => msg.id === botPensandoId ? { ...msg, texto: errorMsg } : msg)
       );
+    } finally {
+      setCargandoBot(false);
     }
   };
 
@@ -135,7 +148,6 @@ export default function ChatbotFlotante() {
     <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
       {isChatOpen && (
         <div className="mb-4 w-[calc(100vw-2rem)] sm:w-96 h-[520px] rounded-2xl bg-white shadow-2xl border border-slate-100 flex flex-col overflow-hidden transition-all duration-300 origin-bottom-right">
-          {/* Header del Chatbot */}
           <div className="bg-[#00629B] p-4 text-white flex justify-between items-center shadow-md border-b-2 border-[#00A3E0]">
             <div className="flex items-center space-x-3">
               <div className="relative flex h-2.5 w-2.5">
@@ -159,7 +171,6 @@ export default function ChatbotFlotante() {
             </button>
           </div>
 
-          {/* Cuerpo del Chatbot */}
           {!user ? (
             <div className="flex-1 p-6 flex flex-col items-center justify-center text-center bg-slate-50">
               <div className="w-16 h-16 rounded-full bg-amber-100 border border-amber-200 flex items-center justify-center mb-4 text-2xl shadow-inner">
@@ -190,33 +201,36 @@ export default function ChatbotFlotante() {
                   </div>
                 </div>
               ))}
-              {/* Elemento invisible para forzar el autoscroll hacia abajo */}
               <div ref={chatEndRef} />
             </div>
           )}
 
-          {/* Formulario de Entrada */}
           <form onSubmit={handleEnviarMensaje} className="p-3 border-t border-slate-100 bg-white flex space-x-2">
             <input
               type="text"
               value={nuevoMensaje}
               onChange={(e) => setNuevoMensaje(e.target.value)}
-              disabled={!user}
-              placeholder={user ? "Pídeme una reserva (ej: mañana a las 10:00)..." : "Debes iniciar sesión para chatear..."}
+              disabled={!user || cargandoBot}
+              placeholder={
+                !user
+                  ? "Debes iniciar sesión para chatear..."
+                  : cargandoBot
+                    ? "Esperando respuesta del asistente..."
+                    : "Pídeme una reserva (ej: mañana a las 10:00)..."
+              }
               className="flex-1 px-4 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#00A3E0] bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
             />
             <button
               type="submit"
-              disabled={!user}
+              disabled={!user || cargandoBot}
               className="bg-[#00A3E0] hover:bg-[#0082B3] text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors shadow-sm cursor-pointer disabled:bg-slate-300 disabled:cursor-not-allowed"
             >
-              Enviar
+              {cargandoBot ? '...' : 'Enviar'}
             </button>
           </form>
         </div>
       )}
 
-      {/* Botón Flotante con la imagen del Logo UCT */}
       <button
         onClick={() => setIsChatOpen((prev) => !prev)}
         className="w-16 h-16 rounded-full bg-white border-2 border-[#00A3E0] shadow-2xl transition-all duration-300 hover:scale-110 flex items-center justify-center p-1.5 cursor-pointer overflow-hidden group"

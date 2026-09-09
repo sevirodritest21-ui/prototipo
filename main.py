@@ -22,6 +22,7 @@ app = FastAPI(title="API de Reservas y Chatbot UCT (PostgreSQL + Redis)")
 N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL")
 N8N_CANCELACION_WEBHOOK_URL = os.getenv("N8N_CANCELACION_WEBHOOK_URL")
 N8N_CREACION_WEBHOOK_URL = os.getenv("N8N_CREACION_WEBHOOK_URL")
+N8N_EDICION_WEBHOOK_URL = os.getenv("N8N_EDICION_WEBHOOK_URL")
 DATABASE_URL = os.getenv("DATABASE_URL")
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
@@ -107,6 +108,46 @@ async def notificar_creacion_n8n(detalle: dict):
         print(f"📧 Notificación de creación enviada a n8n para reserva ID {payload['reserva_id']} (Email: {payload['email']})")
     except Exception as e:
         print(f"⚠️ Error notificando creación a n8n: {e}")
+
+
+async def notificar_edicion_n8n(detalle: dict):
+    webhook_url = os.getenv("N8N_EDICION_WEBHOOK_URL") or os.getenv("N8N_CREACION_WEBHOOK_URL") or os.getenv("N8N_CANCELACION_WEBHOOK_URL") or os.getenv("N8N_WEBHOOK_URL")
+    if not webhook_url or not httpx_client or not detalle:
+        return
+
+    try:
+        email_encontrado = detalle.get("email")
+        rut_item = detalle.get("rut", "")
+        rut_limpio = str(rut_item).replace(".", "").replace("-", "").upper().strip() if rut_item else ""
+
+        if not email_encontrado and pool and rut_limpio:
+            try:
+                async with pool.acquire() as conn:
+                    row_u = await conn.fetchrow(
+                        "SELECT email FROM usuarios WHERE REPLACE(REPLACE(REPLACE(UPPER(rut), '.', ''), '-', ''), ' ', '') = $1 LIMIT 1",
+                        rut_limpio
+                    )
+                    if row_u:
+                        email_encontrado = row_u["email"]
+            except Exception as ex_db:
+                print(f"⚠️ Error al buscar email de usuario: {ex_db}")
+
+        payload = {
+            "event": "reserva_editada",
+            "reserva_id": str(detalle.get("id", "")),
+            "nombre": detalle.get("nombre", "Estudiante"),
+            "email": email_encontrado or "",
+            "rut": rut_item,
+            "fecha": str(detalle.get("fecha", "")),
+            "hora": str(detalle.get("hora", "")),
+            "campus": detalle.get("campus") or "Campus UCT",
+            "cubiculo_codigo": detalle.get("cubiculo_codigo") or "N/A",
+            "acompanantes": detalle.get("acompanantes") or []
+        }
+        await httpx_client.post(webhook_url, json=payload, timeout=5.0)
+        print(f"📧 Notificación de edición enviada a n8n para reserva ID {payload['reserva_id']} (Email: {payload['email']})")
+    except Exception as e:
+        print(f"⚠️ Error notificando edición a n8n: {e}")
 
 app.add_middleware(
     CORSMiddleware,
@@ -257,13 +298,42 @@ class ReservaBase(BaseModel):
             else:
                 values["campus"] = raw_campus
 
-        if "acompanantes[0]" in values and not values.get("acompanantes"):
-            ac_raw = values["acompanantes[0]"]
-            if isinstance(ac_raw, dict):
-                values["acompanantes"] = [{
-                    "nombre": str(ac_raw.get("nombre", "Acompañante")),
-                    "rut": str(ac_raw.get("rut", "")) if ac_raw.get("rut") else None
-                }]
+        if "acompanantes" in values and values["acompanantes"] is not None:
+            raw_ac = values["acompanantes"]
+            if isinstance(raw_ac, str):
+                if "[object Object]" in raw_ac or not raw_ac.strip():
+                    values["acompanantes"] = None
+                else:
+                    try:
+                        values["acompanantes"] = json.loads(raw_ac)
+                    except Exception:
+                        values["acompanantes"] = None
+            elif isinstance(raw_ac, dict):
+                values["acompanantes"] = [raw_ac]
+
+        if not values.get("acompanantes"):
+            ac_dict_by_idx = {}
+            for k in list(values.keys()):
+                if k.startswith("acompanantes["):
+                    match = re.match(r'acompanantes\[(\d+)\](?:\.(.+))?', k)
+                    if match:
+                        idx = match.group(1)
+                        subprop = match.group(2)
+                        val = values[k]
+                        if idx not in ac_dict_by_idx:
+                            ac_dict_by_idx[idx] = {}
+                        if subprop:
+                            ac_dict_by_idx[idx][subprop] = val
+                        elif isinstance(val, dict):
+                            ac_dict_by_idx[idx].update(val)
+                        elif isinstance(val, str):
+                            ac_dict_by_idx[idx]["nombre"] = val
+
+            if ac_dict_by_idx:
+                values["acompanantes"] = [
+                    {"nombre": v.get("nombre", "Acompañante"), "rut": v.get("rut")}
+                    for idx, v in sorted(ac_dict_by_idx.items(), key=lambda x: int(x[0]))
+                ]
 
         for field in ["nombre", "rut", "fecha", "hora", "campus", "sessionId"]:
             if field in values and values[field] is not None:
@@ -336,6 +406,43 @@ class EsquemaEditarReserva(BaseModel):
                 values["reserva_id"] = int(values["reserva_id"])
             except (ValueError, TypeError):
                 pass
+
+        if "acompanantes" in values and values["acompanantes"] is not None:
+            raw_ac = values["acompanantes"]
+            if isinstance(raw_ac, str):
+                if "[object Object]" in raw_ac or not raw_ac.strip():
+                    values["acompanantes"] = None
+                else:
+                    try:
+                        values["acompanantes"] = json.loads(raw_ac)
+                    except Exception:
+                        values["acompanantes"] = None
+            elif isinstance(raw_ac, dict):
+                values["acompanantes"] = [raw_ac]
+
+        if not values.get("acompanantes"):
+            ac_dict_by_idx = {}
+            for k in list(values.keys()):
+                if k.startswith("acompanantes["):
+                    match = re.match(r'acompanantes\[(\d+)\](?:\.(.+))?', k)
+                    if match:
+                        idx = match.group(1)
+                        subprop = match.group(2)
+                        val = values[k]
+                        if idx not in ac_dict_by_idx:
+                            ac_dict_by_idx[idx] = {}
+                        if subprop:
+                            ac_dict_by_idx[idx][subprop] = val
+                        elif isinstance(val, dict):
+                            ac_dict_by_idx[idx].update(val)
+                        elif isinstance(val, str):
+                            ac_dict_by_idx[idx]["nombre"] = val
+
+            if ac_dict_by_idx:
+                values["acompanantes"] = [
+                    {"nombre": v.get("nombre", "Acompañante"), "rut": v.get("rut")}
+                    for idx, v in sorted(ac_dict_by_idx.items(), key=lambda x: int(x[0]))
+                ]
 
         for field in ["rut", "fecha", "hora", "campus", "sessionId"]:
             if field in values and values[field] is not None:
@@ -1103,7 +1210,8 @@ async def eliminar_reserva_por_id(reserva_id: int, background_tasks: BackgroundT
 async def procesar_edicion_reserva(
     reserva_id_target: Optional[int],
     data: EsquemaEditarReserva,
-    credentials: Optional[HTTPAuthorizationCredentials] = None
+    credentials: Optional[HTTPAuthorizationCredentials] = None,
+    background_tasks: Optional[BackgroundTasks] = None
 ) -> dict:
     current_user = None
     if credentials and credentials.credentials:
@@ -1251,7 +1359,7 @@ async def procesar_edicion_reserva(
 
     await invalidar_caches_disponibilidad()
 
-    return {
+    res_data = {
         "id": str(row_upd["id"]),
         "nombre": row_upd["nombre"],
         "rut": row_upd["rut"],
@@ -1264,15 +1372,22 @@ async def procesar_edicion_reserva(
         "acompanantes": acompanantes_guardados
     }
 
+    if background_tasks:
+        background_tasks.add_task(notificar_edicion_n8n, res_data)
+    else:
+        await notificar_edicion_n8n(res_data)
+
+    return res_data
+
 
 @app.put("/api/reservas/{reserva_id}", response_model=ReservaResponse)
-async def editar_reserva_por_id(reserva_id: int, data: EsquemaEditarReserva, credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)):
-    return await procesar_edicion_reserva(reserva_id, data, credentials)
+async def editar_reserva_por_id(reserva_id: int, data: EsquemaEditarReserva, background_tasks: BackgroundTasks, credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)):
+    return await procesar_edicion_reserva(reserva_id, data, credentials, background_tasks)
 
 
 @app.put("/api/reservas", response_model=ReservaResponse)
-async def editar_reserva(data: EsquemaEditarReserva, credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)):
-    return await procesar_edicion_reserva(None, data, credentials)
+async def editar_reserva(data: EsquemaEditarReserva, background_tasks: BackgroundTasks, credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)):
+    return await procesar_edicion_reserva(None, data, credentials, background_tasks)
 
 
 @app.post("/api/reservas/consultar")
