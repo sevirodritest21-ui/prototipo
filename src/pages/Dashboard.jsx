@@ -46,6 +46,12 @@ export default function Dashboard() {
   const [cargandoMetricas, setCargandoMetricas] = useState(false);
   const [mostrarGraficoMetricas, setMostrarGraficoMetricas] = useState(false);
 
+  const [historial, setHistorial] = useState([]);
+  const [cargandoHistorial, setCargandoHistorial] = useState(false);
+  const [busquedaHistorial, setBusquedaHistorial] = useState("");
+  const [mostrarHistorial, setMostrarHistorial] = useState(false);
+  const [campusFiltroHistorial, setCampusFiltroHistorial] = useState("todos");
+
   const traducirDia = (d) => {
     if (!d) return "";
     const map = {
@@ -54,6 +60,29 @@ export default function Dashboard() {
     };
     return map[String(d).trim().toLowerCase()] || d;
   };
+
+  const fetchHistorial = async () => {
+    setCargandoHistorial(true);
+    try {
+      const params = new URLSearchParams();
+      if (campusFiltroHistorial && campusFiltroHistorial !== "todos") {
+        params.append("campus_id", campusFiltroHistorial);
+      }
+      if (busquedaHistorial) params.append("busqueda", busquedaHistorial);
+      const data = await apiGet(`/api/dashboard/historial?${params.toString()}`);
+      setHistorial(data || []);
+    } catch {
+      setHistorial([]);
+    } finally {
+      setCargandoHistorial(false);
+    }
+  };
+
+  useEffect(() => {
+    if (mostrarHistorial) {
+      fetchHistorial();
+    }
+  }, [campusFiltroHistorial, busquedaHistorial, mostrarHistorial]);
 
   // Cargar lista de campus
   const fetchCampus = async () => {
@@ -992,6 +1021,117 @@ export default function Dashboard() {
             </div>
 
           </div>
+        </div>
+
+        <div className="mt-8 bg-white/90 backdrop-blur-md border border-slate-200 rounded-3xl p-6 md:p-8 shadow-xl mb-8 space-y-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+            <div>
+              <span className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-3.5 py-1 text-xs font-semibold text-indigo-800 shadow-sm mb-2">
+                🏛️ Registro Histórico de Administración
+              </span>
+              <h2 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                <span>📜</span> Historial de Reservas Antiguas y Canceladas
+              </h2>
+              <p className="text-xs md:text-sm text-slate-600 mt-1">
+                Consulta el registro permanente de reservas pasadas, archivadas o canceladas por los estudiantes.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setMostrarHistorial(!mostrarHistorial);
+                if (!mostrarHistorial) fetchHistorial();
+              }}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-extrabold rounded-2xl shadow-md transition-all transform hover:scale-105 cursor-pointer self-start md:self-auto"
+            >
+              <span>{mostrarHistorial ? "🙈 Ocultar Historial" : "👁️ Cargar Historial Completo"}</span>
+            </button>
+          </div>
+
+          {mostrarHistorial && (
+            <div className="space-y-4 animate-fadeIn">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+                  <div className="relative w-full sm:w-80">
+                    <input
+                      type="text"
+                      value={busquedaHistorial}
+                      onChange={(e) => setBusquedaHistorial(e.target.value)}
+                      placeholder="🔍 Buscar por Alumno o RUT..."
+                      className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-sm"
+                    />
+                  </div>
+                  <select
+                    value={campusFiltroHistorial}
+                    onChange={(e) => setCampusFiltroHistorial(e.target.value)}
+                    className="w-full sm:w-auto text-xs bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-sm"
+                  >
+                    <option value="todos">🌐 Todas las Sedes</option>
+                    {campus.map((c) => (
+                      <option key={c.id} value={c.id}>📍 {c.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  onClick={fetchHistorial}
+                  className="px-4 py-2 bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold text-xs rounded-xl border border-sky-200 transition-all cursor-pointer"
+                >
+                  🔄 Actualizar Registros
+                </button>
+              </div>
+
+              {cargandoHistorial ? (
+                <div className="py-12 text-center text-slate-500 space-y-2">
+                  <div className="w-6 h-6 border-2 border-sky-500 border-t-transparent rounded-full animate-spin mx-auto" />
+                  <p className="text-xs font-medium">Cargando registros históricos...</p>
+                </div>
+              ) : historial.length === 0 ? (
+                <div className="py-10 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-xs text-slate-500">
+                  No hay reservas registradas en el historial para esta búsqueda.
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-sm">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                        <th className="p-3">ID Original</th>
+                        <th className="p-3">Alumno Titular</th>
+                        <th className="p-3">RUT</th>
+                        <th className="p-3">Sede</th>
+                        <th className="p-3">Fecha Reserva</th>
+                        <th className="p-3">Hora Bloque</th>
+                        <th className="p-3">Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                      {historial.map((h) => (
+                        <tr key={h.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="p-3 font-semibold text-slate-400">#{h.reserva_id || h.id}</td>
+                          <td className="p-3 font-bold text-slate-900">{h.nombre}</td>
+                          <td className="p-3 font-medium text-slate-700">{h.rut}</td>
+                          <td className="p-3 text-slate-600 font-medium">{h.campus_nombre || "Sede Principal"}</td>
+                          <td className="p-3 text-slate-800 font-semibold">{h.fecha}</td>
+                          <td className="p-3 font-bold text-sky-700">{h.hora} hrs</td>
+                          <td className="p-3">
+                            <span
+                              className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                h.estado === "cancelada"
+                                  ? "bg-red-100 text-red-700 border border-red-200"
+                                  : h.estado === "activa"
+                                  ? "bg-sky-100 text-sky-800 border border-sky-200"
+                                  : "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                              }`}
+                            >
+                              {h.estado}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* MODAL DETALLE DE RESERVAS */}

@@ -206,9 +206,23 @@ async def startup():
                 campus_id INT NOT NULL REFERENCES campus(id) ON DELETE CASCADE,
                 estado VARCHAR(20) DEFAULT 'disponible'
             );
-            ALTER TABLE reservas ADD COLUMN IF NOT EXISTS cubiculo_id INT REFERENCES cubiculos(id) ON DELETE SET NULL;
-            CREATE INDEX IF NOT EXISTS idx_reservas_campus_fecha_hora ON reservas (campus_id, fecha, hora);
-            CREATE INDEX IF NOT EXISTS idx_reservas_cubiculo_fecha_hora ON reservas (cubiculo_id, fecha, hora);
+            CREATE TABLE IF NOT EXISTS historial_reservas (
+                id SERIAL PRIMARY KEY,
+                reserva_id INT,
+                nombre VARCHAR(100) NOT NULL,
+                rut VARCHAR(20) NOT NULL,
+                campus_id INT REFERENCES campus(id) ON DELETE SET NULL,
+                fecha DATE NOT NULL,
+                hora VARCHAR(20) NOT NULL,
+                estado VARCHAR(30) DEFAULT 'completada',
+                fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            INSERT INTO historial_reservas (reserva_id, nombre, rut, campus_id, fecha, hora, estado)
+            SELECT id, nombre, rut, campus_id, fecha, hora, 'activa'
+            FROM reservas r
+            WHERE NOT EXISTS (
+                SELECT 1 FROM historial_reservas h WHERE h.reserva_id = r.id AND h.estado = 'activa'
+            );
         """)
 
 
@@ -1016,6 +1030,14 @@ async def crear_reserva(reserva: ReservaBase, request: Request, background_tasks
                 )
                 reserva_id_creada = row["id"]
 
+                await conn.execute(
+                    """
+                    INSERT INTO historial_reservas (reserva_id, nombre, rut, campus_id, fecha, hora, estado)
+                    VALUES ($1, $2, $3, $4, $5, $6, 'activa')
+                    """,
+                    reserva_id_creada, nombre_final or "Usuario Chatbot", rut_limpio, target_campus_id, fecha_parsed, hora_parsed
+                )
+
                 acompanantes_guardados = []
                 if reserva.acompanantes:
                     for ac in reserva.acompanantes:
@@ -1251,11 +1273,11 @@ async def eliminar_reserva_por_id(reserva_id: int, background_tasks: BackgroundT
     async with pool.acquire() as conn:
         res_detalle = await conn.fetchrow(
             """
-            SELECT r.id, r.nombre, r.rut, r.fecha, r.hora, c.nombre AS campus_nombre, cb.codigo AS cubiculo_codigo, u.email
+            SELECT r.id, r.nombre, r.rut, r.fecha, r.hora, r.campus_id, c.nombre AS campus_nombre, cb.codigo AS cubiculo_codigo, u.email
             FROM reservas r
             LEFT JOIN campus c ON r.campus_id = c.id
             LEFT JOIN cubiculos cb ON r.cubiculo_id = cb.id
-            LEFT JOIN usuarios u ON (REPLACE(REPLACE(REPLACE(UPPER(u.rut), '.', ''), '-', ''), ' ', '') = REPLACE(REPLACE(REPLACE(UPPER(r.rut), '.', ''), '-', ''), ' ', '') OR LOWER(u.nombre) = LOWER(r.nombre))
+            LEFT JOIN usuarios u ON (REPLACE(REPLACE(REPLACE(UPPER(u.rut), '.', ''), '-', ''), ' ', '') = REPLACE(REPLACE(REPLACE(UPPER(r.rut), '.', ''), '.', ''), ' ', '') OR LOWER(u.nombre) = LOWER(r.nombre))
             WHERE r.id = $1
             """,
             reserva_id
@@ -1270,12 +1292,72 @@ async def eliminar_reserva_por_id(reserva_id: int, background_tasks: BackgroundT
         res_dict = [dict(res_detalle)]
 
         async with conn.transaction():
+            await conn.execute(
+                """
+                INSERT INTO historial_reservas (reserva_id, nombre, rut, campus_id, fecha, hora, estado)
+                VALUES ($1, $2, $3, $4, $5, $6, 'cancelada')
+                """,
+                res_detalle["id"], res_detalle["nombre"], res_detalle["rut"], res_detalle["campus_id"], res_detalle["fecha"], res_detalle["hora"]
+            )
             await conn.execute("DELETE FROM reserva_acompanantes WHERE reserva_id = $1", reserva_id)
             await conn.execute("DELETE FROM reservas WHERE id = $1", reserva_id)
 
     await invalidar_caches_disponibilidad()
     background_tasks.add_task(notificar_cancelacion_n8n, res_dict)
     return {"message": f"Reserva ID {reserva_id} eliminada con éxito."}
+
+
+@app.get("/api/dashboard/historial")
+async def obtener_historial_reservas(
+    campus_id: Optional[int] = None,
+    busqueda: Optional[str] = None,
+    limite: int = 100
+):
+    async with pool.acquire() as conn:
+        filas = await conn.fetch(
+            """
+            SELECT 
+                r.id, r.id AS reserva_id, r.nombre, r.rut, r.fecha::text, r.hora::text,
+                CASE 
+                    WHEN (r.fecha < CURRENT_DATE) OR (r.fecha = CURRENT_DATE AND r.hora < CURRENT_TIME) THEN 'completada'
+                    ELSE 'activa'
+                END AS estado,
+                NOW()::text AS fecha_registro,
+                c.nombre AS campus_nombre
+            FROM reservas r
+            LEFT JOIN campus c ON r.campus_id = c.id
+            WHERE ($1::int IS NULL OR $1::int = 0 OR r.campus_id = $1)
+              AND ($2::text IS NULL OR $2::text = '' OR LOWER(r.nombre) LIKE '%' || LOWER($2) || '%' OR LOWER(r.rut) LIKE '%' || LOWER($2) || '%')
+
+            UNION ALL
+
+            SELECT 
+                h.id, h.reserva_id, h.nombre, h.rut, h.fecha::text, h.hora::text,
+                CASE 
+                    WHEN h.estado = 'cancelada' THEN 'cancelada'
+                    WHEN (h.fecha < CURRENT_DATE) OR (h.fecha = CURRENT_DATE AND h.hora::time < CURRENT_TIME) THEN 'completada'
+                    ELSE h.estado
+                END AS estado,
+                h.fecha_registro::text AS fecha_registro,
+                c.nombre AS campus_nombre
+            FROM historial_reservas h
+            LEFT JOIN campus c ON h.campus_id = c.id
+            WHERE ($1::int IS NULL OR $1::int = 0 OR h.campus_id = $1)
+              AND ($2::text IS NULL OR $2::text = '' OR LOWER(h.nombre) LIKE '%' || LOWER($2) || '%' OR LOWER(h.rut) LIKE '%' || LOWER($2) || '%')
+              AND NOT EXISTS (SELECT 1 FROM reservas r WHERE r.id = h.reserva_id)
+
+            ORDER BY fecha_registro DESC
+            LIMIT $3
+            """,
+            campus_id, busqueda, limite
+        )
+        historial = [dict(f) for f in filas]
+        for h in historial:
+            if h.get("fecha"):
+                h["fecha"] = str(h["fecha"])
+            if h.get("fecha_registro"):
+                h["fecha_registro"] = str(h["fecha_registro"])
+        return historial
 
 
 async def procesar_edicion_reserva(
