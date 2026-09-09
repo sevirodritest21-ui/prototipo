@@ -267,6 +267,24 @@ export default function FormularioReserva() {
     }
   }, [formData.campus_id, formData.fecha]);
 
+  // Escuchar eventos globales de sincronización en tiempo real (Chatbot / Formulario)
+  useEffect(() => {
+    const handleActualizar = () => {
+      const rutGuardado = isEstudiante ? user?.rut : formData.rut;
+      if (rutGuardado) {
+        consultarReservaActiva(rutGuardado);
+      }
+      if (formData.campus_id && formData.fecha) {
+        fetch(`http://localhost:8000/api/disponibilidad?campus_id=${formData.campus_id}&fecha=${formData.fecha}`)
+          .then((res) => res.json())
+          .then((data) => setBloquesHorarios(data.bloques || []));
+      }
+    };
+
+    window.addEventListener("reservaActualizada", handleActualizar);
+    return () => window.removeEventListener("reservaActualizada", handleActualizar);
+  }, [user?.rut, formData.rut, formData.campus_id, formData.fecha]);
+
   // Validar si un día es laboral
   const esDiaLaboral = (date) => {
     const day = date.getDay();
@@ -397,6 +415,7 @@ export default function FormularioReserva() {
         if (rutGuardado) {
           consultarReservaActiva(rutGuardado);
         }
+        window.dispatchEvent(new CustomEvent("reservaActualizada"));
       } else {
         const errorData = await response.json();
         alert(errorData.detail || "Error al crear la reserva");

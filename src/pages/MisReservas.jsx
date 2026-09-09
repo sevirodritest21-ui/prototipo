@@ -99,6 +99,13 @@ export default function MisReservas() {
 
   useEffect(() => {
     cargarReservas();
+
+    const handleActualizar = () => {
+      cargarReservas();
+    };
+
+    window.addEventListener("reservaActualizada", handleActualizar);
+    return () => window.removeEventListener("reservaActualizada", handleActualizar);
   }, [user?.rut]);
 
   const esDiaLaboral = (date) => {
@@ -124,6 +131,7 @@ export default function MisReservas() {
       if (res.ok) {
         alert("Reserva cancelada exitosamente.");
         cargarReservas();
+        window.dispatchEvent(new CustomEvent("reservaActualizada"));
       } else {
         const data = await res.json();
         alert("Error al cancelar la reserva: " + (data.detail || ""));
@@ -186,6 +194,7 @@ export default function MisReservas() {
         alert("¡Reserva modificada exitosamente!");
         setModalEdicionOpen(false);
         cargarReservas();
+        window.dispatchEvent(new CustomEvent("reservaActualizada"));
       } else {
         const errorData = await res.json();
         alert(errorData.detail || "Error al modificar la reserva");

@@ -107,6 +107,7 @@ export default function ChatbotFlotante() {
       setMensajes((prev) =>
         prev.map((msg) => msg.id === botPensandoId ? { ...msg, texto: data.response } : msg)
       );
+      window.dispatchEvent(new CustomEvent("reservaActualizada"));
     } catch (error) {
       console.error('Error al conectar con el bot:', error);
       let errorMsg = 'Lo siento, tuve un problema al procesar tu mensaje. Inténtalo de nuevo.';

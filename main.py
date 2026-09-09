@@ -7,7 +7,7 @@ import httpx
 import asyncpg
 import redis.asyncio as aioredis
 from redis.exceptions import RedisError
-from fastapi import FastAPI, HTTPException, status, Depends, Request
+from fastapi import FastAPI, HTTPException, status, Depends, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, root_validator
@@ -718,7 +718,7 @@ async def consultar_disponibilidad(campus_id: int, fecha: str):
 
 
 @app.post("/api/reservas", status_code=status.HTTP_201_CREATED, response_model=ReservaResponse)
-async def crear_reserva(reserva: ReservaBase, request: Request):
+async def crear_reserva(reserva: ReservaBase, request: Request, background_tasks: BackgroundTasks):
     rut_final = reserva.rut
     nombre_final = reserva.nombre
 
@@ -774,8 +774,6 @@ async def crear_reserva(reserva: ReservaBase, request: Request):
                     filas_c = await conn.fetch("SELECT nombre FROM campus ORDER BY id ASC")
                     nombres_formateados = ", ".join([f["nombre"] for f in filas_c])
                     raise HTTPException(status_code=400, detail=f"Sede no válida. Disponibles: {nombres_formateados}.")
-
-                await conn.fetchrow("SELECT id FROM campus WHERE id = $1 FOR UPDATE", target_campus_id)
 
                 # VERIFICACIÓN DE RESERVA ACTIVA (Máximo 1 reserva activa por usuario)
                 reserva_activa = await conn.fetchrow(
@@ -875,7 +873,7 @@ async def crear_reserva(reserva: ReservaBase, request: Request):
             "sessionId": row["session_id"],
             "acompanantes": acompanantes_guardados
         }
-        await notificar_creacion_n8n(res_data)
+        background_tasks.add_task(notificar_creacion_n8n, res_data)
 
         return res_data
 
@@ -941,8 +939,60 @@ async def hablar_con_bot(input_data: MessageInput, request: Request, current_use
         raise HTTPException(status_code=500, detail=f"Error en comunicación con chatbot: {str(e)}")
 
 
+@app.get("/api/reservas/recordatorios")
+@app.get("/api/reservas/recordatorios-manana")
+async def obtener_recordatorios_manana(dias: int = 1):
+    try:
+        async with pool.acquire() as conn:
+            filas = await conn.fetch(
+                """
+                SELECT r.id, r.nombre, r.rut, r.fecha, r.hora, 
+                       c.nombre AS campus_nombre, cb.codigo AS cubiculo_codigo, u.email
+                FROM reservas r
+                LEFT JOIN campus c ON r.campus_id = c.id
+                LEFT JOIN cubiculos cb ON r.cubiculo_id = cb.id
+                LEFT JOIN usuarios u ON (
+                    REPLACE(REPLACE(REPLACE(UPPER(u.rut), '.', ''), '-', ''), ' ', '') = REPLACE(REPLACE(REPLACE(UPPER(r.rut), '.', ''), '-', ''), ' ', '') 
+                    OR LOWER(u.nombre) = LOWER(r.nombre)
+                )
+                WHERE r.fecha = CURRENT_DATE + ($1 * INTERVAL '1 day')
+                ORDER BY r.hora ASC
+                """,
+                int(dias)
+            )
+
+            resultado = []
+            for f in filas:
+                email_res = f["email"]
+                rut_item = f["rut"] or ""
+                rut_limpio = str(rut_item).replace(".", "").replace("-", "").upper().strip() if rut_item else ""
+
+                if not email_res and rut_limpio:
+                    row_u = await conn.fetchrow(
+                        "SELECT email FROM usuarios WHERE REPLACE(REPLACE(REPLACE(UPPER(rut), '.', ''), '-', ''), ' ', '') = $1 LIMIT 1",
+                        rut_limpio
+                    )
+                    if row_u:
+                        email_res = row_u["email"]
+
+                resultado.append({
+                    "id": str(f["id"]),
+                    "nombre": f["nombre"] or "Estudiante",
+                    "email": email_res or "",
+                    "rut": rut_item,
+                    "fecha": f["fecha"].strftime("%Y-%m-%d") if f["fecha"] else "",
+                    "hora": f["hora"].strftime("%H:%M") if f["hora"] else "",
+                    "campus": f["campus_nombre"] or "Campus UCT",
+                    "cubiculo_codigo": f["cubiculo_codigo"] or "N/A"
+                })
+
+            return resultado
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.delete("/api/reservas")
-async def eliminar_reserva(data: EsquemaEliminar, credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)):
+async def eliminar_reserva(data: EsquemaEliminar, background_tasks: BackgroundTasks, credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)):
     try:
         rut_consulta = data.rut
         current_user = None
@@ -994,7 +1044,7 @@ async def eliminar_reserva(data: EsquemaEliminar, credentials: Optional[HTTPAuth
             deleted_count = int(resultado.split(" ")[1])
             if deleted_count >= 1:
                 await invalidar_caches_disponibilidad()
-                await notificar_cancelacion_n8n(filas_canceladas)
+                background_tasks.add_task(notificar_cancelacion_n8n, filas_canceladas)
                 return {"message": f"Reserva del RUT {rut_limpio} eliminada con éxito."}
 
         raise HTTPException(status_code=404, detail=f"No hay reservas asociadas al RUT {rut_limpio}.")
@@ -1006,7 +1056,7 @@ async def eliminar_reserva(data: EsquemaEliminar, credentials: Optional[HTTPAuth
 
 
 @app.delete("/api/reservas/{reserva_id}")
-async def eliminar_reserva_por_id(reserva_id: int, credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)):
+async def eliminar_reserva_por_id(reserva_id: int, background_tasks: BackgroundTasks, credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)):
     current_user = None
     if credentials and credentials.credentials:
         try:
@@ -1046,7 +1096,7 @@ async def eliminar_reserva_por_id(reserva_id: int, credentials: Optional[HTTPAut
             await conn.execute("DELETE FROM reservas WHERE id = $1", reserva_id)
 
     await invalidar_caches_disponibilidad()
-    await notificar_cancelacion_n8n(res_dict)
+    background_tasks.add_task(notificar_cancelacion_n8n, res_dict)
     return {"message": f"Reserva ID {reserva_id} eliminada con éxito."}
 
 
