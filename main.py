@@ -1035,7 +1035,7 @@ async def crear_reserva(reserva: ReservaBase, request: Request, background_tasks
                     INSERT INTO historial_reservas (reserva_id, nombre, rut, campus_id, fecha, hora, estado)
                     VALUES ($1, $2, $3, $4, $5, $6, 'activa')
                     """,
-                    reserva_id_creada, nombre_final or "Usuario Chatbot", rut_limpio, target_campus_id, fecha_parsed, hora_parsed
+                    reserva_id_creada, nombre_final or "Usuario Chatbot", rut_limpio, target_campus_id, fecha_parsed, hora_parsed.strftime("%H:%M")
                 )
 
                 acompanantes_guardados = []
@@ -1297,7 +1297,7 @@ async def eliminar_reserva_por_id(reserva_id: int, background_tasks: BackgroundT
                 INSERT INTO historial_reservas (reserva_id, nombre, rut, campus_id, fecha, hora, estado)
                 VALUES ($1, $2, $3, $4, $5, $6, 'cancelada')
                 """,
-                res_detalle["id"], res_detalle["nombre"], res_detalle["rut"], res_detalle["campus_id"], res_detalle["fecha"], res_detalle["hora"]
+                res_detalle["id"], res_detalle["nombre"], res_detalle["rut"], res_detalle["campus_id"], res_detalle["fecha"], str(res_detalle["hora"])
             )
             await conn.execute("DELETE FROM reserva_acompanantes WHERE reserva_id = $1", reserva_id)
             await conn.execute("DELETE FROM reservas WHERE id = $1", reserva_id)
