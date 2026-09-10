@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, lazy, Suspense } from "react";
-import { BrowserRouter as Router, Routes, Route, Link, Navigate } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from "react-router-dom";
 
 // IMPORTACIÓN DEL LOGO DESDE SRC/ASSETS
 import logoUCT from "./assets/logo.png";
@@ -45,6 +45,7 @@ function PaginaContacto() {
 
 function NavBar() {
   const { user, logout } = useAuth();
+  const location = useLocation();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -58,8 +59,19 @@ function NavBar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const getLinkStyle = (path) => {
+    const isActive = location.pathname === path;
+    return `px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${
+      isActive
+        ? "bg-white/20 text-white font-bold border border-white/25 shadow-inner"
+        : "text-sky-100 hover:bg-white/10 hover:text-white"
+    }`;
+  };
+
+  const userInitial = user?.nombre ? user.nombre.charAt(0).toUpperCase() : "U";
+
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 border-b-4 border-[#00A3E0] bg-[#00629B] text-white shadow-md">
+    <nav className="fixed top-0 left-0 right-0 z-50 border-b border-sky-400/30 bg-[#00629B]/95 backdrop-blur-md text-white shadow-lg">
       <div className="mx-auto max-w-7xl px-6">
         <div className="flex h-16 items-center justify-between">
 
@@ -80,106 +92,113 @@ function NavBar() {
             </div>
           </Link>
 
-          {/* MENÚ DE NAVEGACIÓN Y PERFIL */}
-          {user ? (
-            <div className="flex items-center gap-2 sm:gap-4 text-xs font-bold">
-              <Link
-                to="/"
-                className="rounded px-3 py-1.5 text-white hover:bg-[#00A3E0] transition"
-              >
+          {/* MENÚ DE NAVEGACIÓN Y PERFIL - LADO DERECHO ELEGANTE */}
+          <div className="flex items-center gap-3">
+            <div className="hidden md:flex items-center gap-1 bg-black/20 p-1 rounded-full border border-white/10 backdrop-blur-md">
+              <Link to="/" className={getLinkStyle("/")}>
                 Inicio
               </Link>
-              <Link
-                to="/reservar"
-                className="rounded px-3 py-1.5 text-white hover:bg-[#00A3E0] transition"
-              >
+              <Link to="/reservar" className={getLinkStyle("/reservar")}>
                 Reservar
               </Link>
-              <Link
-                to="/contacto"
-                className="rounded px-3 py-1.5 text-white hover:bg-[#00A3E0] transition hidden sm:inline-block"
-              >
+              <Link to="/contacto" className={getLinkStyle("/contacto")}>
                 Contacto
               </Link>
+            </div>
 
-              <div className="flex items-center gap-2 border-l border-sky-400/40 pl-3">
-                <span className="text-sky-100 font-semibold hidden md:inline">
-                  {user.nombre}
-                </span>
+            {user ? (
+              <div className="relative" ref={dropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setDropdownOpen((prev) => !prev)}
+                  className="flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-md transition-all shadow-sm cursor-pointer group select-none"
+                >
+                  <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-amber-400 to-amber-200 text-slate-950 font-black text-xs flex items-center justify-center shadow-md border border-white/40">
+                    {userInitial}
+                  </div>
+                  <div className="flex flex-col text-left hidden sm:flex">
+                    <span className="text-xs font-bold text-white leading-tight max-w-[120px] truncate">
+                      {user.nombre}
+                    </span>
+                    <span className="text-[10px] font-semibold text-sky-200 leading-tight capitalize">
+                      {user.rol === "admin" ? "🛡️ Administrador" : "🎓 Estudiante"}
+                    </span>
+                  </div>
+                  <span className={`text-[10px] text-sky-200 transition-transform duration-200 ${dropdownOpen ? "rotate-180" : ""}`}>
+                    ▼
+                  </span>
+                </button>
 
-                <div className="relative" ref={dropdownRef}>
-                  {user.rol === "admin" ? (
-                    <Link
-                      to="/dashboard"
-                      className="rounded px-2.5 py-1 text-[#00629B] bg-[#FFC20E] hover:bg-yellow-400 transition font-black flex items-center gap-1 uppercase tracking-wider"
-                    >
-                      🛡️ Admin
-                    </Link>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setDropdownOpen((prev) => !prev)}
-                      className="rounded px-2.5 py-1 text-white bg-[#7AB800] hover:bg-[#689c00] font-bold flex items-center gap-1.5 uppercase tracking-wider transition cursor-pointer shadow-sm select-none"
-                    >
-                      <span>🎓 Estudiante</span>
-                      <span className={`text-[10px] transition-transform duration-200 ${dropdownOpen ? "rotate-180" : ""}`}>
-                        ▼
+                {dropdownOpen && (
+                  <div className="absolute right-0 mt-2.5 w-56 rounded-2xl bg-white text-slate-800 shadow-2xl border border-sky-100 py-2 z-50 animate-fadeIn">
+                    <div className="px-4 py-2.5 border-b border-slate-100 bg-sky-50/50 rounded-t-2xl">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Usuario Conectado</p>
+                      <p className="text-xs font-bold text-slate-900 truncate mt-0.5">{user.nombre}</p>
+                      <span className="inline-block mt-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 border border-sky-200">
+                        {user.rol === "admin" ? "🛡️ Administrador" : "🎓 Estudiante UCT"}
                       </span>
-                    </button>
-                  )}
+                    </div>
 
-                  {/* Menú Desplegable */}
-                  {dropdownOpen && (
-                    <div className="absolute right-0 mt-2 w-48 rounded-2xl bg-white text-slate-800 shadow-2xl border border-sky-100 py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
-                      <div className="px-4 py-2 border-b border-slate-100 text-[11px] text-slate-500 font-normal">
-                        Conectado como <strong className="block text-slate-800 font-bold truncate">{user.nombre}</strong>
-                      </div>
+                    <div className="py-1">
+                      {user.rol === "admin" && (
+                        <Link
+                          to="/dashboard"
+                          onClick={() => setDropdownOpen(false)}
+                          className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-amber-700 hover:bg-amber-50 transition"
+                        >
+                          <span>📊</span> Panel de Administración
+                        </Link>
+                      )}
+                      
                       <Link
                         to="/mis-reservas"
                         onClick={() => setDropdownOpen(false)}
-                        className="flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-sky-50 hover:text-sky-700 transition"
+                        className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-sky-50 hover:text-sky-700 transition"
                       >
                         <span>📋</span> Mis Reservas
                       </Link>
+
                       <Link
                         to="/reservar"
                         onClick={() => setDropdownOpen(false)}
-                        className="flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-sky-50 hover:text-sky-700 transition"
+                        className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-sky-50 hover:text-sky-700 transition md:hidden"
                       >
                         <span>📅</span> Reservar Cubículo
                       </Link>
-                      <div className="border-t border-slate-100 mt-1 pt-1">
-                        <button
-                          onClick={() => {
-                            setDropdownOpen(false);
-                            logout();
-                          }}
-                          className="w-full text-left flex items-center gap-2 px-4 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 transition cursor-pointer"
-                        >
-                          <span>🚪</span> Cerrar Sesión
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
 
-                <button
-                  id="nav-logout"
-                  onClick={logout}
-                  className="rounded px-2.5 py-1 text-sky-200 hover:bg-red-600 hover:text-white transition cursor-pointer ml-1"
-                  title="Cerrar sesión"
-                >
-                  Salir
-                </button>
+                      <Link
+                        to="/contacto"
+                        onClick={() => setDropdownOpen(false)}
+                        className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-sky-50 hover:text-sky-700 transition md:hidden"
+                      >
+                        <span>✉️</span> Soporte y Contacto
+                      </Link>
+                    </div>
+
+                    <div className="border-t border-slate-100 pt-1 mt-1">
+                      <button
+                        id="nav-logout"
+                        onClick={() => {
+                          setDropdownOpen(false);
+                          logout();
+                        }}
+                        className="w-full text-left flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                      >
+                        <span>🚪</span> Cerrar Sesión
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <span className="rounded px-3 py-1.5 text-white bg-[#00A3E0] text-xs font-bold">
-                🔒 Inicia sesión
-              </span>
-            </div>
-          )}
+            ) : (
+              <Link
+                to="/login"
+                className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-950 text-xs font-extrabold shadow-md shadow-amber-500/20 transition-all transform hover:scale-105 active:scale-95 cursor-pointer"
+              >
+                <span>🔑</span> Iniciar Sesión
+              </Link>
+            )}
+          </div>
 
         </div>
       </div>
