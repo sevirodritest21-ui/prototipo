@@ -223,6 +223,10 @@ async def startup():
             WHERE NOT EXISTS (
                 SELECT 1 FROM historial_reservas h WHERE h.reserva_id = r.id AND h.estado = 'activa'
             );
+            UPDATE historial_reservas
+            SET estado = 'expirada'
+            WHERE (fecha < CURRENT_DATE OR (fecha = CURRENT_DATE AND hora::time < CURRENT_TIME))
+              AND estado != 'cancelada';
         """)
 
 
@@ -1319,7 +1323,7 @@ async def obtener_historial_reservas(
             SELECT 
                 r.id, r.id AS reserva_id, r.nombre, r.rut, r.fecha::text, r.hora::text,
                 CASE 
-                    WHEN (r.fecha < CURRENT_DATE) OR (r.fecha = CURRENT_DATE AND r.hora < CURRENT_TIME) THEN 'completada'
+                    WHEN (r.fecha < CURRENT_DATE) OR (r.fecha = CURRENT_DATE AND r.hora < CURRENT_TIME) THEN 'expirada'
                     ELSE 'activa'
                 END AS estado,
                 NOW()::text AS fecha_registro,
@@ -1335,7 +1339,7 @@ async def obtener_historial_reservas(
                 h.id, h.reserva_id, h.nombre, h.rut, h.fecha::text, h.hora::text,
                 CASE 
                     WHEN h.estado = 'cancelada' THEN 'cancelada'
-                    WHEN (h.fecha < CURRENT_DATE) OR (h.fecha = CURRENT_DATE AND h.hora::time < CURRENT_TIME) THEN 'completada'
+                    WHEN (h.fecha < CURRENT_DATE) OR (h.fecha = CURRENT_DATE AND h.hora::time < CURRENT_TIME) THEN 'expirada'
                     ELSE h.estado
                 END AS estado,
                 h.fecha_registro::text AS fecha_registro,

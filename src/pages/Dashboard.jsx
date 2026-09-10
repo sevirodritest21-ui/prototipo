@@ -1118,6 +1118,8 @@ export default function Dashboard() {
                                   ? "bg-red-100 text-red-700 border border-red-200"
                                   : h.estado === "activa"
                                   ? "bg-sky-100 text-sky-800 border border-sky-200"
+                                  : h.estado === "expirada" || h.estado === "inactiva"
+                                  ? "bg-amber-100 text-amber-800 border border-amber-200"
                                   : "bg-emerald-100 text-emerald-800 border border-emerald-200"
                               }`}
                             >
