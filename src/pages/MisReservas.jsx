@@ -154,6 +154,28 @@ export default function MisReservas() {
     setModalEdicionOpen(true);
   };
 
+  const handleAddAcompanante = () => {
+    setEditFormData((prev) => ({
+      ...prev,
+      acompanantes: [...(prev.acompanantes || []), { nombre: "", rut: "" }]
+    }));
+  };
+
+  const handleRemoveAcompanante = (index) => {
+    setEditFormData((prev) => ({
+      ...prev,
+      acompanantes: prev.acompanantes.filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleAcompananteChange = (index, field, value) => {
+    setEditFormData((prev) => {
+      const list = [...(prev.acompanantes || [])];
+      list[index] = { ...list[index], [field]: value };
+      return { ...prev, acompanantes: list };
+    });
+  };
+
   useEffect(() => {
     if (modalEdicionOpen && editFormData.campus_id && editFormData.fecha) {
       setCargandoEditBloques(true);
@@ -468,6 +490,54 @@ export default function MisReservas() {
                         </button>
                       );
                     })}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2 border-t border-slate-100 pt-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                    <span>👥</span> Acompañantes ({editFormData.acompanantes?.length || 0})
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleAddAcompanante}
+                    className="text-xs text-sky-600 hover:text-sky-700 font-bold flex items-center gap-1 cursor-pointer bg-sky-50 px-2.5 py-1 rounded-lg border border-sky-200"
+                  >
+                    <span>➕</span> Añadir Acompañante
+                  </button>
+                </div>
+
+                {!editFormData.acompanantes || editFormData.acompanantes.length === 0 ? (
+                  <p className="text-[11px] text-slate-400 italic">No hay acompañantes registrados. Presiona el botón para añadir.</p>
+                ) : (
+                  <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
+                    {editFormData.acompanantes.map((ac, idx) => (
+                      <div key={idx} className="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+                        <input
+                          type="text"
+                          placeholder="Nombre acompañante"
+                          value={ac.nombre || ""}
+                          onChange={(e) => handleAcompananteChange(idx, "nombre", e.target.value)}
+                          className="flex-1 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:border-sky-500"
+                        />
+                        <input
+                          type="text"
+                          placeholder="RUT (ej: 12345678-9)"
+                          value={ac.rut || ""}
+                          onChange={(e) => handleAcompananteChange(idx, "rut", e.target.value)}
+                          className="w-32 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:border-sky-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveAcompanante(idx)}
+                          className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer text-xs font-bold"
+                          title="Eliminar acompañante"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>

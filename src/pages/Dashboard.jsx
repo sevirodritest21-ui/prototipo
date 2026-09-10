@@ -994,29 +994,45 @@ export default function Dashboard() {
               )}
             </div>
 
-            {/* Tarjeta 3: Tasa de Cancelación y Reacondicionamiento */}
             <div className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-5 space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                  <span>📉</span> Tasa de Cancelación y Eficiencia
+                  <span>📉</span> Cancelaciones y Eliminaciones
                 </h3>
-                <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">Optimizado</span>
+                <span className="text-[10px] bg-red-100 text-red-800 font-bold px-2 py-0.5 rounded-full">Histórico</span>
               </div>
-              <p className="text-[11px] text-slate-500">Indicadores clave para reacondicionar espacios:</p>
+              <p className="text-[11px] text-slate-500">Estimación basada en el historial de reservas:</p>
 
               <div className="space-y-3 pt-1">
                 <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between">
                   <div>
-                    <p className="text-[11px] text-slate-500 font-semibold">Tasa de Cancelación Estimada:</p>
-                    <p className="text-lg font-black text-emerald-600">{metricas?.tasa_cancelacion_estimada || "4.2%"}</p>
+                    <p className="text-[11px] text-slate-500 font-semibold">Eliminaciones por Día (Promed.):</p>
+                    <p className="text-lg font-black text-rose-600">{metricas?.promedio_cancelaciones_diarias || "0.0 elim/día"}</p>
                   </div>
-                  <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">Bajo Ausentismo</span>
+                  <span className="text-xs font-bold text-rose-700 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200">Promedio Histórico</span>
                 </div>
 
-                <div className="p-3 bg-white rounded-xl border border-slate-200">
-                  <p className="text-[11px] text-slate-500 font-semibold">Picos por Semanas de Exámenes:</p>
-                  <p className="text-xs font-bold text-slate-900 mt-0.5">{metricas?.semana_pico_examenes || "Semana 16 (Junio / Noviembre)"}</p>
+                <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between">
+                  <div>
+                    <p className="text-[11px] text-slate-500 font-semibold">Tasa de Cancelación Global:</p>
+                    <p className="text-sm font-bold text-slate-900">{metricas?.tasa_cancelacion_estimada || "0.0%"}</p>
+                  </div>
+                  <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">Ratio Canceladas</span>
                 </div>
+
+                {metricas?.cancelaciones_por_dia && metricas.cancelaciones_por_dia.length > 0 && (
+                  <div className="pt-2 border-t border-slate-200">
+                    <p className="text-[11px] font-bold text-slate-700 mb-1.5">Eliminaciones por día de semana:</p>
+                    <div className="space-y-1">
+                      {metricas.cancelaciones_por_dia.map((c, idx) => (
+                        <div key={idx} className="flex justify-between text-xs text-slate-600">
+                          <span className="capitalize">🗓️ {traducirDia(c.dia)}</span>
+                          <span className="font-bold text-rose-600">{c.total} elim.</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1376,10 +1392,18 @@ export default function Dashboard() {
                     <div className="space-y-3">
                       <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between shadow-sm">
                         <span className="text-xs font-bold text-slate-700">
+                          Eliminaciones/Día:
+                        </span>
+                        <span className="text-sm font-black text-rose-600">
+                          {metricas?.promedio_cancelaciones_diarias || "0.0 elim/día"}
+                        </span>
+                      </div>
+                      <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between shadow-sm">
+                        <span className="text-xs font-bold text-slate-700">
                           Tasa Cancelación:
                         </span>
-                        <span className="text-base font-black text-emerald-600">
-                          {metricas?.tasa_cancelacion_estimada || "4.2%"}
+                        <span className="text-sm font-bold text-slate-900">
+                          {metricas?.tasa_cancelacion_estimada || "0.0%"}
                         </span>
                       </div>
                       <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between shadow-sm">
