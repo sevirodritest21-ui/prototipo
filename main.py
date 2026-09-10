@@ -1,6 +1,8 @@
 import os
 import re
 import json
+import hmac
+import hashlib
 from typing import List, Optional, Any, Dict
 from datetime import datetime, date, time, timedelta
 import httpx
@@ -23,12 +25,32 @@ N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL")
 N8N_CANCELACION_WEBHOOK_URL = os.getenv("N8N_CANCELACION_WEBHOOK_URL")
 N8N_CREACION_WEBHOOK_URL = os.getenv("N8N_CREACION_WEBHOOK_URL")
 N8N_EDICION_WEBHOOK_URL = os.getenv("N8N_EDICION_WEBHOOK_URL")
+N8N_SECRET_KEY = os.getenv("N8N_SECRET_KEY", "uct_n8n_shared_secret_webhook_2026")
 DATABASE_URL = os.getenv("DATABASE_URL")
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
 SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY or not SECRET_KEY.strip():
+    raise RuntimeError("CRITICAL ERROR: SECRET_KEY no está definido en backend.env. El servidor no puede iniciar sin una clave secreta segura.")
+
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "480"))
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
+REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
+
+
+def generar_headers_webhook_n8n(payload: dict) -> tuple:
+    payload_bytes = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    signature = hmac.new(
+        N8N_SECRET_KEY.encode("utf-8"),
+        payload_bytes,
+        hashlib.sha256
+    ).hexdigest()
+    headers = {
+        "Content-Type": "application/json",
+        "X-Signature": signature,
+        "X-Webhook-Token": N8N_SECRET_KEY
+    }
+    return payload_bytes, headers
 
 
 async def notificar_cancelacion_n8n(detalles: List[dict]):
@@ -65,7 +87,8 @@ async def notificar_cancelacion_n8n(detalles: List[dict]):
                 "campus": item.get("campus_nombre") or "Campus UCT",
                 "cubiculo_codigo": item.get("cubiculo_codigo") or "N/A"
             }
-            await httpx_client.post(webhook_url, json=payload, timeout=5.0)
+            payload_bytes, headers = generar_headers_webhook_n8n(payload)
+            await httpx_client.post(webhook_url, content=payload_bytes, headers=headers, timeout=5.0)
             print(f"📧 Notificación de cancelación enviada a n8n para reserva ID {payload['reserva_id']} (Email: {payload['email']})")
         except Exception as e:
             print(f"⚠️ Error notificando cancelación a n8n: {e}")
@@ -75,7 +98,6 @@ async def notificar_creacion_n8n(detalle: dict):
     webhook_url = os.getenv("N8N_CREACION_WEBHOOK_URL") or os.getenv("N8N_CANCELACION_WEBHOOK_URL") or os.getenv("N8N_WEBHOOK_URL")
     if not webhook_url or not httpx_client or not detalle:
         return
-
     try:
         email_encontrado = detalle.get("email")
         rut_item = detalle.get("rut", "")
@@ -104,7 +126,8 @@ async def notificar_creacion_n8n(detalle: dict):
             "campus": detalle.get("campus") or "Campus UCT",
             "cubiculo_codigo": detalle.get("cubiculo_codigo") or "N/A"
         }
-        await httpx_client.post(webhook_url, json=payload, timeout=5.0)
+        payload_bytes, headers = generar_headers_webhook_n8n(payload)
+        await httpx_client.post(webhook_url, content=payload_bytes, headers=headers, timeout=5.0)
         print(f"📧 Notificación de creación enviada a n8n para reserva ID {payload['reserva_id']} (Email: {payload['email']})")
     except Exception as e:
         print(f"⚠️ Error notificando creación a n8n: {e}")
@@ -144,7 +167,8 @@ async def notificar_edicion_n8n(detalle: dict):
             "cubiculo_codigo": detalle.get("cubiculo_codigo") or "N/A",
             "acompanantes": detalle.get("acompanantes") or []
         }
-        await httpx_client.post(webhook_url, json=payload, timeout=5.0)
+        payload_bytes, headers = generar_headers_webhook_n8n(payload)
+        await httpx_client.post(webhook_url, content=payload_bytes, headers=headers, timeout=5.0)
         print(f"📧 Notificación de edición enviada a n8n para reserva ID {payload['reserva_id']} (Email: {payload['email']})")
     except Exception as e:
         print(f"⚠️ Error notificando edición a n8n: {e}")
@@ -224,6 +248,11 @@ async def startup():
                 SELECT 1 FROM historial_reservas h WHERE h.reserva_id = r.id AND h.estado = 'activa'
             );
             UPDATE historial_reservas
+            SET estado = 'cancelada'
+            WHERE estado = 'activa'
+              AND reserva_id IS NOT NULL
+              AND NOT EXISTS (SELECT 1 FROM reservas r WHERE r.id = historial_reservas.reserva_id);
+            UPDATE historial_reservas
             SET estado = 'expirada'
             WHERE (fecha < CURRENT_DATE OR (fecha = CURRENT_DATE AND hora::time < CURRENT_TIME))
               AND estado != 'cancelada';
@@ -241,17 +270,37 @@ async def shutdown():
         await redis_client.close()
 
 
-async def check_rate_limit(key_prefix: str, identifier: str, max_requests: int = 15, window_seconds: int = 60) -> bool:
-    if not redis_client:
-        return True
-    try:
-        key = f"rate_limit:{key_prefix}:{identifier}"
-        requests = await redis_client.incr(key)
-        if requests == 1:
-            await redis_client.expire(key, window_seconds)
-        return requests <= max_requests
-    except Exception:
-        return True
+rate_limit_fallback_store: Dict[str, List[float]] = {}
+
+
+async def check_rate_limit(key_prefix: str, identifier: str, max_requests: int = 15, window_seconds: int = 60, increment: bool = True) -> bool:
+    key = f"{key_prefix}:{identifier}"
+    if redis_client:
+        try:
+            r_key = f"rate_limit:{key}"
+            val = await redis_client.get(r_key)
+            current_count = int(val) if val else 0
+            if current_count >= max_requests:
+                return False
+            if increment:
+                requests = await redis_client.incr(r_key)
+                if requests == 1:
+                    await redis_client.expire(r_key, window_seconds)
+                return requests <= max_requests
+            return True
+        except Exception:
+            pass
+
+    now = datetime.utcnow().timestamp()
+    timestamps = rate_limit_fallback_store.get(key, [])
+    timestamps = [t for t in timestamps if now - t < window_seconds]
+    rate_limit_fallback_store[key] = timestamps
+    if len(timestamps) >= max_requests:
+        return False
+    if increment:
+        timestamps.append(now)
+        rate_limit_fallback_store[key] = timestamps
+    return True
 
 
 async def invalidar_caches_disponibilidad(campus_id: Optional[int] = None, fecha_str: Optional[str] = None):
@@ -491,7 +540,12 @@ class LoginRequest(BaseModel):
 
 class TokenResponse(BaseModel):
     access_token: str
-    token_type: str
+    refresh_token: str
+    token_type: str = "bearer"
+
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
 
 
 class UsuarioResponse(BaseModel):
@@ -527,7 +581,14 @@ def get_password_hash(password: str) -> str:
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-    to_encode.update({"exp": expire})
+    to_encode.update({"exp": expire, "type": "access"})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    to_encode = data.copy()
+    expire = datetime.utcnow() + (expires_delta or timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS))
+    to_encode.update({"exp": expire, "type": "refresh"})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
@@ -542,6 +603,8 @@ async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] =
 
     try:
         payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("type") and payload.get("type") != "access":
+            raise credentials_exception
         email: str = payload.get("sub")
         if email is None:
             raise credentials_exception
@@ -579,20 +642,65 @@ async def registrar_usuario(data: CrearUsuarioRequest):
 
 
 @app.post("/api/auth/login", response_model=TokenResponse)
-async def login(data: LoginRequest):
+async def login(data: LoginRequest, request: Request):
+    client_ip = request.client.host if request.client else "anon"
+    
+    if not await check_rate_limit("login_failed", client_ip, max_requests=5, window_seconds=60, increment=False):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Demasiados intentos fallidos de inicio de sesión desde esta IP. Por favor, espera 1 minuto antes de reintentar."
+        )
+
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT id, email, hashed_password, nombre, rut, rol FROM usuarios WHERE email = $1",
             data.email
         )
     if not row or not verify_password(data.password, row["hashed_password"]):
+        await check_rate_limit("login_failed", client_ip, max_requests=5, window_seconds=60, increment=True)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Credenciales incorrectas.",
             headers={"WWW-Authenticate": "Bearer"},
         )
     access_token = create_access_token(data={"sub": row["email"]})
-    return {"access_token": access_token, "token_type": "bearer"}
+    refresh_token = create_refresh_token(data={"sub": row["email"]})
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer"
+    }
+
+
+@app.post("/api/auth/refresh", response_model=TokenResponse)
+async def refresh_token(data: RefreshTokenRequest):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Refresh token inválido o expirado.",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(data.refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("type") != "refresh":
+            raise credentials_exception
+        email: str = payload.get("sub")
+        if not email:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT email FROM usuarios WHERE email = $1", email)
+        if not row:
+            raise credentials_exception
+
+    new_access_token = create_access_token(data={"sub": email})
+    new_refresh_token = create_refresh_token(data={"sub": email})
+    return {
+        "access_token": new_access_token,
+        "refresh_token": new_refresh_token,
+        "token_type": "bearer"
+    }
 
 
 @app.get("/api/auth/me", response_model=UsuarioResponse)
@@ -766,14 +874,52 @@ async def obtener_metricas_dashboard(campus_id: Optional[int] = None, current_us
             )
             demanda_sedes = [{"campus": f["nombre"], "total": f["total"]} for f in filas_sedes]
 
-            total_reservas_historico = await conn.fetchval("SELECT COUNT(*) FROM reservas") or 0
+            filas_canc_dia = await conn.fetch(
+                """
+                SELECT TO_CHAR(fecha, 'Day') as dia_nombre, EXTRACT(ISODOW FROM fecha) as dia_num, COUNT(*) as total_canceladas
+                FROM historial_reservas
+                WHERE estado = 'cancelada'
+                  AND ($1::int IS NULL OR campus_id = $1)
+                GROUP BY dia_nombre, dia_num
+                ORDER BY dia_num ASC
+                """,
+                campus_id
+            )
+            cancelaciones_por_dia = [
+                {
+                    "dia": dias_map.get(f["dia_nombre"].strip(), f["dia_nombre"].strip()),
+                    "total": f["total_canceladas"]
+                }
+                for f in filas_canc_dia
+            ]
+
+            total_registros_hist = await conn.fetchval(
+                "SELECT COUNT(*) FROM historial_reservas WHERE ($1::int IS NULL OR campus_id = $1)",
+                campus_id
+            ) or 0
+
+            total_canceladas_general = await conn.fetchval(
+                "SELECT COUNT(*) FROM historial_reservas WHERE estado = 'cancelada' AND ($1::int IS NULL OR campus_id = $1)",
+                campus_id
+            ) or 0
+
+            dias_distintos = await conn.fetchval(
+                "SELECT COUNT(DISTINCT fecha) FROM historial_reservas WHERE ($1::int IS NULL OR campus_id = $1)",
+                campus_id
+            ) or 1
+
+            promedio_diario = round(total_canceladas_general / max(1, dias_distintos), 1)
+            tasa_cancelacion_pct = round((total_canceladas_general / max(1, total_registros_hist)) * 100, 1)
 
             return {
                 "horarios_pico": horarios_pico,
                 "dias_demanda": dias_demanda,
                 "demanda_sedes": demanda_sedes,
-                "total_historico": total_reservas_historico,
-                "tasa_cancelacion_estimada": "4.2%",
+                "cancelaciones_por_dia": cancelaciones_por_dia,
+                "promedio_cancelaciones_diarias": f"{promedio_diario} elim/día",
+                "total_canceladas": total_canceladas_general,
+                "total_historico": total_registros_hist,
+                "tasa_cancelacion_estimada": f"{tasa_cancelacion_pct}%",
                 "semana_pico_examenes": "Semana 16 (Junio / Noviembre)",
                 "utilidad": "Ayuda a la administración de la biblioteca a optimizar la apertura de bloques o reacondicionar espacios."
             }
@@ -914,9 +1060,39 @@ async def consultar_disponibilidad(campus_id: int, fecha: str):
 
 
 @app.post("/api/reservas", status_code=status.HTTP_201_CREATED, response_model=ReservaResponse)
-async def crear_reserva(reserva: ReservaBase, request: Request, background_tasks: BackgroundTasks):
+async def crear_reserva(
+    reserva: ReservaBase,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)
+):
+    current_user = None
+    if credentials and credentials.credentials:
+        try:
+            payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+            email: str = payload.get("sub")
+            if email:
+                async with pool.acquire() as conn:
+                    row_u = await conn.fetchrow("SELECT id, email, nombre, rut, rol FROM usuarios WHERE email = $1", email)
+                    if row_u:
+                        current_user = dict(row_u)
+        except JWTError:
+            pass
+
     rut_final = reserva.rut
     nombre_final = reserva.nombre
+
+    if current_user:
+        user_rut_limpio = str(current_user.get("rut", "")).replace(".", "").upper().strip()
+        req_rut_limpio = str(rut_final).replace(".", "").upper().strip() if rut_final else ""
+        if current_user.get("rol") != "admin":
+            if req_rut_limpio and req_rut_limpio != user_rut_limpio:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="No tienes permiso para crear reservas a nombre de otro RUT de estudiante."
+                )
+            rut_final = user_rut_limpio
+            nombre_final = current_user.get("nombre") or nombre_final
 
     if (not rut_final or "[" in str(rut_final)) and reserva.sessionId:
         async with pool.acquire() as conn:
@@ -1124,7 +1300,8 @@ async def hablar_con_bot(input_data: MessageInput, request: Request, current_use
         if email_a_guardar:
             payload["email"] = email_a_guardar
 
-        response = await httpx_client.post(N8N_WEBHOOK_URL, json=payload, timeout=30.0)
+        payload_bytes, headers = generar_headers_webhook_n8n(payload)
+        response = await httpx_client.post(N8N_WEBHOOK_URL, content=payload_bytes, headers=headers, timeout=30.0)
         if response.status_code != 200:
             try:
                 err_data = response.json()
@@ -1242,6 +1419,16 @@ async def eliminar_reserva(data: EsquemaEliminar, background_tasks: BackgroundTa
             filas_canceladas = [dict(f) for f in reservas_a_eliminar]
 
             async with conn.transaction():
+                for res in filas_canceladas:
+                    res_upd = await conn.execute("UPDATE historial_reservas SET estado = 'cancelada' WHERE reserva_id = $1", res["id"])
+                    if res_upd == "UPDATE 0":
+                        await conn.execute(
+                            """
+                            INSERT INTO historial_reservas (reserva_id, nombre, rut, campus_id, fecha, hora, estado)
+                            VALUES ($1, $2, $3, $4, $5, $6, 'cancelada')
+                            """,
+                            res["id"], res["nombre"], res["rut"], res.get("campus_id"), res["fecha"], str(res["hora"])
+                        )
                 await conn.execute("DELETE FROM reserva_acompanantes WHERE reserva_id IN (SELECT id FROM reservas WHERE rut = $1)", rut_limpio)
                 resultado = await conn.execute("DELETE FROM reservas WHERE rut = $1", rut_limpio)
 
@@ -1296,13 +1483,15 @@ async def eliminar_reserva_por_id(reserva_id: int, background_tasks: BackgroundT
         res_dict = [dict(res_detalle)]
 
         async with conn.transaction():
-            await conn.execute(
-                """
-                INSERT INTO historial_reservas (reserva_id, nombre, rut, campus_id, fecha, hora, estado)
-                VALUES ($1, $2, $3, $4, $5, $6, 'cancelada')
-                """,
-                res_detalle["id"], res_detalle["nombre"], res_detalle["rut"], res_detalle["campus_id"], res_detalle["fecha"], str(res_detalle["hora"])
-            )
+            res_upd = await conn.execute("UPDATE historial_reservas SET estado = 'cancelada' WHERE reserva_id = $1", reserva_id)
+            if res_upd == "UPDATE 0":
+                await conn.execute(
+                    """
+                    INSERT INTO historial_reservas (reserva_id, nombre, rut, campus_id, fecha, hora, estado)
+                    VALUES ($1, $2, $3, $4, $5, $6, 'cancelada')
+                    """,
+                    res_detalle["id"], res_detalle["nombre"], res_detalle["rut"], res_detalle["campus_id"], res_detalle["fecha"], str(res_detalle["hora"])
+                )
             await conn.execute("DELETE FROM reserva_acompanantes WHERE reserva_id = $1", reserva_id)
             await conn.execute("DELETE FROM reservas WHERE id = $1", reserva_id)
 
@@ -1559,14 +1748,22 @@ async def consultar_reservas(data: EsquemaConsulta, credentials: Optional[HTTPAu
                 email: str = payload.get("sub")
                 if email:
                     async with pool.acquire() as conn:
-                        row_u = await conn.fetchrow("SELECT rut FROM usuarios WHERE email = $1", email)
+                        row_u = await conn.fetchrow("SELECT rut, rol FROM usuarios WHERE email = $1", email)
                         if row_u:
                             current_user = dict(row_u)
             except JWTError:
                 pass
 
-        if current_user and current_user.get("rut"):
-            rut_consulta = current_user.get("rut")
+        if current_user:
+            user_rut_limpio = str(current_user.get("rut", "")).replace(".", "").upper().strip()
+            req_rut_limpio = str(rut_consulta).replace(".", "").upper().strip() if rut_consulta else ""
+            if current_user.get("rol") != "admin":
+                if req_rut_limpio and req_rut_limpio != user_rut_limpio:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="No tienes permiso para consultar reservas pertenecientes a otro RUT de estudiante."
+                    )
+                rut_consulta = user_rut_limpio
 
         async with pool.acquire() as conn:
             if not rut_consulta and data.sessionId:
