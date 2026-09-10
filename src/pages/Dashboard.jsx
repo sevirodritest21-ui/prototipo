@@ -35,9 +35,9 @@ export default function Dashboard() {
   const [campusDestinoCubiculo, setCampusDestinoCubiculo] = useState("");
   const [creandoCubiculo, setCreandoCubiculo] = useState(false);
 
-  // Fecha seleccionada YYYY-MM-DD (por defecto hoy)
   const hoyStr = new Date().toISOString().split("T")[0];
   const [fechaSeleccionada, setFechaSeleccionada] = useState(hoyStr);
+  const [activeTab, setActiveTab] = useState("monitoreo");
 
   const [bloqueSeleccionado, setBloqueSeleccionado] = useState(null);
   const [reservasBloque, setReservasBloque] = useState([]);
@@ -45,6 +45,51 @@ export default function Dashboard() {
   const [eliminandoReservaId, setEliminandoReservaId] = useState(null);
   const [confirmModal, setConfirmModal] = useState({ open: false, titulo: "", mensaje: "", onConfirm: null });
   const [toastNotificacion, setToastNotificacion] = useState({ tipo: "", texto: "" });
+
+  const [cmsAnuncios, setCmsAnuncios] = useState([]);
+  const [cmsTarjetas, setCmsTarjetas] = useState([]);
+  const [cargandoCMS, setCargandoCMS] = useState(false);
+  const [mostrarGestionCMS, setMostrarGestionCMS] = useState(false);
+
+  const [modalAnuncioOpen, setModalAnuncioOpen] = useState(false);
+  const [anuncioEdit, setAnuncioEdit] = useState(null);
+  const [formAnuncio, setFormAnuncio] = useState({
+    titulo: "", subtitulo: "", badge: "NUEVO SERVICIO", boton_texto: "Ver Más", boton_link: "/reservar", color_fondo: "#4A4D55", orden: 0
+  });
+
+  const [modalTarjetaOpen, setModalTarjetaOpen] = useState(false);
+  const [tarjetaEdit, setTarjetaEdit] = useState(null);
+  const [formTarjeta, setFormTarjeta] = useState({
+    icono: "📚", titulo: "", descripcion: "", link_texto: "Ir al Formulario →", link_url: "/reservar", orden: 0
+  });
+
+  const fetchCMS = async () => {
+    setCargandoCMS(true);
+    try {
+      const [anunciosData, tarjetasData] = await Promise.all([
+        apiGet("/api/cms/anuncios"),
+        apiGet("/api/cms/tarjetas")
+      ]);
+      setCmsAnuncios(anunciosData || []);
+      setCmsTarjetas(tarjetasData || []);
+    } catch {
+      setCmsAnuncios([]);
+      setCmsTarjetas([]);
+    } finally {
+      setCargandoCMS(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCMS();
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "historial" && historial.length === 0) {
+      setMostrarHistorial(true);
+      fetchHistorial();
+    }
+  }, [activeTab]);
 
   const [metricas, setMetricas] = useState(null);
   const [cargandoMetricas, setCargandoMetricas] = useState(false);
@@ -83,10 +128,10 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    if (mostrarHistorial) {
+    if (activeTab === "historial" || mostrarHistorial) {
       fetchHistorial();
     }
-  }, [campusFiltroHistorial, busquedaHistorial, mostrarHistorial]);
+  }, [campusFiltroHistorial, busquedaHistorial, mostrarHistorial, activeTab]);
 
   // Cargar lista de campus
   const fetchCampus = async () => {
@@ -370,6 +415,108 @@ export default function Dashboard() {
     }
   };
 
+  const handleAbrirCrearAnuncio = () => {
+    setAnuncioEdit(null);
+    setFormAnuncio({
+      titulo: "", subtitulo: "", badge: "NUEVO SERVICIO", boton_texto: "Ver Más", boton_link: "/reservar", color_fondo: "#4A4D55", orden: cmsAnuncios.length + 1
+    });
+    setModalAnuncioOpen(true);
+  };
+
+  const handleAbrirEditarAnuncio = (an) => {
+    setAnuncioEdit(an);
+    setFormAnuncio({
+      titulo: an.titulo, subtitulo: an.subtitulo || "", badge: an.badge || "", boton_texto: an.boton_texto || "", boton_link: an.boton_link || "", color_fondo: an.color_fondo || "#4A4D55", orden: an.orden || 0
+    });
+    setModalAnuncioOpen(true);
+  };
+
+  const handleGuardarAnuncio = async (e) => {
+    e.preventDefault();
+    if (!formAnuncio.titulo.trim()) return;
+    try {
+      if (anuncioEdit) {
+        await apiPut(`/api/cms/anuncios/${anuncioEdit.id}`, formAnuncio);
+        setToastNotificacion({ tipo: "exito", texto: "Anuncio actualizado exitosamente." });
+      } else {
+        await apiPost("/api/cms/anuncios", formAnuncio);
+        setToastNotificacion({ tipo: "exito", texto: "Anuncio creado exitosamente." });
+      }
+      setModalAnuncioOpen(false);
+      await fetchCMS();
+    } catch (err) {
+      setToastNotificacion({ tipo: "error", texto: err.message || "Error al guardar el anuncio" });
+    }
+  };
+
+  const handleEliminarAnuncio = (id, titulo) => {
+    setConfirmModal({
+      open: true,
+      titulo: "Eliminar Anuncio",
+      mensaje: `¿Estás seguro de eliminar el anuncio '${titulo}'?`,
+      onConfirm: async () => {
+        try {
+          await apiDelete(`/api/cms/anuncios/${id}`);
+          setToastNotificacion({ tipo: "exito", texto: "Anuncio eliminado exitosamente." });
+          await fetchCMS();
+        } catch (err) {
+          setToastNotificacion({ tipo: "error", texto: err.message || "Error al eliminar anuncio" });
+        }
+      }
+    });
+  };
+
+  const handleAbrirCrearTarjeta = () => {
+    setTarjetaEdit(null);
+    setFormTarjeta({
+      icono: "📚", titulo: "", descripcion: "", link_texto: "Ir al Formulario →", link_url: "/reservar", orden: cmsTarjetas.length + 1
+    });
+    setModalTarjetaOpen(true);
+  };
+
+  const handleAbrirEditarTarjeta = (tj) => {
+    setTarjetaEdit(tj);
+    setFormTarjeta({
+      icono: tj.icono || "📚", titulo: tj.titulo, descripcion: tj.descripcion || "", link_texto: tj.link_texto || "", link_url: tj.link_url || "", orden: tj.orden || 0
+    });
+    setModalTarjetaOpen(true);
+  };
+
+  const handleGuardarTarjeta = async (e) => {
+    e.preventDefault();
+    if (!formTarjeta.titulo.trim()) return;
+    try {
+      if (tarjetaEdit) {
+        await apiPut(`/api/cms/tarjetas/${tarjetaEdit.id}`, formTarjeta);
+        setToastNotificacion({ tipo: "exito", texto: "Tarjeta actualizada exitosamente." });
+      } else {
+        await apiPost("/api/cms/tarjetas", formTarjeta);
+        setToastNotificacion({ tipo: "exito", texto: "Tarjeta creada exitosamente." });
+      }
+      setModalTarjetaOpen(false);
+      await fetchCMS();
+    } catch (err) {
+      setToastNotificacion({ tipo: "error", texto: err.message || "Error al guardar la tarjeta" });
+    }
+  };
+
+  const handleEliminarTarjeta = (id, titulo) => {
+    setConfirmModal({
+      open: true,
+      titulo: "Eliminar Tarjeta",
+      mensaje: `¿Estás seguro de eliminar la tarjeta '${titulo}'?`,
+      onConfirm: async () => {
+        try {
+          await apiDelete(`/api/cms/tarjetas/${id}`);
+          setToastNotificacion({ tipo: "exito", texto: "Tarjeta eliminada exitosamente." });
+          await fetchCMS();
+        } catch (err) {
+          setToastNotificacion({ tipo: "error", texto: err.message || "Error al eliminar tarjeta" });
+        }
+      }
+    });
+  };
+
   // Handler para Guardar Cambios de la Edición (PUT)
   const handleGuardarEdicionCampus = async (e) => {
     e.preventDefault();
@@ -454,6 +601,7 @@ export default function Dashboard() {
   const proximosDias = obtenerProximosDias();
   const porcentaje = resumen?.porcentaje_ocupacion ?? 0;
   const cubiculosActuales = resumen?.cubiculas_fisicos ?? 10;
+  const campusSeleccionadoObj = campus.find((c) => c.id === campusSeleccionado);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-white via-sky-50 to-amber-50 pt-24 pb-16 px-4 relative overflow-hidden font-sans text-slate-900">
@@ -461,38 +609,68 @@ export default function Dashboard() {
       <div className="absolute bottom-0 right-0 h-96 w-96 rounded-full bg-amber-300/20 blur-3xl pointer-events-none" />
 
       <main className="relative z-10 mx-auto max-w-7xl w-full">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 bg-white/70 backdrop-blur-md border border-sky-100 rounded-3xl p-6 shadow-sm">
-          <div>
-            <span className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-white px-3.5 py-1 text-xs font-semibold text-sky-700 shadow-sm">
-              📊 Panel Administrativo
-            </span>
-            <h1 className="mt-3 text-3xl md:text-4xl font-black text-slate-900 tracking-tight">
-              Monitoreo de Ocupación
-            </h1>
-            <p className="mt-1 text-sm text-slate-600">
-              Bienvenido/a, <strong className="text-slate-800">{user?.nombre}</strong> ({user?.email})
-            </p>
+        <div className="bg-white/80 backdrop-blur-xl border border-sky-100/80 rounded-3xl p-6 shadow-xl shadow-sky-900/5 mb-8 space-y-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-3 py-0.5 text-xs font-bold text-sky-800">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Panel Administrador Pro
+                </span>
+                <span className="text-xs font-semibold text-slate-400">| Sede Activa: <strong className="text-slate-700">{campusSeleccionadoObj?.nombre || "General"}</strong></span>
+              </div>
+              <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
+                Centro de Control Universitario
+              </h1>
+              <p className="text-xs md:text-sm text-slate-600">
+                Bienvenido/a, <strong className="text-slate-900 font-bold">{user?.nombre}</strong> ({user?.email})
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                id="dashboard-logout"
+                onClick={logout}
+                className="inline-flex items-center gap-2 rounded-2xl border border-red-200 bg-white px-4 py-2.5 text-xs font-bold text-red-600 shadow-sm hover:bg-red-50 hover:border-red-300 transition-all cursor-pointer"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                Cerrar Sesión
+              </button>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setMostrarGestionCampus((v) => !v)}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-sky-300 bg-sky-50 px-4 py-2.5 text-xs font-bold text-sky-800 shadow-sm hover:bg-sky-100 transition-all cursor-pointer"
-            >
-              <span>🏛️</span> {mostrarGestionCampus ? "Ocultar Gestión de Campus" : "Gestión de Campus"}
-            </button>
-
-            <button
-              id="dashboard-logout"
-              onClick={logout}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-red-200 bg-white px-4 py-2.5 text-xs font-semibold text-red-600 shadow-sm hover:bg-red-50 hover:border-red-300 transition-all cursor-pointer"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
-              Cerrar Sesión
-            </button>
+          <div className="pt-2 border-t border-slate-100">
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+              {[
+                { id: "monitoreo", label: "Monitoreo y Bloques", icon: "📊" },
+                { id: "metricas", label: "Métricas y Análisis", icon: "📈" },
+                { id: "sedes", label: "Sedes y Cubículos", icon: "🏛️" },
+                { id: "cms", label: "Portal Inicio (CMS)", icon: "🖼️" },
+                { id: "historial", label: "Historial de Registros", icon: "📜" }
+              ].map((tab) => {
+                const isSelected = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => {
+                      setActiveTab(tab.id);
+                      if (tab.id === "cms") setMostrarGestionCMS(true);
+                      if (tab.id === "sedes") setMostrarGestionCampus(true);
+                    }}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer border ${
+                      isSelected
+                        ? "bg-slate-900 text-white border-slate-900 shadow-md scale-[1.02]"
+                        : "bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200"
+                    }`}
+                  >
+                    <span>{tab.icon}</span>
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
 
@@ -514,8 +692,165 @@ export default function Dashboard() {
           </div>
         )}
 
+        {(activeTab === "cms" || mostrarGestionCMS) && (
+          <div className="bg-white/90 backdrop-blur-md border border-amber-200 rounded-3xl p-6 md:p-8 shadow-xl shadow-amber-900/10 mb-8 space-y-8 animate-fadeIn">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-amber-100 pb-4">
+              <div>
+                <span className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-0.5 text-xs font-semibold text-amber-800 shadow-sm mb-1">
+                  🖼️ Administrador de Contenidos (CMS)
+                </span>
+                <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                  Gestión del Portal de Inicio
+                </h2>
+                <p className="text-xs text-slate-600">
+                  Edita las diapositivas del carrusel informativo y las tarjetas de la página principal.
+                </p>
+              </div>
+              <button
+                onClick={fetchCMS}
+                className="px-4 py-2 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 font-bold text-xs rounded-xl transition cursor-pointer"
+              >
+                🔄 Actualizar Vistas
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <span>🎡</span> Diapositivas del Carrusel Principal ({cmsAnuncios.length})
+                  </h3>
+                  <p className="text-[11px] text-slate-500">Banners animados que rotan en la sección superior del inicio</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAbrirCrearAnuncio}
+                  className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  ➕ Añadir Diapositiva
+                </button>
+              </div>
+
+              {cargandoCMS ? (
+                <div className="py-6 text-center text-xs text-slate-500">Cargando anuncios...</div>
+              ) : cmsAnuncios.length === 0 ? (
+                <div className="p-6 bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-center text-xs text-slate-500">
+                  No hay anuncios personalizados registrados.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {cmsAnuncios.map((an) => (
+                    <div
+                      key={an.id}
+                      className="p-5 rounded-2xl border border-slate-200 bg-slate-50 flex flex-col justify-between gap-4 shadow-sm"
+                      style={{ borderLeftColor: an.color_fondo || "#00629B", borderLeftWidth: "6px" }}
+                    >
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-black px-2 py-0.5 rounded bg-sky-100 text-sky-800 border border-sky-200 uppercase">
+                            {an.badge || "ANUNCIO"}
+                          </span>
+                          <span className="text-[10px] font-bold text-slate-400">Orden: {an.orden}</span>
+                        </div>
+                        <h4 className="font-bold text-sm text-slate-900 leading-snug">{an.titulo}</h4>
+                        <p className="text-xs text-slate-600 line-clamp-2">{an.subtitulo}</p>
+                        {an.boton_texto && (
+                          <span className="inline-block text-[11px] font-semibold text-sky-700 bg-white px-2.5 py-1 rounded-md border border-slate-200">
+                            Boton: "{an.boton_texto}" ({an.boton_link})
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200/60">
+                        <button
+                          type="button"
+                          onClick={() => handleAbrirEditarAnuncio(an)}
+                          className="px-3 py-1.5 rounded-xl border border-sky-200 bg-white text-sky-700 hover:bg-sky-50 text-xs font-bold transition shadow-sm cursor-pointer"
+                        >
+                          ✏️ Editar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleEliminarAnuncio(an.id, an.titulo)}
+                          className="px-3 py-1.5 rounded-xl border border-red-200 bg-white text-red-600 hover:bg-red-50 text-xs font-bold transition shadow-sm cursor-pointer"
+                        >
+                          🗑️ Eliminar
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-4 pt-4 border-t border-amber-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <span>📋</span> Tarjetas Informativas Inferiores ({cmsTarjetas.length})
+                  </h3>
+                  <p className="text-[11px] text-slate-500">Bloques con accesos directos situados abajo en el inicio</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAbrirCrearTarjeta}
+                  className="px-4 py-2 bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  ➕ Añadir Tarjeta
+                </button>
+              </div>
+
+              {cargandoCMS ? (
+                <div className="py-6 text-center text-xs text-slate-500">Cargando tarjetas...</div>
+              ) : cmsTarjetas.length === 0 ? (
+                <div className="p-6 bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-center text-xs text-slate-500">
+                  No hay tarjetas informativas registradas.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {cmsTarjetas.map((tj) => (
+                    <div
+                      key={tj.id}
+                      className="p-5 rounded-2xl border border-slate-200 bg-white flex flex-col justify-between gap-4 shadow-sm"
+                    >
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xl p-2 bg-sky-50 rounded-xl border border-sky-100">{tj.icono || "📚"}</span>
+                          <span className="text-[10px] font-bold text-slate-400">Orden: {tj.orden}</span>
+                        </div>
+                        <h4 className="font-bold text-sm text-slate-900">{tj.titulo}</h4>
+                        <p className="text-xs text-slate-600 leading-relaxed">{tj.descripcion}</p>
+                        {tj.link_texto && (
+                          <p className="text-[11px] font-bold text-sky-600">{tj.link_texto}</p>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                        <button
+                          type="button"
+                          onClick={() => handleAbrirEditarTarjeta(tj)}
+                          className="px-3 py-1.5 rounded-xl border border-sky-200 bg-white text-sky-700 hover:bg-sky-50 text-xs font-bold transition shadow-sm cursor-pointer"
+                        >
+                          ✏️ Editar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleEliminarTarjeta(tj.id, tj.titulo)}
+                          className="px-3 py-1.5 rounded-xl border border-red-200 bg-white text-red-600 hover:bg-red-50 text-xs font-bold transition shadow-sm cursor-pointer"
+                        >
+                          🗑️ Eliminar
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* MÓDULO DE GESTIÓN DE CAMPUS Y CUBÍCULOS */}
-        {mostrarGestionCampus && (
+        {(activeTab === "sedes" || mostrarGestionCampus) && (
           <div className="bg-white/90 backdrop-blur-md border border-sky-200 rounded-3xl p-6 shadow-xl shadow-sky-900/10 mb-8 space-y-6 animate-fadeIn">
             <div className="flex items-center justify-between border-b border-sky-100 pb-4">
               <div>
@@ -862,7 +1197,9 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Panel de Filtros */}
+        {(activeTab === "monitoreo") && (
+          <>
+            {/* Panel de Filtros */}
         <div className="bg-white/80 backdrop-blur-md border border-sky-100 rounded-3xl p-6 shadow-lg shadow-sky-900/5 mb-8 flex flex-col gap-5">
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
             <span className="text-sm font-bold text-slate-800 min-w-[110px]">
@@ -1078,9 +1415,11 @@ export default function Dashboard() {
             )}
           </>
         )}
+        </>
+        )}
 
-        {/* SECCIÓN: MÉTRICAS DE USO Y HORARIOS PICO */}
-        <div className="mt-10 bg-white/90 backdrop-blur-md border border-sky-200 rounded-3xl p-6 md:p-8 shadow-xl shadow-sky-900/5 mb-8 space-y-6">
+        {(activeTab === "metricas") && (
+          <div className="mt-2 bg-white/90 backdrop-blur-md border border-sky-200 rounded-3xl p-6 md:p-8 shadow-xl shadow-sky-900/5 mb-8 space-y-6 animate-fadeIn">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-sky-100 pb-5">
             <div>
               <span className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3.5 py-1 text-xs font-semibold text-sky-800 shadow-sm mb-2">
@@ -1224,8 +1563,10 @@ export default function Dashboard() {
 
           </div>
         </div>
+        )}
 
-        <div className="mt-8 bg-white/90 backdrop-blur-md border border-slate-200 rounded-3xl p-6 md:p-8 shadow-xl mb-8 space-y-6">
+        {(activeTab === "historial" || mostrarHistorial) && (
+          <div className="mt-2 bg-white/90 backdrop-blur-md border border-slate-200 rounded-3xl p-6 md:p-8 shadow-xl mb-8 space-y-6 animate-fadeIn">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
             <div>
               <span className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-3.5 py-1 text-xs font-semibold text-indigo-800 shadow-sm mb-2">
@@ -1337,6 +1678,7 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+        )}
 
         {/* MODAL DETALLE DE RESERVAS */}
         {bloqueSeleccionado && (
@@ -1617,6 +1959,237 @@ export default function Dashboard() {
                   Cerrar Gráficos
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {modalAnuncioOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-fadeIn">
+            <div className="w-full max-w-lg bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 className="text-lg font-bold text-slate-900">
+                  {anuncioEdit ? "✏️ Editar Diapositiva" : "➕ Crear Diapositiva de Anuncio"}
+                </h3>
+                <button
+                  onClick={() => setModalAnuncioOpen(false)}
+                  className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center text-xs cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleGuardarAnuncio} className="space-y-3 text-xs">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Título del Anuncio:</label>
+                  <input
+                    type="text"
+                    value={formAnuncio.titulo}
+                    onChange={(e) => setFormAnuncio({ ...formAnuncio, titulo: e.target.value })}
+                    className="w-full px-3.5 py-2 border rounded-xl bg-slate-50 focus:bg-white text-slate-900 font-medium focus:outline-none focus:border-amber-500"
+                    placeholder="ej: RESERVA INTELIGENTE..."
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Subtítulo / Descripción:</label>
+                  <textarea
+                    value={formAnuncio.subtitulo}
+                    onChange={(e) => setFormAnuncio({ ...formAnuncio, subtitulo: e.target.value })}
+                    rows={2}
+                    className="w-full px-3.5 py-2 border rounded-xl bg-slate-50 focus:bg-white text-slate-900 font-medium focus:outline-none focus:border-amber-500"
+                    placeholder="Descripción explicativa..."
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Etiqueta Badge:</label>
+                    <input
+                      type="text"
+                      value={formAnuncio.badge}
+                      onChange={(e) => setFormAnuncio({ ...formAnuncio, badge: e.target.value })}
+                      className="w-full px-3.5 py-2 border rounded-xl bg-slate-50 focus:bg-white text-slate-900 font-medium focus:outline-none focus:border-amber-500"
+                      placeholder="ej: NUEVO SERVICIO"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Color de Fondo (HEX):</label>
+                    <div className="flex gap-2 items-center">
+                      <input
+                        type="color"
+                        value={formAnuncio.color_fondo}
+                        onChange={(e) => setFormAnuncio({ ...formAnuncio, color_fondo: e.target.value })}
+                        className="w-9 h-9 rounded-lg cursor-pointer border-0"
+                      />
+                      <input
+                        type="text"
+                        value={formAnuncio.color_fondo}
+                        onChange={(e) => setFormAnuncio({ ...formAnuncio, color_fondo: e.target.value })}
+                        className="flex-1 px-3 py-1.5 border rounded-xl bg-slate-50 text-slate-900 font-mono"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Texto del Botón:</label>
+                    <input
+                      type="text"
+                      value={formAnuncio.boton_texto}
+                      onChange={(e) => setFormAnuncio({ ...formAnuncio, boton_texto: e.target.value })}
+                      className="w-full px-3.5 py-2 border rounded-xl bg-slate-50 focus:bg-white text-slate-900 font-medium focus:outline-none focus:border-amber-500"
+                      placeholder="ej: Abrir Chatbot Ahora"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Enlace / Acción del Botón:</label>
+                    <input
+                      type="text"
+                      value={formAnuncio.boton_link}
+                      onChange={(e) => setFormAnuncio({ ...formAnuncio, boton_link: e.target.value })}
+                      className="w-full px-3.5 py-2 border rounded-xl bg-slate-50 focus:bg-white text-slate-900 font-medium focus:outline-none focus:border-amber-500"
+                      placeholder="ej: open-chat o /reservar"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Orden de Presentación:</label>
+                  <input
+                    type="number"
+                    value={formAnuncio.orden}
+                    onChange={(e) => setFormAnuncio({ ...formAnuncio, orden: parseInt(e.target.value, 10) || 0 })}
+                    className="w-24 px-3.5 py-2 border rounded-xl bg-slate-50 focus:bg-white text-slate-900 font-medium focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-3 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setModalAnuncioOpen(false)}
+                    className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold shadow-md cursor-pointer"
+                  >
+                    Guardar Diapositiva
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {modalTarjetaOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-fadeIn">
+            <div className="w-full max-w-lg bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 className="text-lg font-bold text-slate-900">
+                  {tarjetaEdit ? "✏️ Editar Tarjeta Informativa" : "➕ Crear Tarjeta Informativa"}
+                </h3>
+                <button
+                  onClick={() => setModalTarjetaOpen(false)}
+                  className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center text-xs cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleGuardarTarjeta} className="space-y-3 text-xs">
+                <div className="grid grid-cols-4 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Ícono:</label>
+                    <input
+                      type="text"
+                      value={formTarjeta.icono}
+                      onChange={(e) => setFormTarjeta({ ...formTarjeta, icono: e.target.value })}
+                      className="w-full px-3 py-2 border rounded-xl bg-slate-50 focus:bg-white text-slate-900 font-medium text-center focus:outline-none focus:border-sky-500 text-base"
+                      placeholder="📚"
+                      required
+                    />
+                  </div>
+
+                  <div className="col-span-3">
+                    <label className="block font-bold text-slate-700 mb-1">Título de la Tarjeta:</label>
+                    <input
+                      type="text"
+                      value={formTarjeta.titulo}
+                      onChange={(e) => setFormTarjeta({ ...formTarjeta, titulo: e.target.value })}
+                      className="w-full px-3.5 py-2 border rounded-xl bg-slate-50 focus:bg-white text-slate-900 font-medium focus:outline-none focus:border-sky-500"
+                      placeholder="ej: Reserva de Cubículos"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Descripción:</label>
+                  <textarea
+                    value={formTarjeta.descripcion}
+                    onChange={(e) => setFormTarjeta({ ...formTarjeta, descripcion: e.target.value })}
+                    rows={2}
+                    className="w-full px-3.5 py-2 border rounded-xl bg-slate-50 focus:bg-white text-slate-900 font-medium focus:outline-none focus:border-sky-500"
+                    placeholder="Detalle descriptivo..."
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Texto del Enlace:</label>
+                    <input
+                      type="text"
+                      value={formTarjeta.link_texto}
+                      onChange={(e) => setFormTarjeta({ ...formTarjeta, link_texto: e.target.value })}
+                      className="w-full px-3.5 py-2 border rounded-xl bg-slate-50 focus:bg-white text-slate-900 font-medium focus:outline-none focus:border-sky-500"
+                      placeholder="ej: Ir al Formulario →"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">URL / Acción:</label>
+                    <input
+                      type="text"
+                      value={formTarjeta.link_url}
+                      onChange={(e) => setFormTarjeta({ ...formTarjeta, link_url: e.target.value })}
+                      className="w-full px-3.5 py-2 border rounded-xl bg-slate-50 focus:bg-white text-slate-900 font-medium focus:outline-none focus:border-sky-500"
+                      placeholder="ej: /reservar u open-chat"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Orden de Presentación:</label>
+                  <input
+                    type="number"
+                    value={formTarjeta.orden}
+                    onChange={(e) => setFormTarjeta({ ...formTarjeta, orden: parseInt(e.target.value, 10) || 0 })}
+                    className="w-24 px-3.5 py-2 border rounded-xl bg-slate-50 focus:bg-white text-slate-900 font-medium focus:outline-none focus:border-sky-500"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-3 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setModalTarjetaOpen(false)}
+                    className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold shadow-md cursor-pointer"
+                  >
+                    Guardar Tarjeta
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}

@@ -256,6 +256,47 @@ async def startup():
             SET estado = 'expirada'
             WHERE (fecha < CURRENT_DATE OR (fecha = CURRENT_DATE AND hora::time < CURRENT_TIME))
               AND estado != 'cancelada';
+
+            CREATE TABLE IF NOT EXISTS anuncios_cms (
+                id SERIAL PRIMARY KEY,
+                titulo VARCHAR(200) NOT NULL,
+                subtitulo TEXT,
+                badge VARCHAR(50) DEFAULT 'NUEVO SERVICIO',
+                boton_texto VARCHAR(50) DEFAULT 'Ver Más',
+                boton_link VARCHAR(200) DEFAULT '/reservar',
+                color_fondo VARCHAR(50) DEFAULT '#4A4D55',
+                orden INT DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS tarjetas_cms (
+                id SERIAL PRIMARY KEY,
+                icono VARCHAR(50) DEFAULT '📚',
+                titulo VARCHAR(100) NOT NULL,
+                descripcion TEXT,
+                link_texto VARCHAR(50) DEFAULT 'Ir al Formulario →',
+                link_url VARCHAR(200) DEFAULT '/reservar',
+                orden INT DEFAULT 0
+            );
+
+            INSERT INTO anuncios_cms (titulo, subtitulo, badge, boton_texto, boton_link, color_fondo, orden)
+            SELECT 'RESERVA INTELIGENTE CON ASISTENCIA IA', '¿Sabías que puedes consultar disponibilidad y agendar tu espacio directamente desde el chat flotante?', 'NUEVO SERVICIO', 'Abrir Chatbot Ahora', 'open-chat', '#4A4D55', 1
+            WHERE NOT EXISTS (SELECT 1 FROM anuncios_cms);
+
+            INSERT INTO anuncios_cms (titulo, subtitulo, badge, boton_texto, boton_link, color_fondo, orden)
+            SELECT 'SEMANA DE EXÁMENES — EXTENSIÓN DE HORARIOS', 'Recuerda que durante el periodo de evaluaciones la biblioteca extiende sus bloques de atención.', 'AVISO INSTITUCIONAL', 'Reservar Tu Espacio', '/reservar', '#00629B', 2
+            WHERE NOT EXISTS (SELECT 1 FROM anuncios_cms OFFSET 1);
+
+            INSERT INTO tarjetas_cms (icono, titulo, descripcion, link_texto, link_url, orden)
+            SELECT '📚', 'Reserva de Cubículos', 'Selecciona la sede, fecha y bloque horario que necesitas para tu jornada de estudio individual o en equipo.', 'Ir al Formulario →', '/reservar', 1
+            WHERE NOT EXISTS (SELECT 1 FROM tarjetas_cms);
+
+            INSERT INTO tarjetas_cms (icono, titulo, descripcion, link_texto, link_url, orden)
+            SELECT '🤖', 'Asistente Virtual', 'Interactúa en lenguaje natural para realizar o cancelar reservas sin llenar formularios extensos.', 'Probar Chatbot →', 'open-chat', 2
+            WHERE NOT EXISTS (SELECT 1 FROM tarjetas_cms OFFSET 1);
+
+            INSERT INTO tarjetas_cms (icono, titulo, descripcion, link_texto, link_url, orden)
+            SELECT '👥', 'Trabajo Colaborativo', 'Registra a tus compañeros acompañantes al momento de realizar la reserva de tu espacio.', 'Hasta 10 espacios por bloque', '', 3
+            WHERE NOT EXISTS (SELECT 1 FROM tarjetas_cms OFFSET 2);
         """)
 
 
@@ -552,6 +593,25 @@ class RefreshTokenRequest(BaseModel):
     refresh_token: str
 
 
+class AnuncioCMSRequest(BaseModel):
+    titulo: str
+    subtitulo: Optional[str] = ""
+    badge: Optional[str] = "NUEVO SERVICIO"
+    boton_texto: Optional[str] = "Ver Más"
+    boton_link: Optional[str] = "/reservar"
+    color_fondo: Optional[str] = "#4A4D55"
+    orden: Optional[int] = 0
+
+
+class TarjetaCMSRequest(BaseModel):
+    icono: Optional[str] = "📚"
+    titulo: str
+    descripcion: Optional[str] = ""
+    link_texto: Optional[str] = "Ir al Formulario →"
+    link_url: Optional[str] = "/reservar"
+    orden: Optional[int] = 0
+
+
 class UsuarioResponse(BaseModel):
     id: int
     email: str
@@ -792,6 +852,122 @@ async def eliminar_cubiculo(cubiculo_id: int, current_user: dict = Depends(get_c
         )
         await invalidar_caches_disponibilidad()
         return {"mensaje": "Cubículo eliminado exitosamente", "campus_id": campus_id}
+
+
+@app.get("/api/cms/anuncios")
+async def obtener_anuncios_cms():
+    async with pool.acquire() as conn:
+        filas = await conn.fetch("SELECT * FROM anuncios_cms ORDER BY orden ASC, id ASC")
+        return [dict(f) for f in filas]
+
+
+@app.post("/api/cms/anuncios", status_code=status.HTTP_201_CREATED)
+async def crear_anuncio_cms(data: AnuncioCMSRequest, current_user: dict = Depends(get_current_user)):
+    if current_user.get("rol") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
+
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            INSERT INTO anuncios_cms (titulo, subtitulo, badge, boton_texto, boton_link, color_fondo, orden)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING *
+            """,
+            data.titulo.strip(), data.subtitulo.strip(), data.badge.strip(),
+            data.boton_texto.strip(), data.boton_link.strip(), data.color_fondo.strip(), data.orden
+        )
+        return dict(row)
+
+
+@app.put("/api/cms/anuncios/{anuncio_id}")
+async def actualizar_anuncio_cms(anuncio_id: int, data: AnuncioCMSRequest, current_user: dict = Depends(get_current_user)):
+    if current_user.get("rol") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
+
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            UPDATE anuncios_cms
+            SET titulo = $1, subtitulo = $2, badge = $3, boton_texto = $4, boton_link = $5, color_fondo = $6, orden = $7
+            WHERE id = $8
+            RETURNING *
+            """,
+            data.titulo.strip(), data.subtitulo.strip(), data.badge.strip(),
+            data.boton_texto.strip(), data.boton_link.strip(), data.color_fondo.strip(), data.orden, anuncio_id
+        )
+        if not row:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Anuncio no encontrado.")
+        return dict(row)
+
+
+@app.delete("/api/cms/anuncios/{anuncio_id}")
+async def eliminar_anuncio_cms(anuncio_id: int, current_user: dict = Depends(get_current_user)):
+    if current_user.get("rol") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
+
+    async with pool.acquire() as conn:
+        result = await conn.execute("DELETE FROM anuncios_cms WHERE id = $1", anuncio_id)
+        if result == "DELETE 0":
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Anuncio no encontrado.")
+        return {"mensaje": "Anuncio eliminado exitosamente"}
+
+
+@app.get("/api/cms/tarjetas")
+async def obtener_tarjetas_cms():
+    async with pool.acquire() as conn:
+        filas = await conn.fetch("SELECT * FROM tarjetas_cms ORDER BY orden ASC, id ASC")
+        return [dict(f) for f in filas]
+
+
+@app.post("/api/cms/tarjetas", status_code=status.HTTP_201_CREATED)
+async def crear_tarjeta_cms(data: TarjetaCMSRequest, current_user: dict = Depends(get_current_user)):
+    if current_user.get("rol") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
+
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            INSERT INTO tarjetas_cms (icono, titulo, descripcion, link_texto, link_url, orden)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING *
+            """,
+            data.icono.strip(), data.titulo.strip(), data.descripcion.strip(),
+            data.link_texto.strip(), data.link_url.strip(), data.orden
+        )
+        return dict(row)
+
+
+@app.put("/api/cms/tarjetas/{tarjeta_id}")
+async def actualizar_tarjeta_cms(tarjeta_id: int, data: TarjetaCMSRequest, current_user: dict = Depends(get_current_user)):
+    if current_user.get("rol") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
+
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            UPDATE tarjetas_cms
+            SET icono = $1, titulo = $2, descripcion = $3, link_texto = $4, link_url = $5, orden = $6
+            WHERE id = $7
+            RETURNING *
+            """,
+            data.icono.strip(), data.titulo.strip(), data.descripcion.strip(),
+            data.link_texto.strip(), data.link_url.strip(), data.orden, tarjeta_id
+        )
+        if not row:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tarjeta no encontrada.")
+        return dict(row)
+
+
+@app.delete("/api/cms/tarjetas/{tarjeta_id}")
+async def eliminar_tarjeta_cms(tarjeta_id: int, current_user: dict = Depends(get_current_user)):
+    if current_user.get("rol") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
+
+    async with pool.acquire() as conn:
+        result = await conn.execute("DELETE FROM tarjetas_cms WHERE id = $1", tarjeta_id)
+        if result == "DELETE 0":
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tarjeta no encontrada.")
+        return {"mensaje": "Tarjeta eliminada exitosamente"}
 
 
 # --- Endpoints Públicos y Admin ---
