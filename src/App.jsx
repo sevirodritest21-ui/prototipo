@@ -26,22 +26,6 @@ function LoadingFallback() {
   );
 }
 
-function PaginaContacto() {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-[#F4F6F9] px-4 font-sans">
-      <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-8 text-center shadow-md border-t-4 border-[#00A3E0]">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#00629B]/10 text-2xl text-[#00629B]">
-          ✉️
-        </div>
-        <h2 className="mt-4 text-2xl font-bold text-[#00629B]">Soporte y Contacto</h2>
-        <p className="mt-2 text-xs text-slate-600">
-          Dirección de Bibliotecas UCT. Soporte técnico disponible para consultas sobre reservas.
-        </p>
-        <p className="mt-4 text-sm font-bold text-[#00A3E0]">soporte.biblioteca@uct.cl</p>
-      </div>
-    </div>
-  );
-}
 
 function NavBar() {
   const { user, logout } = useAuth();
@@ -100,9 +84,6 @@ function NavBar() {
               </Link>
               <Link to="/reservar" className={getLinkStyle("/reservar")}>
                 Reservar
-              </Link>
-              <Link to="/contacto" className={getLinkStyle("/contacto")}>
-                Contacto
               </Link>
             </div>
 
@@ -166,13 +147,6 @@ function NavBar() {
                         <span>📅</span> Reservar Cubículo
                       </Link>
 
-                      <Link
-                        to="/contacto"
-                        onClick={() => setDropdownOpen(false)}
-                        className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-sky-50 hover:text-sky-700 transition md:hidden"
-                      >
-                        <span>✉️</span> Soporte y Contacto
-                      </Link>
                     </div>
 
                     <div className="border-t border-slate-100 pt-1 mt-1">
@@ -221,7 +195,6 @@ export default function App() {
               <Route path="/" element={<PaginaInicio />} />
               <Route path="/reservar" element={<FormularioReserva />} />
               <Route path="/mis-reservas" element={<MisReservas />} />
-              <Route path="/contacto" element={<PaginaContacto />} />
             </Route>
 
             {/* Ruta protegida EXCLUSIVA para Administradores */}
