@@ -65,6 +65,8 @@ export default function FormularioReserva() {
   });
   const [editBloques, setEditBloques] = useState([]);
   const [cargandoEditBloques, setCargandoEditBloques] = useState(false);
+  const [confirmModal, setConfirmModal] = useState({ open: false, titulo: "", mensaje: "", onConfirm: null });
+  const [toastNotificacion, setToastNotificacion] = useState({ tipo: "", texto: "" });
 
   const consultarReservaActiva = async (rutConsultar) => {
     if (!rutConsultar) {
@@ -101,8 +103,7 @@ export default function FormularioReserva() {
     }
   };
 
-  const handleCancelarReservaId = async (resId) => {
-    if (!window.confirm(`¿Estás seguro de que deseas cancelar la reserva ID ${resId}?`)) return;
+  const ejecutarCancelacionId = async (resId) => {
     try {
       const token = localStorage.getItem("token");
       const res = await fetch(`http://localhost:8000/api/reservas/${resId}`, {
@@ -112,7 +113,7 @@ export default function FormularioReserva() {
         }
       });
       if (res.ok) {
-        alert("Reserva cancelada exitosamente.");
+        setToastNotificacion({ tipo: "exito", texto: "Reserva cancelada exitosamente." });
         const rutTarget = isEstudiante ? user.rut : formData.rut;
         if (rutTarget) consultarReservaActiva(rutTarget.trim());
         if (formData.campus_id && formData.fecha) {
@@ -122,16 +123,25 @@ export default function FormularioReserva() {
         }
       } else {
         const data = await res.json();
-        alert("Error al cancelar reserva: " + (data.detail || ""));
+        setToastNotificacion({ tipo: "error", texto: "Error al cancelar reserva: " + (data.detail || "") });
       }
     } catch (e) {
-      alert("Error al conectar con el servidor.");
+      setToastNotificacion({ tipo: "error", texto: "Error al conectar con el servidor." });
     }
+  };
+
+  const handleCancelarReservaId = (resId) => {
+    setConfirmModal({
+      open: true,
+      titulo: "Cancelar Reserva",
+      mensaje: `¿Estás seguro de que deseas cancelar la reserva ID ${resId}?`,
+      onConfirm: () => ejecutarCancelacionId(resId)
+    });
   };
 
   const handleCancelarReservaActiva = async () => {
     if (!reservaActivaUser) return;
-    await handleCancelarReservaId(reservaActivaUser.id);
+    handleCancelarReservaId(reservaActivaUser.id);
   };
 
   const abrirModalEdicion = (reserva) => {
@@ -163,7 +173,7 @@ export default function FormularioReserva() {
   const handleGuardarEdicion = async (e) => {
     e.preventDefault();
     if (!editFormData.fecha || !editFormData.hora || !editFormData.campus_id) {
-      alert("Por favor selecciona campus, fecha y hora.");
+      setToastNotificacion({ tipo: "error", texto: "Por favor selecciona campus, fecha y hora." });
       return;
     }
     try {
@@ -184,16 +194,16 @@ export default function FormularioReserva() {
       });
 
       if (res.ok) {
-        alert("¡Reserva modificada exitosamente!");
+        setToastNotificacion({ tipo: "exito", texto: "¡Reserva modificada exitosamente!" });
         setModalEdicionOpen(false);
         const rutTarget = isEstudiante ? user.rut : formData.rut;
         if (rutTarget) consultarReservaActiva(rutTarget.trim());
       } else {
         const errorData = await res.json();
-        alert(errorData.detail || "Error al modificar la reserva");
+        setToastNotificacion({ tipo: "error", texto: errorData.detail || "Error al modificar la reserva" });
       }
     } catch (err) {
-      alert("No se pudo conectar con el servidor.");
+      setToastNotificacion({ tipo: "error", texto: "No se pudo conectar con el servidor." });
     }
   };
 
@@ -365,21 +375,20 @@ export default function FormularioReserva() {
     e.preventDefault();
 
     if (isAdmin) {
-      alert("Los administradores no pueden realizar reservas.");
+      setToastNotificacion({ tipo: "error", texto: "Los administradores no pueden realizar reservas." });
       return;
     }
 
     if (!formData.fecha) {
-      alert("Por favor selecciona una fecha válida.");
+      setToastNotificacion({ tipo: "error", texto: "Por favor selecciona una fecha válida." });
       return;
     }
 
     if (!formData.hora) {
-      alert("Por favor selecciona un bloque de horario disponible.");
+      setToastNotificacion({ tipo: "error", texto: "Por favor selecciona un bloque de horario disponible." });
       return;
     }
 
-    // Filtrar acompañantes vacíos antes de enviar
     const acompanantesPayload = tieneAcompanantes
       ? listAcompanantes.filter((ac) => ac.nombre.trim() !== "")
       : [];
@@ -399,7 +408,7 @@ export default function FormularioReserva() {
       });
 
       if (response.ok) {
-        alert(`¡Reserva creada con éxito para ${formData.nombre}!`);
+        setToastNotificacion({ tipo: "exito", texto: `¡Reserva creada con éxito para ${formData.nombre}!` });
         setFechaSeleccionada(null);
         setBloquesHorarios([]);
         setTieneAcompanantes(false);
@@ -418,11 +427,11 @@ export default function FormularioReserva() {
         window.dispatchEvent(new CustomEvent("reservaActualizada"));
       } else {
         const errorData = await response.json();
-        alert(errorData.detail || "Error al crear la reserva");
+        setToastNotificacion({ tipo: "error", texto: errorData.detail || "Error al crear la reserva" });
       }
     } catch (error) {
       console.error(error);
-      alert("No se pudo conectar con el servidor");
+      setToastNotificacion({ tipo: "error", texto: "No se pudo conectar con el servidor" });
     }
   };
 
@@ -891,6 +900,48 @@ export default function FormularioReserva() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {confirmModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-fadeIn">
+          <div className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 text-center space-y-4">
+            <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-600 text-xl flex items-center justify-center mx-auto shadow-inner">
+              ⚠️
+            </div>
+            <h3 className="text-lg font-bold text-slate-900">{confirmModal.titulo || "Confirmación"}</h3>
+            <p className="text-xs text-slate-600 leading-relaxed">{confirmModal.mensaje}</p>
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => setConfirmModal({ open: false, titulo: "", mensaje: "", onConfirm: null })}
+                className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-50 transition-all cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  if (confirmModal.onConfirm) confirmModal.onConfirm();
+                  setConfirmModal({ open: false, titulo: "", mensaje: "", onConfirm: null });
+                }}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-md transition-all cursor-pointer"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toastNotificacion.texto && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl bg-slate-900 text-white text-xs font-semibold shadow-2xl border border-slate-800 animate-slideUp">
+          <span>{toastNotificacion.tipo === "error" ? "❌" : "✅"}</span>
+          <p>{toastNotificacion.texto}</p>
+          <button
+            onClick={() => setToastNotificacion({ tipo: "", texto: "" })}
+            className="ml-2 text-slate-400 hover:text-white font-bold text-xs"
+          >
+            ✕
+          </button>
         </div>
       )}
     </div>
