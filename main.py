@@ -533,6 +533,10 @@ class CrearCubiculoRequest(BaseModel):
     campus_id: int
 
 
+class ActualizarCubiculoRequest(BaseModel):
+    codigo: str
+
+
 class LoginRequest(BaseModel):
     email: str
     password: str
@@ -745,6 +749,49 @@ async def crear_cubiculo(data: CrearCubiculoRequest, current_user: dict = Depend
                 status_code=status.HTTP_409_CONFLICT,
                 detail=f"Ya existe un cubículo registrado con el código '{codigo_clean}'."
             )
+
+
+@app.put("/api/cubiculos/{cubiculo_id}")
+async def actualizar_cubiculo(cubiculo_id: int, data: ActualizarCubiculoRequest, current_user: dict = Depends(get_current_user)):
+    if current_user.get("rol") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
+
+    codigo_clean = data.codigo.strip().upper()
+    async with pool.acquire() as conn:
+        try:
+            row = await conn.fetchrow(
+                "UPDATE cubiculos SET codigo = $1 WHERE id = $2 RETURNING id, codigo, campus_id, estado",
+                codigo_clean, cubiculo_id
+            )
+            if not row:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cubículo no encontrado.")
+            await invalidar_caches_disponibilidad()
+            return dict(row)
+        except asyncpg.UniqueViolationError:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Ya existe un cubículo registrado con el código '{codigo_clean}'."
+            )
+
+
+@app.delete("/api/cubiculos/{cubiculo_id}")
+async def eliminar_cubiculo(cubiculo_id: int, current_user: dict = Depends(get_current_user)):
+    if current_user.get("rol") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
+
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT campus_id FROM cubiculos WHERE id = $1", cubiculo_id)
+        if not row:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cubículo no encontrado.")
+        
+        campus_id = row["campus_id"]
+        await conn.execute("DELETE FROM cubiculos WHERE id = $1", cubiculo_id)
+        await conn.execute(
+            "UPDATE campus SET cubiculas_fisicos = (SELECT COUNT(*) FROM cubiculos WHERE campus_id = $1) WHERE id = $1",
+            campus_id
+        )
+        await invalidar_caches_disponibilidad()
+        return {"mensaje": "Cubículo eliminado exitosamente", "campus_id": campus_id}
 
 
 # --- Endpoints Públicos y Admin ---

@@ -19,11 +19,15 @@ export default function Dashboard() {
   const [eliminandoCampus, setEliminandoCampus] = useState(false);
   const [mostrarGestionCampus, setMostrarGestionCampus] = useState(false);
 
-  // Estados para Edición de Campus (PUT)
   const [campusAEditar, setCampusAEditar] = useState(null);
   const [editNombre, setEditNombre] = useState("");
   const [editCubiculos, setEditCubiculos] = useState(10);
   const [guardandoEdit, setGuardandoEdit] = useState(false);
+  const [cubiculosEditModal, setCubiculosEditModal] = useState([]);
+  const [cargandoCubiculosModal, setCargandoCubiculosModal] = useState(false);
+  const [editingCubiculoId, setEditingCubiculoId] = useState(null);
+  const [editCubiculoCodigoVal, setEditCubiculoCodigoVal] = useState("");
+  const [nuevoCubiculoModalCodigo, setNuevoCubiculoModalCodigo] = useState("");
 
   // Estados para Añadir Cubículos Individuales (Con selección manual de Campus)
   const [cubiculosCampus, setCubiculosCampus] = useState([]);
@@ -35,13 +39,13 @@ export default function Dashboard() {
   const hoyStr = new Date().toISOString().split("T")[0];
   const [fechaSeleccionada, setFechaSeleccionada] = useState(hoyStr);
 
-  // Estados para Modal de Detalle del Bloque Horario
   const [bloqueSeleccionado, setBloqueSeleccionado] = useState(null);
   const [reservasBloque, setReservasBloque] = useState([]);
   const [cargandoBloque, setCargandoBloque] = useState(false);
   const [eliminandoReservaId, setEliminandoReservaId] = useState(null);
+  const [confirmModal, setConfirmModal] = useState({ open: false, titulo: "", mensaje: "", onConfirm: null });
+  const [toastNotificacion, setToastNotificacion] = useState({ tipo: "", texto: "" });
 
-  // Estados para Métricas de Uso y Horarios Pico
   const [metricas, setMetricas] = useState(null);
   const [cargandoMetricas, setCargandoMetricas] = useState(false);
   const [mostrarGraficoMetricas, setMostrarGraficoMetricas] = useState(false);
@@ -180,19 +184,14 @@ export default function Dashboard() {
       );
       setReservasBloque(data.reservas || []);
     } catch (err) {
-      alert("Error al cargar las reservas del bloque: " + (err.message || ""));
+      setToastNotificacion({ tipo: "error", texto: "Error al cargar las reservas del bloque: " + (err.message || "") });
       setBloqueSeleccionado(null);
     } finally {
       setCargandoBloque(false);
     }
   };
 
-  // Handler para Eliminar Reserva desde el Modal
-  const handleEliminarReserva = async (reservaId) => {
-    if (!window.confirm(`¿Estás seguro de que deseas eliminar la reserva ID ${reservaId}?`)) {
-      return;
-    }
-
+  const ejecutarEliminacionReserva = async (reservaId) => {
     setEliminandoReservaId(reservaId);
     try {
       await apiDelete(`/api/reservas/${reservaId}`);
@@ -200,18 +199,26 @@ export default function Dashboard() {
       const reservasActualizadas = reservasBloque.filter((r) => r.id !== reservaId);
       setReservasBloque(reservasActualizadas);
 
-      // Refrescar el resumen general del dashboard
       await fetchResumen();
 
-      // Si ya no quedan reservas en este bloque, cerrar el modal
       if (reservasActualizadas.length === 0) {
         setBloqueSeleccionado(null);
       }
+      setToastNotificacion({ tipo: "exito", texto: `Reserva ID ${reservaId} eliminada exitosamente.` });
     } catch (err) {
-      alert("Error al eliminar la reserva: " + (err.message || "Intenta nuevamente"));
+      setToastNotificacion({ tipo: "error", texto: "Error al eliminar la reserva: " + (err.message || "Intenta nuevamente") });
     } finally {
       setEliminandoReservaId(null);
     }
+  };
+
+  const handleEliminarReserva = (reservaId) => {
+    setConfirmModal({
+      open: true,
+      titulo: "Eliminar Reserva",
+      mensaje: `¿Estás seguro de que deseas eliminar la reserva ID ${reservaId}?`,
+      onConfirm: () => ejecutarEliminacionReserva(reservaId)
+    });
   };
 
   // Handler para Añadir Nuevo Campus
@@ -283,11 +290,84 @@ export default function Dashboard() {
     }
   };
 
-  // Handler para Iniciar la Edición de un Campus
+  const fetchCubiculosModal = async (campusId) => {
+    if (!campusId) return;
+    setCargandoCubiculosModal(true);
+    try {
+      const data = await apiGet(`/api/cubiculos?campus_id=${campusId}`);
+      setCubiculosEditModal(data || []);
+    } catch {
+      setCubiculosEditModal([]);
+    } finally {
+      setCargandoCubiculosModal(false);
+    }
+  };
+
   const handleIniciarEdicion = (c) => {
     setCampusAEditar(c);
     setEditNombre(c.nombre);
     setEditCubiculos(c.cubiculas_fisicos ?? 10);
+    setEditingCubiculoId(null);
+    setNuevoCubiculoModalCodigo("");
+    fetchCubiculosModal(c.id);
+  };
+
+  const handleGuardarEditCubiculo = async (cubId) => {
+    const valLimpio = editCubiculoCodigoVal.trim();
+    if (!valLimpio || !campusAEditar) return;
+    try {
+      await apiPut(`/api/cubiculos/${cubId}`, { codigo: valLimpio });
+      setEditingCubiculoId(null);
+      await fetchCubiculosModal(campusAEditar.id);
+      await fetchCampus();
+      if (campusSeleccionado === campusAEditar.id) {
+        await fetchCubiculos(campusSeleccionado);
+      }
+    } catch (err) {
+      setToastNotificacion({ tipo: "error", texto: err.message || "Error al actualizar cubículo" });
+    }
+  };
+
+  const handleEliminarCubiculoModal = (cubId, codigo) => {
+    setConfirmModal({
+      open: true,
+      titulo: "Eliminar Cubículo",
+      mensaje: `¿Estás seguro de que deseas eliminar el cubículo '${codigo}'?`,
+      onConfirm: async () => {
+        try {
+          await apiDelete(`/api/cubiculos/${cubId}`);
+          await fetchCubiculosModal(campusAEditar.id);
+          await fetchCampus();
+          if (campusSeleccionado === campusAEditar.id) {
+            await fetchCubiculos(campusSeleccionado);
+          }
+          setToastNotificacion({ tipo: "exito", texto: `Cubículo '${codigo}' eliminado.` });
+        } catch (err) {
+          setToastNotificacion({ tipo: "error", texto: err.message || "Error al eliminar cubículo" });
+        }
+      }
+    });
+  };
+
+  const handleCrearCubiculoModal = async (e) => {
+    e.preventDefault();
+    const codigoLimpio = nuevoCubiculoModalCodigo.trim();
+    if (!codigoLimpio || !campusAEditar) return;
+    try {
+      await apiPost("/api/cubiculos", {
+        codigo: codigoLimpio,
+        campus_id: campusAEditar.id
+      });
+      setNuevoCubiculoModalCodigo("");
+      await fetchCubiculosModal(campusAEditar.id);
+      await fetchCampus();
+      if (campusSeleccionado === campusAEditar.id) {
+        await fetchCubiculos(campusSeleccionado);
+      }
+      setToastNotificacion({ tipo: "exito", texto: `Cubículo '${codigoLimpio}' creado con éxito.` });
+    } catch (err) {
+      setToastNotificacion({ tipo: "error", texto: err.message || "Error al crear el cubículo" });
+    }
   };
 
   // Handler para Guardar Cambios de la Edición (PUT)
@@ -576,14 +656,16 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Modal Editar Campus */}
         {campusAEditar && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-fadeIn">
-            <div className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 space-y-4">
+            <div className="w-full max-w-xl bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 space-y-5 max-h-[90vh] flex flex-col">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                  ✏️ Editar Sede (ID: {campusAEditar.id})
-                </h3>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    ✏️ Editar Sede y Cubículos (ID: {campusAEditar.id})
+                  </h3>
+                  <p className="text-xs text-slate-500">Gestiona la información general y los cubículos de esta sede</p>
+                </div>
                 <button
                   onClick={() => setCampusAEditar(null)}
                   className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center text-xs cursor-pointer"
@@ -592,53 +674,157 @@ export default function Dashboard() {
                 </button>
               </div>
 
-              <form onSubmit={handleGuardarEdicionCampus} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Nombre de la Sede:
-                  </label>
-                  <input
-                    type="text"
-                    value={editNombre}
-                    onChange={(e) => setEditNombre(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-2xl border border-sky-200 bg-white text-sm font-medium text-slate-900 outline-none focus:border-sky-500 shadow-sm"
-                    required
-                  />
-                </div>
+              <div className="flex-1 overflow-y-auto space-y-5 pr-1">
+                <form onSubmit={handleGuardarEdicionCampus} className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Datos de la Sede</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Nombre de la Sede:
+                      </label>
+                      <input
+                        type="text"
+                        value={editNombre}
+                        onChange={(e) => setEditNombre(e.target.value)}
+                        className="w-full px-3.5 py-2 rounded-xl border border-sky-200 bg-white text-xs font-medium text-slate-900 outline-none focus:border-sky-500 shadow-sm"
+                        required
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Cubículos Físicos:
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="100"
-                    value={editCubiculos}
-                    onChange={(e) => setEditCubiculos(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-2xl border border-sky-200 bg-white text-sm font-medium text-slate-900 outline-none focus:border-sky-500 shadow-sm"
-                    required
-                  />
-                </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Capacidad Total:
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="100"
+                        value={editCubiculos}
+                        onChange={(e) => setEditCubiculos(e.target.value)}
+                        className="w-full px-3.5 py-2 rounded-xl border border-sky-200 bg-white text-xs font-medium text-slate-900 outline-none focus:border-sky-500 shadow-sm"
+                        required
+                      />
+                    </div>
+                  </div>
 
-                <div className="flex gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setCampusAEditar(null)}
-                    disabled={guardandoEdit}
-                    className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-50 transition-all cursor-pointer"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={guardandoEdit || !editNombre.trim()}
-                    className="flex-1 py-2.5 px-4 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
-                  >
-                    {guardandoEdit ? "Guardando..." : "Guardar Cambios"}
-                  </button>
+                  <div className="flex justify-end pt-1">
+                    <button
+                      type="submit"
+                      disabled={guardandoEdit || !editNombre.trim()}
+                      className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all cursor-pointer"
+                    >
+                      {guardandoEdit ? "Guardando..." : "💾 Actualizar Datos Sede"}
+                    </button>
+                  </div>
+                </form>
+
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1">
+                      🚪 Cubículos Registrados ({cubiculosEditModal.length})
+                    </h4>
+                  </div>
+
+                  <form onSubmit={handleCrearCubiculoModal} className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Código del nuevo cubículo (ej: CUB-05)..."
+                      value={nuevoCubiculoModalCodigo}
+                      onChange={(e) => setNuevoCubiculoModalCodigo(e.target.value)}
+                      className="flex-1 px-3.5 py-2 rounded-xl border border-amber-200 bg-amber-50/40 text-xs font-medium text-slate-900 outline-none focus:border-amber-500 shadow-sm"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!nuevoCubiculoModalCodigo.trim()}
+                      className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      ➕ Añadir
+                    </button>
+                  </form>
+
+                  {cargandoCubiculosModal ? (
+                    <div className="py-6 text-center text-xs text-slate-500">
+                      Cargando cubículos...
+                    </div>
+                  ) : cubiculosEditModal.length === 0 ? (
+                    <div className="p-4 bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-center text-xs text-slate-500">
+                      No hay cubículos individuales registrados en esta sede.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-60 overflow-y-auto pr-1">
+                      {cubiculosEditModal.map((cb) => (
+                        <div
+                          key={cb.id}
+                          className="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-white shadow-sm"
+                        >
+                          {editingCubiculoId === cb.id ? (
+                            <div className="flex items-center gap-1.5 flex-1 mr-2">
+                              <input
+                                type="text"
+                                value={editCubiculoCodigoVal}
+                                onChange={(e) => setEditCubiculoCodigoVal(e.target.value)}
+                                className="w-full px-2 py-1 bg-slate-50 border border-sky-300 rounded-lg text-xs font-bold text-slate-800"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleGuardarEditCubiculo(cb.id)}
+                                className="px-2 py-1 bg-emerald-600 text-white rounded-lg text-[11px] font-bold"
+                              >
+                                ✓
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingCubiculoId(null)}
+                                className="px-2 py-1 bg-slate-200 text-slate-700 rounded-lg text-[11px] font-bold"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="font-bold text-xs text-sky-900 bg-sky-50 px-2.5 py-1 rounded-lg border border-sky-100">
+                              🚪 {cb.codigo}
+                            </span>
+                          )}
+
+                          {editingCubiculoId !== cb.id && (
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingCubiculoId(cb.id);
+                                  setEditCubiculoCodigoVal(cb.codigo);
+                                }}
+                                className="p-1.5 rounded-lg border border-sky-200 bg-white text-sky-700 hover:bg-sky-50 text-xs font-bold transition-all"
+                                title="Editar código del cubículo"
+                              >
+                                ✏️
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleEliminarCubiculoModal(cb.id, cb.codigo)}
+                                className="p-1.5 rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 text-xs font-bold transition-all"
+                                title="Eliminar cubículo"
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </form>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setCampusAEditar(null)}
+                  className="py-2 px-5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer"
+                >
+                  Cerrar
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -1435,6 +1621,48 @@ export default function Dashboard() {
           </div>
         )}
 
+        {confirmModal.open && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-fadeIn">
+            <div className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 text-center space-y-4">
+              <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-600 text-xl flex items-center justify-center mx-auto shadow-inner">
+                ⚠️
+              </div>
+              <h3 className="text-lg font-bold text-slate-900">{confirmModal.titulo || "Confirmación"}</h3>
+              <p className="text-xs text-slate-600 leading-relaxed">{confirmModal.mensaje}</p>
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => setConfirmModal({ open: false, titulo: "", mensaje: "", onConfirm: null })}
+                  className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-50 transition-all cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => {
+                    if (confirmModal.onConfirm) confirmModal.onConfirm();
+                    setConfirmModal({ open: false, titulo: "", mensaje: "", onConfirm: null });
+                  }}
+                  className="flex-1 py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-md transition-all cursor-pointer"
+                >
+                  Confirmar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {toastNotificacion.texto && (
+          <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl bg-slate-900 text-white text-xs font-semibold shadow-2xl border border-slate-800 animate-slideUp">
+            <span>{toastNotificacion.tipo === "error" ? "❌" : "✅"}</span>
+            <p>{toastNotificacion.texto}</p>
+            <button
+              onClick={() => setToastNotificacion({ tipo: "", texto: "" })}
+              className="ml-2 text-slate-400 hover:text-white font-bold text-xs"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+        
         {/* Footer */}
         <div className="mt-12 pt-6 border-t border-sky-100 flex items-center justify-between text-xs text-slate-500">
           <Link
