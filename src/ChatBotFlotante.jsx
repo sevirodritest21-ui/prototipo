@@ -35,7 +35,6 @@ export default function ChatbotFlotante() {
     }
   }, [mensajes, isChatOpen]);
 
-  // Cargar saludo inicial solo si el estudiante está autenticado
   useEffect(() => {
     if (!user) return;
 
@@ -49,7 +48,7 @@ export default function ChatbotFlotante() {
         setMensajes([
           {
             id: 1,
-            texto: `¡Hola, ${user.nombre}! 👋 Soy tu asistente de biblioteca.\n\n✅ Estás autenticado como ${user.rol} (RUT: ${user.rut || 'Registrado'}).\n\n📅 Dime qué fecha, hora y campus (Disponibles: ${nombresCampus || 'Campus San Juan Pablo II, Campus San Francisco'}) deseas para agendar tu cubículo.`,
+            texto: `¡Hola, ${user.nombre}! 👋 Soy tu asistente de biblioteca UCT.\n\nPuedo ayudarte con lo siguiente:\n• 📅 Reservar un cubículo (indica fecha, horario y campus).\n• 🔍 Consultar disponibilidad de horarios y cubículos.\n• 📋 Ver tus reservas activas o historial.\n• ✏️ Modificar la fecha, hora o cubículo de una reserva.\n• ❌ Cancelar o liberar una reserva existente.\n• ℹ️ Resolver dudas sobre normas y horarios de biblioteca.\n\nCampus habilitados: ${nombresCampus || 'Campus San Juan Pablo II, Campus San Francisco'}.\n\n¿Qué te gustaría gestionar hoy?`,
             esBot: true
           }
         ]);
@@ -58,7 +57,7 @@ export default function ChatbotFlotante() {
         setMensajes([
           {
             id: 1,
-            texto: `¡Hola, ${user.nombre}! 👋 Estás autenticado. Dime la fecha, hora y campus que necesitas para tu reserva.`,
+            texto: `¡Hola, ${user.nombre}! 👋 Soy tu asistente de biblioteca UCT.\n\nPuedo ayudarte con:\n• 📅 Reservar un cubículo de estudio.\n• 🔍 Consultar horarios y cubículos disponibles.\n• 📋 Revisar tus reservas activas.\n• ✏️ Modificar una reserva ya agendada.\n• ❌ Cancelar o liberar una reserva.\n• ℹ️ Información y normas de uso de la biblioteca.\n\n¿En qué te puedo ayudar hoy?`,
             esBot: true
           }
         ]);
