@@ -87,11 +87,13 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (activeTab === "historial" && historial.length === 0) {
-      setMostrarHistorial(true);
       fetchHistorial();
     }
     if (activeTab === "calendario" && diasBloqueados.length === 0) {
       fetchDiasBloqueados();
+    }
+    if (activeTab === "cms" && cmsAnuncios.length === 0 && cmsTarjetas.length === 0) {
+      fetchCMS();
     }
   }, [activeTab]);
 
@@ -102,7 +104,7 @@ export default function Dashboard() {
   const [historial, setHistorial] = useState([]);
   const [cargandoHistorial, setCargandoHistorial] = useState(false);
   const [busquedaHistorial, setBusquedaHistorial] = useState("");
-  const [mostrarHistorial, setMostrarHistorial] = useState(false);
+  const [mostrarHistorial, setMostrarHistorial] = useState(true);
   const [campusFiltroHistorial, setCampusFiltroHistorial] = useState("todos");
 
   const [diasBloqueados, setDiasBloqueados] = useState([]);
@@ -139,6 +141,7 @@ export default function Dashboard() {
       setToastNotificacion({ tipo: "exito", texto: "Día bloqueado exitosamente en el calendario." });
       setFormBloqueo({ fecha: "", motivo: "Día bloqueado administrativamente", campus_id: "" });
       await fetchDiasBloqueados();
+      window.dispatchEvent(new CustomEvent("reservaActualizada"));
     } catch (err) {
       setToastNotificacion({ tipo: "error", texto: err.detail || err.message || "Error al bloquear la fecha" });
     } finally {
@@ -156,6 +159,7 @@ export default function Dashboard() {
           await apiDelete(`/api/calendario/bloqueos/${id}`);
           setToastNotificacion({ tipo: "exito", texto: "Día desbloqueado con éxito." });
           await fetchDiasBloqueados();
+          window.dispatchEvent(new CustomEvent("reservaActualizada"));
         } catch (err) {
           setToastNotificacion({ tipo: "error", texto: err.detail || err.message || "Error al desbloquear" });
         }
@@ -190,10 +194,10 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    if (activeTab === "historial" || mostrarHistorial) {
+    if (activeTab === "historial") {
       fetchHistorial();
     }
-  }, [campusFiltroHistorial, busquedaHistorial, mostrarHistorial, activeTab]);
+  }, [campusFiltroHistorial, busquedaHistorial, activeTab]);
 
   // Cargar lista de campus
   const fetchCampus = async () => {
@@ -737,9 +741,9 @@ export default function Dashboard() {
                     key={tab.id}
                     onClick={() => {
                       setActiveTab(tab.id);
-                      if (tab.id === "cms") setMostrarGestionCMS(true);
-                      if (tab.id === "sedes") setMostrarGestionCampus(true);
+                      if (tab.id === "cms") fetchCMS();
                       if (tab.id === "calendario") fetchDiasBloqueados();
+                      if (tab.id === "historial") fetchHistorial();
                     }}
                     className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer border ${isSelected
                         ? "bg-slate-900 text-white border-slate-900 shadow-md scale-[1.02]"
@@ -773,7 +777,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        {(activeTab === "cms" || mostrarGestionCMS) && (
+        {(activeTab === "cms") && (
           <div className="bg-white/90 backdrop-blur-md border border-amber-200 rounded-3xl p-6 md:p-8 shadow-xl shadow-amber-900/10 mb-8 space-y-8 animate-fadeIn">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-amber-100 pb-4">
               <div>
@@ -930,8 +934,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* MÓDULO DE GESTIÓN DE CAMPUS Y CUBÍCULOS */}
-        {(activeTab === "sedes" || mostrarGestionCampus) && (
+        {(activeTab === "sedes") && (
           <div className="bg-white/90 backdrop-blur-md border border-sky-200 rounded-3xl p-6 shadow-xl shadow-sky-900/10 mb-8 space-y-6 animate-fadeIn">
             <div className="flex items-center justify-between border-b border-sky-100 pb-4">
               <div>
@@ -1656,7 +1659,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        {(activeTab === "historial" || mostrarHistorial) && (
+        {(activeTab === "historial") && (
           <div className="mt-2 bg-white/90 backdrop-blur-md border border-slate-200 rounded-3xl p-6 md:p-8 shadow-xl mb-8 space-y-6 animate-fadeIn">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
               <div>
