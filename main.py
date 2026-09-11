@@ -246,6 +246,7 @@ async def startup():
                 campus_id INT NOT NULL REFERENCES campus(id) ON DELETE CASCADE,
                 estado VARCHAR(20) DEFAULT 'disponible'
             );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_cubiculos_codigo_upper ON cubiculos (UPPER(codigo));
             CREATE TABLE IF NOT EXISTS historial_reservas (
                 id SERIAL PRIMARY KEY,
                 reserva_id INT,
@@ -825,6 +826,16 @@ async def crear_cubiculo(data: CrearCubiculoRequest, current_user: dict = Depend
 
     codigo_clean = data.codigo.strip().upper()
     async with pool.acquire() as conn:
+        existente = await conn.fetchval(
+            "SELECT id FROM cubiculos WHERE UPPER(codigo) = $1",
+            codigo_clean
+        )
+        if existente:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Ya existe un cubículo registrado con el código '{codigo_clean}'."
+            )
+
         try:
             row = await conn.fetchrow(
                 "INSERT INTO cubiculos (codigo, campus_id) VALUES ($1, $2) RETURNING id, codigo, campus_id, estado",
@@ -850,6 +861,16 @@ async def actualizar_cubiculo(cubiculo_id: int, data: ActualizarCubiculoRequest,
 
     codigo_clean = data.codigo.strip().upper()
     async with pool.acquire() as conn:
+        existente = await conn.fetchval(
+            "SELECT id FROM cubiculos WHERE UPPER(codigo) = $1 AND id != $2",
+            codigo_clean, cubiculo_id
+        )
+        if existente:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Ya existe un cubículo registrado con el código '{codigo_clean}'."
+            )
+
         try:
             row = await conn.fetchrow(
                 "UPDATE cubiculos SET codigo = $1 WHERE id = $2 RETURNING id, codigo, campus_id, estado",

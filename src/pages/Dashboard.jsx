@@ -29,8 +29,8 @@ export default function Dashboard() {
   const [editCubiculoCodigoVal, setEditCubiculoCodigoVal] = useState("");
   const [nuevoCubiculoModalCodigo, setNuevoCubiculoModalCodigo] = useState("");
 
-  // Estados para Añadir Cubículos Individuales (Con selección manual de Campus)
   const [cubiculosCampus, setCubiculosCampus] = useState([]);
+  const [cargandoCubiculosCampus, setCargandoCubiculosCampus] = useState(false);
   const [nuevoCodigoCubiculo, setNuevoCodigoCubiculo] = useState("");
   const [campusDestinoCubiculo, setCampusDestinoCubiculo] = useState("");
   const [creandoCubiculo, setCreandoCubiculo] = useState(false);
@@ -213,14 +213,16 @@ export default function Dashboard() {
     }
   };
 
-  // Cargar cubículos pertenecientes al campus seleccionado
   const fetchCubiculos = async (campusId) => {
     if (!campusId) return;
+    setCargandoCubiculosCampus(true);
     try {
       const data = await apiGet(`/api/cubiculos?campus_id=${campusId}`);
       setCubiculosCampus(data || []);
     } catch {
       setCubiculosCampus([]);
+    } finally {
+      setCargandoCubiculosCampus(false);
     }
   };
 
@@ -229,10 +231,11 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    if (campusSeleccionado) {
-      fetchCubiculos(campusSeleccionado);
+    const idAUsar = campusDestinoCubiculo || campusSeleccionado;
+    if (idAUsar) {
+      fetchCubiculos(idAUsar);
     }
-  }, [campusSeleccionado]);
+  }, [campusDestinoCubiculo, campusSeleccionado]);
 
   // Cargar datos del resumen al cambiar campus o fecha
   const fetchResumen = async () => {
@@ -366,6 +369,14 @@ export default function Dashboard() {
 
     if (!codigoLimpio || !idCampusDestino) return;
 
+    if (cubiculosCampus.some((cb) => cb.codigo.toUpperCase() === codigoLimpio.toUpperCase())) {
+      setCampusMsg({
+        tipo: "error",
+        texto: `El código de cubículo '${codigoLimpio.toUpperCase()}' ya existe en esta sede.`,
+      });
+      return;
+    }
+
     setCreandoCubiculo(true);
     setCampusMsg({ tipo: "", texto: "" });
 
@@ -383,9 +394,7 @@ export default function Dashboard() {
       });
       setNuevoCodigoCubiculo("");
 
-      if (idCampusDestino === campusSeleccionado) {
-        await fetchCubiculos(campusSeleccionado);
-      }
+      await fetchCubiculos(idCampusDestino);
       await fetchCampus();
     } catch (err) {
       setCampusMsg({
@@ -445,7 +454,9 @@ export default function Dashboard() {
           await apiDelete(`/api/cubiculos/${cubId}`);
           await fetchCubiculosModal(campusAEditar.id);
           await fetchCampus();
-          if (campusSeleccionado === campusAEditar.id) {
+          if (campusDestinoCubiculo && Number(campusDestinoCubiculo) === campusAEditar.id) {
+            await fetchCubiculos(campusDestinoCubiculo);
+          } else if (campusSeleccionado === campusAEditar.id) {
             await fetchCubiculos(campusSeleccionado);
           }
           setToastNotificacion({ tipo: "exito", texto: `Cubículo '${codigo}' eliminado.` });
@@ -460,6 +471,11 @@ export default function Dashboard() {
     e.preventDefault();
     const codigoLimpio = nuevoCubiculoModalCodigo.trim();
     if (!codigoLimpio || !campusAEditar) return;
+
+    if (cubiculosEditModal.some((cb) => cb.codigo.toUpperCase() === codigoLimpio.toUpperCase())) {
+      setToastNotificacion({ tipo: "error", texto: `El código de cubículo '${codigoLimpio.toUpperCase()}' ya existe en esta sede.` });
+      return;
+    }
     try {
       await apiPost("/api/cubiculos", {
         codigo: codigoLimpio,
@@ -468,7 +484,9 @@ export default function Dashboard() {
       setNuevoCubiculoModalCodigo("");
       await fetchCubiculosModal(campusAEditar.id);
       await fetchCampus();
-      if (campusSeleccionado === campusAEditar.id) {
+      if (campusDestinoCubiculo && Number(campusDestinoCubiculo) === campusAEditar.id) {
+        await fetchCubiculos(campusDestinoCubiculo);
+      } else if (campusSeleccionado === campusAEditar.id) {
         await fetchCubiculos(campusSeleccionado);
       }
       setToastNotificacion({ tipo: "exito", texto: `Cubículo '${codigoLimpio}' creado con éxito.` });
@@ -993,23 +1011,33 @@ export default function Dashboard() {
                 </button>
               </form>
 
-              {cubiculosCampus.length > 0 && (
-                <div className="pt-2">
-                  <p className="text-[11px] font-bold text-slate-500 mb-2">
-                    Cubículos registrados en la sede activa ({cubiculosCampus.length}):
+              <div className="pt-2">
+                {cargandoCubiculosCampus ? (
+                  <p className="text-[11px] font-bold text-sky-600 animate-pulse">
+                    Cargando cubículos de la sede seleccionada...
                   </p>
-                  <div className="flex flex-wrap gap-2">
-                    {cubiculosCampus.map((cb) => (
-                      <span
-                        key={cb.id}
-                        className="px-3 py-1 bg-white border border-sky-200 rounded-xl text-xs font-bold text-sky-800 shadow-sm"
-                      >
-                        {cb.codigo}
-                      </span>
-                    ))}
+                ) : cubiculosCampus.length > 0 ? (
+                  <div>
+                    <p className="text-[11px] font-bold text-slate-500 mb-2">
+                      Cubículos registrados en {campus.find((c) => String(c.id) === String(campusDestinoCubiculo))?.nombre || "la sede"} ({cubiculosCampus.length}):
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {cubiculosCampus.map((cb) => (
+                        <span
+                          key={cb.id}
+                          className="px-3 py-1 bg-white border border-sky-200 rounded-xl text-xs font-bold text-sky-800 shadow-sm"
+                        >
+                          {cb.codigo}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                ) : (
+                  <p className="text-[11px] font-semibold text-slate-400 italic">
+                    No hay cubículos individuales registrados en {campus.find((c) => String(c.id) === String(campusDestinoCubiculo))?.nombre || "esta sede"}.
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Lista de Campus Registrados */}
