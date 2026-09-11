@@ -30,6 +30,7 @@ export default function MisReservas() {
   const [cargando, setCargando] = useState(true);
   const [campusList, setCampusList] = useState([]);
   const [feriados, setFeriados] = useState(FERIADOS_CHILE_2026);
+  const [diasBloqueados, setDiasBloqueados] = useState([]);
 
   // Estado Modal Edición
   const [modalEdicionOpen, setModalEdicionOpen] = useState(false);
@@ -66,6 +67,11 @@ export default function MisReservas() {
         }
       })
       .catch(() => {});
+
+    fetch("http://localhost:8000/api/calendario/bloqueos")
+      .then((res) => res.json())
+      .then((data) => setDiasBloqueados(Array.isArray(data) ? data : []))
+      .catch(() => setDiasBloqueados([]));
   }, []);
 
   // Cargar reservas del usuario
@@ -117,7 +123,12 @@ export default function MisReservas() {
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const dayOfMonth = String(date.getDate()).padStart(2, "0");
     const fechaString = `${year}-${month}-${dayOfMonth}`;
-    return !esFinDeSemana && !feriados.includes(fechaString);
+    const esBloqueado = diasBloqueados.some((b) => {
+      if (b.fecha !== fechaString) return false;
+      if (!b.campus_id) return true;
+      return editFormData.campus_id && parseInt(editFormData.campus_id, 10) === parseInt(b.campus_id, 10);
+    });
+    return !esFinDeSemana && !feriados.includes(fechaString) && !esBloqueado;
   };
 
   const ejecutarCancelacion = async (reservaId) => {

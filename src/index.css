@@ -17,3 +17,23 @@ body {
 * {
   box-sizing: border-box;
 }
+
+.react-datepicker__day--disabled,
+.react-datepicker__day--disabled:hover {
+  color: #94a3b8 !important;
+  background-color: #f1f5f9 !important;
+  cursor: not-allowed !important;
+  opacity: 0.55 !important;
+  text-decoration: line-through !important;
+}
+
+.react-datepicker__day--today {
+  font-weight: 800 !important;
+  color: #00629B !important;
+}
+
+.react-datepicker__day--selected {
+  background-color: #00629B !important;
+  color: #ffffff !important;
+  font-weight: bold !important;
+}

@@ -31,6 +31,7 @@ export default function FormularioReserva() {
 
   const [campusList, setCampusList] = useState([]);
   const [feriados, setFeriados] = useState(FERIADOS_CHILE_2026);
+  const [diasBloqueados, setDiasBloqueados] = useState([]);
   const [fechaSeleccionada, setFechaSeleccionada] = useState(null);
 
   // Estado para los bloques de horas devueltos por el backend
@@ -253,6 +254,11 @@ export default function FormularioReserva() {
       .catch((err) => {
         console.warn("Usando feriados estáticos de respaldo debido a:", err);
       });
+
+    fetch("http://localhost:8000/api/calendario/bloqueos")
+      .then((res) => res.json())
+      .then((data) => setDiasBloqueados(Array.isArray(data) ? data : []))
+      .catch(() => setDiasBloqueados([]));
   }, []);
 
   // 3. Consultar disponibilidad al cambiar Campus o Fecha
@@ -306,8 +312,32 @@ export default function FormularioReserva() {
     const fechaString = `${year}-${month}-${dayOfMonth}`;
 
     const esFeriado = feriados.includes(fechaString);
+    const esBloqueado = diasBloqueados.some((b) => {
+      if (b.fecha !== fechaString) return false;
+      if (!b.campus_id) return true;
+      return formData.campus_id && parseInt(formData.campus_id, 10) === parseInt(b.campus_id, 10);
+    });
 
-    return !esFinDeSemana && !esFeriado;
+    return !esFinDeSemana && !esFeriado && !esBloqueado;
+  };
+
+  const esDiaLaboralEdicion = (date) => {
+    const day = date.getDay();
+    const esFinDeSemana = day === 0 || day === 6;
+
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const dayOfMonth = String(date.getDate()).padStart(2, "0");
+    const fechaString = `${year}-${month}-${dayOfMonth}`;
+
+    const esFeriado = feriados.includes(fechaString);
+    const esBloqueado = diasBloqueados.some((b) => {
+      if (b.fecha !== fechaString) return false;
+      if (!b.campus_id) return true;
+      return editFormData.campus_id && parseInt(editFormData.campus_id, 10) === parseInt(b.campus_id, 10);
+    });
+
+    return !esFinDeSemana && !esFeriado && !esBloqueado;
   };
 
   const handleChange = (e) => {
@@ -836,7 +866,7 @@ export default function FormularioReserva() {
                       hora: ""
                     }));
                   }}
-                  filterDate={esDiaLaboral}
+                  filterDate={esDiaLaboralEdicion}
                   minDate={new Date()}
                   dateFormat="yyyy-MM-dd"
                   locale="es"

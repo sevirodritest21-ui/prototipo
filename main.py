@@ -207,6 +207,13 @@ BLOQUES_HORARIOS = [
     {"hora": "17:00", "rango": "17:00 - 18:00"},
 ]
 
+FERIADOS_CHILE = {
+    "2026-01-01", "2026-04-03", "2026-04-04", "2026-05-01",
+    "2026-05-21", "2026-06-21", "2026-06-29", "2026-07-16",
+    "2026-08-15", "2026-09-18", "2026-09-19", "2026-10-12",
+    "2026-10-31", "2026-11-01", "2026-12-08", "2026-12-25"
+}
+
 
 @app.on_event("startup")
 async def startup():
@@ -306,6 +313,15 @@ async def startup():
             INSERT INTO tarjetas_cms (icono, titulo, descripcion, link_texto, link_url, orden)
             SELECT '👥', 'Trabajo Colaborativo', 'Registra a tus compañeros acompañantes al momento de realizar la reserva de tu espacio.', 'Hasta 10 espacios por bloque', '', 3
             WHERE NOT EXISTS (SELECT 1 FROM tarjetas_cms OFFSET 2);
+
+            CREATE TABLE IF NOT EXISTS dias_bloqueados (
+                id SERIAL PRIMARY KEY,
+                fecha DATE NOT NULL,
+                motivo VARCHAR(255) DEFAULT 'Día bloqueado administrativamente',
+                campus_id INT REFERENCES campus(id) ON DELETE CASCADE,
+                creado_por VARCHAR(100) DEFAULT 'Administrador',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
         """)
 
 
@@ -620,6 +636,12 @@ class TarjetaCMSRequest(BaseModel):
     link_texto: Optional[str] = "Ir al Formulario →"
     link_url: Optional[str] = "/reservar"
     orden: Optional[int] = 0
+
+
+class BloqueoDiaRequest(BaseModel):
+    fecha: str
+    motivo: Optional[str] = "Día bloqueado administrativamente"
+    campus_id: Optional[int] = None
 
 
 class UsuarioResponse(BaseModel):
@@ -980,6 +1002,73 @@ async def eliminar_tarjeta_cms(tarjeta_id: int, current_user: dict = Depends(get
         return {"mensaje": "Tarjeta eliminada exitosamente"}
 
 
+@app.get("/api/calendario/bloqueos")
+async def obtener_dias_bloqueados(campus_id: Optional[int] = None):
+    async with pool.acquire() as conn:
+        if campus_id:
+            filas = await conn.fetch(
+                """
+                SELECT b.id, b.fecha::text, b.motivo, b.campus_id, b.creado_por, b.created_at::text, c.nombre AS campus_nombre
+                FROM dias_bloqueados b
+                LEFT JOIN campus c ON b.campus_id = c.id
+                WHERE b.campus_id IS NULL OR b.campus_id = $1
+                ORDER BY b.fecha ASC
+                """,
+                campus_id
+            )
+        else:
+            filas = await conn.fetch(
+                """
+                SELECT b.id, b.fecha::text, b.motivo, b.campus_id, b.creado_por, b.created_at::text, c.nombre AS campus_nombre
+                FROM dias_bloqueados b
+                LEFT JOIN campus c ON b.campus_id = c.id
+                ORDER BY b.fecha ASC
+                """
+            )
+        return [dict(f) for f in filas]
+
+
+@app.post("/api/calendario/bloqueos", status_code=status.HTTP_201_CREATED)
+async def crear_dia_bloqueado(data: BloqueoDiaRequest, current_user: dict = Depends(get_current_user)):
+    if current_user.get("rol") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
+    try:
+        f_parsed = datetime.strptime(data.fecha.strip(), "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Formato de fecha inválido. Usa YYYY-MM-DD.")
+
+    async with pool.acquire() as conn:
+        existe = await conn.fetchrow(
+            "SELECT id FROM dias_bloqueados WHERE fecha = $1 AND (($2::int IS NULL AND campus_id IS NULL) OR campus_id = $2)",
+            f_parsed, data.campus_id
+        )
+        if existe:
+            raise HTTPException(status_code=400, detail="La fecha ya se encuentra bloqueada para esa sede.")
+        
+        row = await conn.fetchrow(
+            """
+            INSERT INTO dias_bloqueados (fecha, motivo, campus_id, creado_por)
+            VALUES ($1, $2, $3, $4)
+            RETURNING id, fecha::text, motivo, campus_id, creado_por, created_at::text
+            """,
+            f_parsed, data.motivo.strip() if data.motivo else "Día bloqueado administrativamente", data.campus_id, current_user.get("nombre", "Admin")
+        )
+        await invalidar_caches_disponibilidad(data.campus_id, data.fecha.strip())
+        return dict(row)
+
+
+@app.delete("/api/calendario/bloqueos/{bloqueo_id}")
+async def eliminar_dia_bloqueado(bloqueo_id: int, current_user: dict = Depends(get_current_user)):
+    if current_user.get("rol") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("DELETE FROM dias_bloqueados WHERE id = $1 RETURNING fecha::text, campus_id", bloqueo_id)
+        if not row:
+            raise HTTPException(status_code=404, detail="Bloqueo no encontrado.")
+        await invalidar_caches_disponibilidad(row["campus_id"], row["fecha"])
+        return {"mensaje": "Día desbloqueado con éxito."}
+
+
 # --- Endpoints Públicos y Admin ---
 
 @app.get("/api/campus")
@@ -1248,7 +1337,60 @@ async def consultar_disponibilidad(campus_id: int, fecha: str):
             if cached_data:
                 return json.loads(cached_data)
 
+        hoy = date.today()
+        if fecha_parsed < hoy or fecha_parsed.weekday() >= 5 or fecha_str in FERIADOS_CHILE:
+            motivo = "Fecha pasada" if fecha_parsed < hoy else ("Fin de semana (día no hábil)" if fecha_parsed.weekday() >= 5 else "Feriado oficial")
+            resultado = [
+                {
+                    "hora": b["hora"],
+                    "rango": b["rango"],
+                    "ocupados": 0,
+                    "disponibles": 0,
+                    "capacidad_total": 0,
+                    "agotado": True,
+                    "bloqueado": True,
+                    "motivo": motivo
+                }
+                for b in BLOQUES_HORARIOS
+            ]
+            return {
+                "campus_id": campus_id,
+                "fecha": fecha_str,
+                "cubiculas_fisicos": 0,
+                "bloqueado": True,
+                "motivo": motivo,
+                "bloques": resultado
+            }
+
         async with pool.acquire() as conn:
+            bloqueo = await conn.fetchrow(
+                "SELECT motivo FROM dias_bloqueados WHERE fecha = $1 AND (campus_id IS NULL OR campus_id = $2) LIMIT 1",
+                fecha_parsed, campus_id
+            )
+            if bloqueo:
+                motivo = bloqueo["motivo"]
+                resultado = [
+                    {
+                        "hora": b["hora"],
+                        "rango": b["rango"],
+                        "ocupados": 0,
+                        "disponibles": 0,
+                        "capacidad_total": 0,
+                        "agotado": True,
+                        "bloqueado": True,
+                        "motivo": motivo
+                    }
+                    for b in BLOQUES_HORARIOS
+                ]
+                return {
+                    "campus_id": campus_id,
+                    "fecha": fecha_str,
+                    "cubiculas_fisicos": 0,
+                    "bloqueado": True,
+                    "motivo": motivo,
+                    "bloques": resultado
+                }
+
             capacidad_campus = await conn.fetchval("SELECT COUNT(*) FROM cubiculos WHERE campus_id = $1", campus_id)
             if not capacidad_campus or capacidad_campus == 0:
                 row_c = await conn.fetchrow("SELECT cubiculas_fisicos FROM campus WHERE id = $1", campus_id)
@@ -1353,10 +1495,31 @@ async def crear_reserva(
         fecha_parsed = datetime.strptime(reserva.fecha.strip(), "%Y-%m-%d").date()
         hora_parsed = datetime.strptime(reserva.hora.strip(), "%H:%M").time()
 
+        hoy = date.today()
+        ahora = datetime.now().time()
+
+        if fecha_parsed < hoy:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"No se permite agendar reservas en fechas pasadas ({reserva.fecha})."
+            )
+
+        if fecha_parsed == hoy and hora_parsed <= ahora:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"El bloque de las {reserva.hora} hrs para el día de hoy ya ha transcurrido."
+            )
+
         if fecha_parsed.weekday() >= 5:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"No se permite agendar reservas los fines de semana (Sábado o Domingo). La fecha {reserva.fecha} corresponde a un día no hábil."
+            )
+
+        if reserva.fecha.strip() in FERIADOS_CHILE:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"La fecha {reserva.fecha} corresponde a un feriado oficial no laboral."
             )
 
         async with pool.acquire() as conn:
@@ -1383,7 +1546,16 @@ async def crear_reserva(
                     nombres_formateados = ", ".join([f["nombre"] for f in filas_c])
                     raise HTTPException(status_code=400, detail=f"Sede no válida. Disponibles: {nombres_formateados}.")
 
-                # VERIFICACIÓN DE RESERVA ACTIVA (Máximo 1 reserva activa por usuario)
+                bloqueo = await conn.fetchrow(
+                    "SELECT motivo FROM dias_bloqueados WHERE fecha = $1 AND (campus_id IS NULL OR campus_id = $2) LIMIT 1",
+                    fecha_parsed, target_campus_id
+                )
+                if bloqueo:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"No se permite agendar reservas en la fecha {reserva.fecha}: {bloqueo['motivo']}."
+                    )
+
                 reserva_activa = await conn.fetchrow(
                     """
                     SELECT r.id, r.fecha, r.hora, c.nombre AS campus_nombre, cb.codigo AS cubiculo_codigo
@@ -1896,10 +2068,31 @@ async def procesar_edicion_reserva(
             nueva_fecha = datetime.strptime(data.fecha.strip(), "%Y-%m-%d").date() if data.fecha and data.fecha.strip() else res_existente["fecha"]
             nueva_hora = datetime.strptime(data.hora.strip(), "%H:%M").time() if data.hora and data.hora.strip() else res_existente["hora"]
 
+            hoy = date.today()
+            ahora = datetime.now().time()
+
+            if nueva_fecha < hoy:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"No se permite trasladar reservas a fechas pasadas ({nueva_fecha.strftime('%Y-%m-%d')})."
+                )
+
+            if nueva_fecha == hoy and nueva_hora <= ahora:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"El bloque de las {nueva_hora.strftime('%H:%M')} hrs para el día de hoy ya ha transcurrido."
+                )
+
             if nueva_fecha.weekday() >= 5:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"No se permite trasladar reservas a los fines de semana (Sábado o Domingo). La fecha {nueva_fecha.strftime('%Y-%m-%d')} corresponde a un día no hábil."
+                )
+
+            if data.fecha and data.fecha.strip() in FERIADOS_CHILE:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"La fecha {data.fecha} corresponde a un feriado oficial no laboral."
                 )
 
             nuevo_campus_id = res_existente["campus_id"]
@@ -1922,6 +2115,16 @@ async def procesar_edicion_reserva(
             if not nuevo_campus_nombre:
                 row_c = await conn.fetchrow("SELECT nombre FROM campus WHERE id = $1", nuevo_campus_id)
                 nuevo_campus_nombre = row_c["nombre"] if row_c else "Campus"
+
+            bloqueo = await conn.fetchrow(
+                "SELECT motivo FROM dias_bloqueados WHERE fecha = $1 AND (campus_id IS NULL OR campus_id = $2) LIMIT 1",
+                nueva_fecha, nuevo_campus_id
+            )
+            if bloqueo:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"No se puede trasladar la reserva a la fecha {nueva_fecha.strftime('%Y-%m-%d')}: {bloqueo['motivo']}."
+                )
 
             cubiculo_libre = await conn.fetchrow(
                 """

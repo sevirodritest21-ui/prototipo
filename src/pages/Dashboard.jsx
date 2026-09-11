@@ -82,12 +82,16 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchCMS();
+    fetchDiasBloqueados();
   }, []);
 
   useEffect(() => {
     if (activeTab === "historial" && historial.length === 0) {
       setMostrarHistorial(true);
       fetchHistorial();
+    }
+    if (activeTab === "calendario" && diasBloqueados.length === 0) {
+      fetchDiasBloqueados();
     }
   }, [activeTab]);
 
@@ -100,6 +104,64 @@ export default function Dashboard() {
   const [busquedaHistorial, setBusquedaHistorial] = useState("");
   const [mostrarHistorial, setMostrarHistorial] = useState(false);
   const [campusFiltroHistorial, setCampusFiltroHistorial] = useState("todos");
+
+  const [diasBloqueados, setDiasBloqueados] = useState([]);
+  const [cargandoBloqueos, setCargandoBloqueos] = useState(false);
+  const [guardandoBloqueo, setGuardandoBloqueo] = useState(false);
+  const [formBloqueo, setFormBloqueo] = useState({
+    fecha: "",
+    motivo: "Día bloqueado administrativamente",
+    campus_id: ""
+  });
+
+  const fetchDiasBloqueados = async () => {
+    setCargandoBloqueos(true);
+    try {
+      const data = await apiGet("/api/calendario/bloqueos");
+      setDiasBloqueados(Array.isArray(data) ? data : []);
+    } catch {
+      setDiasBloqueados([]);
+    } finally {
+      setCargandoBloqueos(false);
+    }
+  };
+
+  const handleCrearBloqueo = async (e) => {
+    e.preventDefault();
+    if (!formBloqueo.fecha) return;
+    setGuardandoBloqueo(true);
+    try {
+      await apiPost("/api/calendario/bloqueos", {
+        fecha: formBloqueo.fecha,
+        motivo: formBloqueo.motivo.trim() || "Día bloqueado administrativamente",
+        campus_id: formBloqueo.campus_id ? parseInt(formBloqueo.campus_id, 10) : null
+      });
+      setToastNotificacion({ tipo: "exito", texto: "Día bloqueado exitosamente en el calendario." });
+      setFormBloqueo({ fecha: "", motivo: "Día bloqueado administrativamente", campus_id: "" });
+      await fetchDiasBloqueados();
+    } catch (err) {
+      setToastNotificacion({ tipo: "error", texto: err.detail || err.message || "Error al bloquear la fecha" });
+    } finally {
+      setGuardandoBloqueo(false);
+    }
+  };
+
+  const handleEliminarBloqueo = (id, fecha, campusNom) => {
+    setConfirmModal({
+      open: true,
+      titulo: "Desbloquear Fecha",
+      mensaje: `¿Deseas desbloquear el día ${fecha} (${campusNom || "Todas las sedes"}) para permitir reservas de estudiantes?`,
+      onConfirm: async () => {
+        try {
+          await apiDelete(`/api/calendario/bloqueos/${id}`);
+          setToastNotificacion({ tipo: "exito", texto: "Día desbloqueado con éxito." });
+          await fetchDiasBloqueados();
+        } catch (err) {
+          setToastNotificacion({ tipo: "error", texto: err.detail || err.message || "Error al desbloquear" });
+        }
+      }
+    });
+  };
 
   const traducirDia = (d) => {
     if (!d) return "";
@@ -646,6 +708,7 @@ export default function Dashboard() {
               {[
                 { id: "monitoreo", label: "Monitoreo y Bloques", icon: "📊" },
                 { id: "metricas", label: "Métricas y Análisis", icon: "📈" },
+                { id: "calendario", label: "Calendario y Bloqueos", icon: "📅" },
                 { id: "sedes", label: "Sedes y Cubículos", icon: "🏛️" },
                 { id: "cms", label: "Portal Inicio (CMS)", icon: "🖼️" },
                 { id: "historial", label: "Historial de Registros", icon: "📜" }
@@ -658,6 +721,7 @@ export default function Dashboard() {
                       setActiveTab(tab.id);
                       if (tab.id === "cms") setMostrarGestionCMS(true);
                       if (tab.id === "sedes") setMostrarGestionCampus(true);
+                      if (tab.id === "calendario") fetchDiasBloqueados();
                     }}
                     className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer border ${isSelected
                         ? "bg-slate-900 text-white border-slate-900 shadow-md scale-[1.02]"
@@ -1957,6 +2021,147 @@ export default function Dashboard() {
                   Cerrar Gráficos
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {(activeTab === "calendario") && (
+          <div className="bg-white/90 backdrop-blur-md border border-sky-200 rounded-3xl p-6 md:p-8 shadow-xl shadow-sky-900/10 mb-8 space-y-8 animate-fadeIn">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+              <div>
+                <span className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-0.5 text-xs font-semibold text-sky-800 shadow-sm mb-1">
+                  📅 Control de Disponibilidad y Fechas
+                </span>
+                <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                  Bloqueo de Días en el Calendario
+                </h2>
+                <p className="text-xs text-slate-600">
+                  Inhabilita fechas específicas para impedir que los estudiantes agenden cubículos (por feriados, mantenimiento o recesos).
+                </p>
+              </div>
+              <button
+                onClick={fetchDiasBloqueados}
+                className="px-4 py-2 bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-900 font-bold text-xs rounded-xl transition cursor-pointer flex items-center gap-1"
+              >
+                🔄 Actualizar
+              </button>
+            </div>
+
+            <div className="bg-gradient-to-r from-sky-50/70 to-amber-50/70 border border-sky-200/80 rounded-2xl p-5 shadow-sm space-y-4">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <span>🔒</span> Bloquear una Nueva Fecha
+              </h3>
+              <form onSubmit={handleCrearBloqueo} className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                <div className="sm:col-span-3">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Fecha a Bloquear:</label>
+                  <input
+                    type="date"
+                    required
+                    value={formBloqueo.fecha}
+                    min={hoyStr}
+                    onChange={(e) => setFormBloqueo((prev) => ({ ...prev, fecha: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-sky-200 bg-white text-xs font-semibold text-slate-900 focus:outline-none focus:border-sky-500 shadow-sm cursor-pointer"
+                  />
+                </div>
+
+                <div className="sm:col-span-3">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Sede / Campus:</label>
+                  <select
+                    value={formBloqueo.campus_id}
+                    onChange={(e) => setFormBloqueo((prev) => ({ ...prev, campus_id: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-sky-200 bg-white text-xs font-semibold text-slate-900 focus:outline-none focus:border-sky-500 shadow-sm cursor-pointer"
+                  >
+                    <option value="">🌐 Todas las Sedes (Bloqueo Global)</option>
+                    {campus.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        🏛️ {c.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="sm:col-span-4">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Motivo del Bloqueo:</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="ej: Receso académico, Feriado no programado..."
+                    value={formBloqueo.motivo}
+                    onChange={(e) => setFormBloqueo((prev) => ({ ...prev, motivo: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-sky-200 bg-white text-xs font-medium text-slate-900 focus:outline-none focus:border-sky-500 shadow-sm"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <button
+                    type="submit"
+                    disabled={guardandoBloqueo || !formBloqueo.fecha}
+                    className="w-full py-2.5 px-4 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    {guardandoBloqueo ? "Guardando..." : "🔒 Bloquear Día"}
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <span>📋</span> Días Inhabilitados ({diasBloqueados.length})
+                </h3>
+              </div>
+
+              {cargandoBloqueos ? (
+                <div className="py-12 text-center text-xs text-sky-700 font-medium animate-pulse">
+                  Cargando días bloqueados...
+                </div>
+              ) : diasBloqueados.length === 0 ? (
+                <div className="py-10 text-center border border-dashed border-slate-200 rounded-2xl bg-slate-50 text-xs text-slate-500">
+                  No hay días bloqueados registrados actualmente. Todos los días laborales regulares están habilitados para reservas.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {diasBloqueados.map((b) => (
+                    <div
+                      key={b.id}
+                      className="p-4 rounded-2xl border border-red-200/80 bg-red-50/40 shadow-sm flex flex-col justify-between gap-3 hover:border-red-300 transition-all"
+                    >
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-black text-slate-900">
+                            📅 {b.fecha}
+                          </span>
+                          <span
+                            className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                              b.campus_id
+                                ? "bg-amber-100 border-amber-300 text-amber-900"
+                                : "bg-red-100 border-red-300 text-red-900"
+                            }`}
+                          >
+                            {b.campus_nombre ? `🏛️ ${b.campus_nombre}` : "🌐 Todas las sedes"}
+                          </span>
+                        </div>
+                        <p className="text-xs font-semibold text-slate-700">
+                          {b.motivo}
+                        </p>
+                        <p className="text-[10px] text-slate-400">
+                          Bloqueado por: {b.creado_por || "Admin"}
+                        </p>
+                      </div>
+
+                      <div className="pt-2 border-t border-red-200/50 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => handleEliminarBloqueo(b.id, b.fecha, b.campus_nombre)}
+                          className="px-3 py-1.5 bg-white hover:bg-emerald-50 text-emerald-700 hover:text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer flex items-center gap-1"
+                        >
+                          🔓 Desbloquear
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
