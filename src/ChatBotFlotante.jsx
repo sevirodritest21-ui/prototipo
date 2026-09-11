@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { apiPost } from './services/api';
@@ -96,9 +96,8 @@ export default function ChatbotFlotante() {
     const botPensandoId = Date.now() + 1;
     setMensajes((prev) => [...prev, { id: botPensandoId, texto: 'Escribiendo...', esBot: true }]);
 
-    // AbortController para otorgar un timeout extendido de 90 segundos al procesamiento de n8n
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 90000);
+    const timeoutId = setTimeout(() => controller.abort(), 120000);
 
     try {
       const payload = {
