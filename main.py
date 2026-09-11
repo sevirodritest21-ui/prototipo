@@ -9,7 +9,7 @@ import httpx
 import asyncpg
 import redis.asyncio as aioredis
 from redis.exceptions import RedisError
-from fastapi import FastAPI, HTTPException, status, Depends, Request, BackgroundTasks
+from fastapi import FastAPI, HTTPException, status, Depends, Request, BackgroundTasks, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, root_validator
@@ -51,6 +51,15 @@ def generar_headers_webhook_n8n(payload: dict) -> tuple:
         "X-Webhook-Token": N8N_SECRET_KEY
     }
     return payload_bytes, headers
+
+
+def extraer_rut_de_session(session_id: Optional[str]) -> Optional[str]:
+    if not session_id:
+        return None
+    match = re.search(r'session_rut_([a-zA-Z0-9\-]+)', str(session_id))
+    if match:
+        return match.group(1).replace(".", "").upper().strip()
+    return None
 
 
 async def notificar_cancelacion_n8n(detalles: List[dict]):
@@ -474,6 +483,7 @@ class MessageInput(BaseModel):
 class EsquemaEliminar(BaseModel):
     rut: Optional[str] = None
     sessionId: Optional[str] = None
+    reserva_id: Optional[int] = None
 
 
 class EsquemaConsulta(BaseModel):
@@ -1317,13 +1327,16 @@ async def crear_reserva(
             rut_final = user_rut_limpio
             nombre_final = current_user.get("nombre") or nombre_final
 
-    if (not rut_final or "[" in str(rut_final)) and reserva.sessionId:
+    if reserva.sessionId:
+        rut_ses = extraer_rut_de_session(reserva.sessionId)
         async with pool.acquire() as conn:
             row_s = await conn.fetchrow("SELECT rut, nombre FROM sesiones WHERE session_id = $1", reserva.sessionId)
-            if row_s:
-                rut_final = row_s["rut"]
-                if not nombre_final or nombre_final == "Usuario Chatbot":
+            if row_s and row_s["rut"]:
+                rut_ses = row_s["rut"]
+                if row_s["nombre"] and (not nombre_final or nombre_final == "Usuario Chatbot"):
                     nombre_final = row_s["nombre"]
+        if rut_ses and (not current_user or current_user.get("rol") != "admin"):
+            rut_final = rut_ses
 
     if not rut_final or not reserva.fecha or not reserva.hora:
         raise HTTPException(status_code=400, detail="Faltan datos obligatorios (RUT, fecha u hora).")
@@ -1501,6 +1514,10 @@ async def hablar_con_bot(input_data: MessageInput, request: Request, current_use
         if rut_a_guardar:
             rut_a_guardar = rut_a_guardar.replace(".", "").upper().strip()
 
+        rut_de_session = extraer_rut_de_session(input_data.sessionId)
+        if not rut_a_guardar and rut_de_session:
+            rut_a_guardar = rut_de_session
+
         async with pool.acquire() as conn:
             if input_data.sessionId and rut_a_guardar:
                 await conn.execute(
@@ -1512,19 +1529,28 @@ async def hablar_con_bot(input_data: MessageInput, request: Request, current_use
                     """,
                     input_data.sessionId, rut_a_guardar, nombre_a_guardar
                 )
+            elif input_data.sessionId and not rut_a_guardar:
+                row_recup = await conn.fetchrow("SELECT rut, nombre FROM sesiones WHERE session_id = $1", input_data.sessionId)
+                if row_recup:
+                    rut_a_guardar = row_recup["rut"]
+                    nombre_a_guardar = row_recup["nombre"]
 
-        payload = {"message": input_data.message}
-        if input_data.sessionId:
-            payload["sessionId"] = input_data.sessionId
+        mensaje_enriquecido = input_data.message
         if rut_a_guardar:
-            payload["rut"] = rut_a_guardar
-        if nombre_a_guardar:
-            payload["nombre"] = nombre_a_guardar
-        if email_a_guardar:
-            payload["email"] = email_a_guardar
+            mensaje_enriquecido = f"[Usuario autenticado: {nombre_a_guardar or 'Estudiante'} | RUT: {rut_a_guardar} | sessionId: {input_data.sessionId}]\n{input_data.message}"
+
+        payload = {
+            "message": mensaje_enriquecido,
+            "original_message": input_data.message,
+            "sessionId": input_data.sessionId,
+            "rut": rut_a_guardar,
+            "nombre": nombre_a_guardar,
+            "email": email_a_guardar
+        }
 
         payload_bytes, headers = generar_headers_webhook_n8n(payload)
-        response = await httpx_client.post(N8N_WEBHOOK_URL, content=payload_bytes, headers=headers, timeout=30.0)
+        timeout_n8n = float(os.getenv("N8N_CHATBOT_TIMEOUT", "120.0"))
+        response = await httpx_client.post(N8N_WEBHOOK_URL, content=payload_bytes, headers=headers, timeout=timeout_n8n)
         if response.status_code != 200:
             try:
                 err_data = response.json()
@@ -1535,6 +1561,7 @@ async def hablar_con_bot(input_data: MessageInput, request: Request, current_use
 
         data = response.json()
         bot_response = data.get("output", "Reserva procesada con éxito.")
+        bot_response = re.sub(r'\[Usuario autenticado:[^\]]*\]\s*', '', bot_response)
         return {"response": bot_response}
 
     except HTTPException:
@@ -1617,29 +1644,42 @@ async def eliminar_reserva(data: EsquemaEliminar, background_tasks: BackgroundTa
             rut_consulta = current_user.get("rut")
 
         async with pool.acquire() as conn:
-            if not rut_consulta and data.sessionId:
+            if data.sessionId:
+                rut_ses = extraer_rut_de_session(data.sessionId)
                 row_sesion = await conn.fetchrow("SELECT rut FROM sesiones WHERE session_id = $1", data.sessionId)
-                if row_sesion:
-                    rut_consulta = row_sesion["rut"]
+                if row_sesion and row_sesion["rut"]:
+                    rut_ses = row_sesion["rut"]
+                if rut_ses and (not current_user or current_user.get("rol") != "admin"):
+                    rut_consulta = rut_ses
 
             if not rut_consulta:
                 raise HTTPException(status_code=400, detail="RUT no especificado.")
 
             rut_limpio = str(rut_consulta).replace(".", "").upper().strip()
 
-            # Obtener datos de la reserva antes de eliminar para notificar por email vía n8n
+            condicion_reserva = "WHERE r.rut = $1"
+            params_fetch = [rut_limpio]
+            if data.reserva_id:
+                condicion_reserva += " AND r.id = $2"
+                params_fetch.append(data.reserva_id)
+
             reservas_a_eliminar = await conn.fetch(
-                """
+                f"""
                 SELECT r.id, r.nombre, r.rut, r.fecha, r.hora, c.nombre AS campus_nombre, cb.codigo AS cubiculo_codigo, u.email
                 FROM reservas r
                 LEFT JOIN campus c ON r.campus_id = c.id
                 LEFT JOIN cubiculos cb ON r.cubiculo_id = cb.id
                 LEFT JOIN usuarios u ON (REPLACE(REPLACE(REPLACE(UPPER(u.rut), '.', ''), '-', ''), ' ', '') = REPLACE(REPLACE(REPLACE(UPPER($1), '.', ''), '-', ''), ' ', '') OR LOWER(u.nombre) = LOWER(r.nombre))
-                WHERE r.rut = $1
+                {condicion_reserva}
                 """,
-                rut_limpio
+                *params_fetch
             )
             filas_canceladas = [dict(f) for f in reservas_a_eliminar]
+
+            if not filas_canceladas:
+                raise HTTPException(status_code=404, detail=f"No se encontró ninguna reserva activa perteneciente al RUT {rut_limpio}.")
+
+            ids_a_borrar = [f["id"] for f in filas_canceladas]
 
             async with conn.transaction():
                 for res in filas_canceladas:
@@ -1652,16 +1692,12 @@ async def eliminar_reserva(data: EsquemaEliminar, background_tasks: BackgroundTa
                             """,
                             res["id"], res["nombre"], res["rut"], res.get("campus_id"), res["fecha"], str(res["hora"])
                         )
-                await conn.execute("DELETE FROM reserva_acompanantes WHERE reserva_id IN (SELECT id FROM reservas WHERE rut = $1)", rut_limpio)
-                resultado = await conn.execute("DELETE FROM reservas WHERE rut = $1", rut_limpio)
+                await conn.execute("DELETE FROM reserva_acompanantes WHERE reserva_id = ANY($1::int[])", ids_a_borrar)
+                await conn.execute("DELETE FROM reservas WHERE id = ANY($1::int[])", ids_a_borrar)
 
-            deleted_count = int(resultado.split(" ")[1])
-            if deleted_count >= 1:
-                await invalidar_caches_disponibilidad()
-                background_tasks.add_task(notificar_cancelacion_n8n, filas_canceladas)
-                return {"message": f"Reserva del RUT {rut_limpio} eliminada con éxito."}
-
-        raise HTTPException(status_code=404, detail=f"No hay reservas asociadas al RUT {rut_limpio}.")
+            await invalidar_caches_disponibilidad()
+            background_tasks.add_task(notificar_cancelacion_n8n, filas_canceladas)
+            return {"message": f"Reserva del RUT {rut_limpio} eliminada con éxito."}
 
     except HTTPException:
         raise
@@ -1670,7 +1706,12 @@ async def eliminar_reserva(data: EsquemaEliminar, background_tasks: BackgroundTa
 
 
 @app.delete("/api/reservas/{reserva_id}")
-async def eliminar_reserva_por_id(reserva_id: int, background_tasks: BackgroundTasks, credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)):
+async def eliminar_reserva_por_id(
+    reserva_id: int,
+    background_tasks: BackgroundTasks,
+    sessionId: Optional[str] = Query(None),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)
+):
     current_user = None
     if credentials and credentials.credentials:
         try:
@@ -1699,9 +1740,23 @@ async def eliminar_reserva_por_id(reserva_id: int, background_tasks: BackgroundT
         if not res_detalle:
             raise HTTPException(status_code=404, detail="Reserva no encontrada.")
 
+        rut_res_clean = str(res_detalle["rut"]).replace(".", "").replace("-", "").upper().strip()
+
         if current_user:
-            if current_user.get("rol") != "admin" and current_user.get("rut") != res_detalle["rut"]:
-                raise HTTPException(status_code=403, detail="No tienes permisos para eliminar esta reserva.")
+            if current_user.get("rol") != "admin":
+                user_rut_clean = str(current_user.get("rut", "")).replace(".", "").replace("-", "").upper().strip()
+                if user_rut_clean != rut_res_clean:
+                    raise HTTPException(status_code=403, detail="No tienes permisos para eliminar esta reserva.")
+        elif sessionId:
+            rut_ses = extraer_rut_de_session(sessionId)
+            row_s = await conn.fetchrow("SELECT rut FROM sesiones WHERE session_id = $1", sessionId)
+            if row_s and row_s["rut"]:
+                rut_ses = row_s["rut"]
+            ses_clean = str(rut_ses or "").replace(".", "").replace("-", "").upper().strip()
+            if not ses_clean or ses_clean != rut_res_clean:
+                raise HTTPException(status_code=403, detail="Esta reserva no corresponde a tu sesión de usuario.")
+        else:
+            raise HTTPException(status_code=401, detail="Se requiere autenticación o sessionId para eliminar la reserva.")
 
         res_dict = [dict(res_detalle)]
 
@@ -1800,10 +1855,13 @@ async def procesar_edicion_reserva(
             target_id = reserva_id_target or data.reserva_id
             rut_consulta = current_user.get("rut") if (current_user and current_user.get("rut")) else data.rut
 
-            if not rut_consulta and data.sessionId:
+            if data.sessionId:
+                rut_ses = extraer_rut_de_session(data.sessionId)
                 row_sesion = await conn.fetchrow("SELECT rut FROM sesiones WHERE session_id = $1", data.sessionId)
-                if row_sesion:
-                    rut_consulta = row_sesion["rut"]
+                if row_sesion and row_sesion["rut"]:
+                    rut_ses = row_sesion["rut"]
+                if rut_ses and (not current_user or current_user.get("rol") != "admin"):
+                    rut_consulta = rut_ses
 
             if target_id:
                 res_existente = await conn.fetchrow("SELECT id, nombre, rut, fecha, hora, campus_id, cubiculo_id, session_id FROM reservas WHERE id = $1 FOR UPDATE", target_id)
@@ -1829,8 +1887,10 @@ async def procesar_edicion_reserva(
             reserva_id = res_existente["id"]
             rut_reserva = res_existente["rut"]
 
-            if current_user and current_user.get("rol") != "admin":
-                if current_user.get("rut") and current_user.get("rut") != rut_reserva:
+            if rut_consulta and (not current_user or current_user.get("rol") != "admin"):
+                rut_res_clean = str(rut_reserva).replace(".", "").replace("-", "").upper().strip()
+                rut_con_clean = str(rut_consulta).replace(".", "").replace("-", "").upper().strip()
+                if rut_res_clean != rut_con_clean:
                     raise HTTPException(status_code=403, detail="No tienes permisos para modificar esta reserva.")
 
             nueva_fecha = datetime.strptime(data.fecha.strip(), "%Y-%m-%d").date() if data.fecha and data.fecha.strip() else res_existente["fecha"]
@@ -1989,10 +2049,13 @@ async def consultar_reservas(data: EsquemaConsulta, credentials: Optional[HTTPAu
                 rut_consulta = user_rut_limpio
 
         async with pool.acquire() as conn:
-            if not rut_consulta and data.sessionId:
+            if data.sessionId:
+                rut_ses = extraer_rut_de_session(data.sessionId)
                 row_sesion = await conn.fetchrow("SELECT rut FROM sesiones WHERE session_id = $1", data.sessionId)
-                if row_sesion:
-                    rut_consulta = row_sesion["rut"]
+                if row_sesion and row_sesion["rut"]:
+                    rut_ses = row_sesion["rut"]
+                if rut_ses and (not current_user or current_user.get("rol") != "admin"):
+                    rut_consulta = rut_ses
 
             if not rut_consulta or "[" in str(rut_consulta):
                 raise HTTPException(status_code=400, detail="RUT no válido.")
