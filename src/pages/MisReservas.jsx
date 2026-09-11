@@ -15,7 +15,10 @@ const FERIADOS_CHILE_2026 = [
   "2026-10-31", "2026-11-01", "2026-12-08", "2026-12-25"
 ];
 
-const obtenerSessionId = () => {
+const obtenerSessionId = (rut) => {
+  if (rut) {
+    return `session_rut_${String(rut).replace(/\./g, '').trim().toUpperCase()}`;
+  }
   let sId = sessionStorage.getItem("chat_session_id");
   if (!sId) {
     sId = "session_" + Math.random().toString(36).substring(2, 15) + "_" + Date.now();
@@ -82,14 +85,14 @@ export default function MisReservas() {
     }
     setCargando(true);
     try {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("auth_token") || localStorage.getItem("token");
       const res = await fetch("http://localhost:8000/api/reservas/consultar", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
-        body: JSON.stringify({ rut: user.rut, sessionId: obtenerSessionId() })
+        body: JSON.stringify({ rut: user.rut, sessionId: obtenerSessionId(user.rut) })
       });
       if (res.ok) {
         const data = await res.json();
@@ -110,10 +113,18 @@ export default function MisReservas() {
 
     const handleActualizar = () => {
       cargarReservas();
+      fetch("http://localhost:8000/api/calendario/bloqueos")
+        .then((res) => res.json())
+        .then((data) => setDiasBloqueados(Array.isArray(data) ? data : []))
+        .catch(() => {});
     };
 
     window.addEventListener("reservaActualizada", handleActualizar);
-    return () => window.removeEventListener("reservaActualizada", handleActualizar);
+    window.addEventListener("focus", handleActualizar);
+    return () => {
+      window.removeEventListener("reservaActualizada", handleActualizar);
+      window.removeEventListener("focus", handleActualizar);
+    };
   }, [user?.rut]);
 
   const esDiaLaboral = (date) => {
@@ -126,15 +137,18 @@ export default function MisReservas() {
     const esBloqueado = diasBloqueados.some((b) => {
       if (b.fecha !== fechaString) return false;
       if (!b.campus_id) return true;
-      return editFormData.campus_id && parseInt(editFormData.campus_id, 10) === parseInt(b.campus_id, 10);
+      if (!editFormData.campus_id) return true;
+      return parseInt(editFormData.campus_id, 10) === parseInt(b.campus_id, 10);
     });
     return !esFinDeSemana && !feriados.includes(fechaString) && !esBloqueado;
   };
 
   const ejecutarCancelacion = async (reservaId) => {
     try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(`http://localhost:8000/api/reservas/${reservaId}`, {
+      const token = localStorage.getItem("auth_token") || localStorage.getItem("token");
+      const sessionId = obtenerSessionId(user?.rut);
+      const url = `http://localhost:8000/api/reservas/${reservaId}${sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : ""}`;
+      const res = await fetch(url, {
         method: "DELETE",
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {})
@@ -217,7 +231,7 @@ export default function MisReservas() {
       return;
     }
     try {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("auth_token") || localStorage.getItem("token");
       const res = await fetch(`http://localhost:8000/api/reservas/${editFormData.id}`, {
         method: "PUT",
         headers: {
@@ -229,7 +243,7 @@ export default function MisReservas() {
           fecha: editFormData.fecha,
           hora: editFormData.hora,
           acompanantes: editFormData.acompanantes,
-          sessionId: obtenerSessionId()
+          sessionId: obtenerSessionId(user?.rut)
         })
       });
 

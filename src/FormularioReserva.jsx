@@ -15,7 +15,10 @@ const FERIADOS_CHILE_2026 = [
   "2026-10-31", "2026-11-01", "2026-12-08", "2026-12-25"
 ];
 
-const obtenerSessionId = () => {
+const obtenerSessionId = (rut) => {
+  if (rut) {
+    return `session_rut_${String(rut).replace(/\./g, '').trim().toUpperCase()}`;
+  }
   let sId = sessionStorage.getItem("chat_session_id");
   if (!sId) {
     sId = "session_" + Math.random().toString(36).substring(2, 15) + "_" + Date.now();
@@ -77,14 +80,14 @@ export default function FormularioReserva() {
     }
     setCargandoReservaActiva(true);
     try {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("auth_token") || localStorage.getItem("token");
       const res = await fetch("http://localhost:8000/api/reservas/consultar", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
-        body: JSON.stringify({ rut: rutConsultar, sessionId: obtenerSessionId() })
+        body: JSON.stringify({ rut: rutConsultar, sessionId: obtenerSessionId(rutConsultar) })
       });
       if (res.ok) {
         const data = await res.json();
@@ -106,8 +109,11 @@ export default function FormularioReserva() {
 
   const ejecutarCancelacionId = async (resId) => {
     try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(`http://localhost:8000/api/reservas/${resId}`, {
+      const token = localStorage.getItem("auth_token") || localStorage.getItem("token");
+      const rutTarget = isEstudiante ? user?.rut : formData.rut;
+      const sessionId = obtenerSessionId(rutTarget);
+      const url = `http://localhost:8000/api/reservas/${resId}${sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : ""}`;
+      const res = await fetch(url, {
         method: "DELETE",
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {})
@@ -178,7 +184,8 @@ export default function FormularioReserva() {
       return;
     }
     try {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("auth_token") || localStorage.getItem("token");
+      const rutTarget = isEstudiante ? user?.rut : formData.rut;
       const res = await fetch(`http://localhost:8000/api/reservas/${editFormData.id}`, {
         method: "PUT",
         headers: {
@@ -190,7 +197,7 @@ export default function FormularioReserva() {
           fecha: editFormData.fecha,
           hora: editFormData.hora,
           acompanantes: editFormData.acompanantes,
-          sessionId: obtenerSessionId()
+          sessionId: obtenerSessionId(rutTarget)
         })
       });
 
@@ -295,13 +302,20 @@ export default function FormularioReserva() {
           .then((res) => res.json())
           .then((data) => setBloquesHorarios(data.bloques || []));
       }
+      fetch("http://localhost:8000/api/calendario/bloqueos")
+        .then((res) => res.json())
+        .then((data) => setDiasBloqueados(Array.isArray(data) ? data : []))
+        .catch(() => {});
     };
 
     window.addEventListener("reservaActualizada", handleActualizar);
-    return () => window.removeEventListener("reservaActualizada", handleActualizar);
+    window.addEventListener("focus", handleActualizar);
+    return () => {
+      window.removeEventListener("reservaActualizada", handleActualizar);
+      window.removeEventListener("focus", handleActualizar);
+    };
   }, [user?.rut, formData.rut, formData.campus_id, formData.fecha]);
 
-  // Validar si un día es laboral
   const esDiaLaboral = (date) => {
     const day = date.getDay();
     const esFinDeSemana = day === 0 || day === 6;
@@ -315,7 +329,8 @@ export default function FormularioReserva() {
     const esBloqueado = diasBloqueados.some((b) => {
       if (b.fecha !== fechaString) return false;
       if (!b.campus_id) return true;
-      return formData.campus_id && parseInt(formData.campus_id, 10) === parseInt(b.campus_id, 10);
+      if (!formData.campus_id) return true;
+      return parseInt(formData.campus_id, 10) === parseInt(b.campus_id, 10);
     });
 
     return !esFinDeSemana && !esFeriado && !esBloqueado;
@@ -334,7 +349,8 @@ export default function FormularioReserva() {
     const esBloqueado = diasBloqueados.some((b) => {
       if (b.fecha !== fechaString) return false;
       if (!b.campus_id) return true;
-      return editFormData.campus_id && parseInt(editFormData.campus_id, 10) === parseInt(b.campus_id, 10);
+      if (!editFormData.campus_id) return true;
+      return parseInt(editFormData.campus_id, 10) === parseInt(b.campus_id, 10);
     });
 
     return !esFinDeSemana && !esFeriado && !esBloqueado;
