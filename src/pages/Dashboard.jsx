@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { apiGet, apiPost, apiPut, apiDelete } from "../services/api";
+import * as XLSX from "xlsx";
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
@@ -106,6 +107,8 @@ export default function Dashboard() {
   const [busquedaHistorial, setBusquedaHistorial] = useState("");
   const [mostrarHistorial, setMostrarHistorial] = useState(true);
   const [campusFiltroHistorial, setCampusFiltroHistorial] = useState("todos");
+  const [exportandoExcel, setExportandoExcel] = useState(false);
+  const [limpiandoHistorial, setLimpiandoHistorial] = useState(false);
 
   const [diasBloqueados, setDiasBloqueados] = useState([]);
   const [cargandoBloqueos, setCargandoBloqueos] = useState(false);
@@ -191,6 +194,85 @@ export default function Dashboard() {
     } finally {
       setCargandoHistorial(false);
     }
+  };
+
+  const handleDescargarExcelHistorial = async () => {
+    setExportandoExcel(true);
+    try {
+      const params = new URLSearchParams();
+      if (campusFiltroHistorial && campusFiltroHistorial !== "todos") {
+        params.append("campus_id", campusFiltroHistorial);
+      }
+      if (busquedaHistorial) params.append("busqueda", busquedaHistorial);
+      params.append("limite", "10000");
+
+      const data = await apiGet(`/api/dashboard/historial?${params.toString()}`);
+      const registros = Array.isArray(data) && data.length > 0 ? data : historial;
+
+      if (!registros || registros.length === 0) {
+        setToastNotificacion({ tipo: "error", texto: "No hay registros en el historial para exportar." });
+        return;
+      }
+
+      const filasExcel = registros.map((h, index) => ({
+        "N°": index + 1,
+        "ID Reserva": h.reserva_id || h.id,
+        "Estudiante": h.nombre,
+        "RUT": h.rut,
+        "Sede / Campus": h.campus_nombre || "General",
+        "Fecha Reserva": h.fecha,
+        "Horario": h.hora,
+        "Estado": h.estado ? h.estado.toUpperCase() : "N/A",
+        "Fecha Registro / Archivo": h.fecha_registro || "N/A"
+      }));
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(filasExcel);
+
+      const colWidths = [
+        { wch: 6 },
+        { wch: 12 },
+        { wch: 28 },
+        { wch: 14 },
+        { wch: 22 },
+        { wch: 14 },
+        { wch: 16 },
+        { wch: 14 },
+        { wch: 24 }
+      ];
+      ws["!cols"] = colWidths;
+
+      XLSX.utils.book_append_sheet(wb, ws, "Historial Reservas");
+
+      const fechaHoy = new Date().toISOString().split("T")[0];
+      XLSX.writeFile(wb, `Historial_Reservas_UCT_${fechaHoy}.xlsx`);
+
+      setToastNotificacion({ tipo: "exito", texto: `Se descargaron exitosamente ${registros.length} registros en Excel.` });
+    } catch (err) {
+      setToastNotificacion({ tipo: "error", texto: err.message || "Error al exportar el archivo Excel." });
+    } finally {
+      setExportandoExcel(false);
+    }
+  };
+
+  const handleLimpiarHistorial = () => {
+    setConfirmModal({
+      open: true,
+      titulo: "⚠️ Limpiar Historial de Reservas",
+      mensaje: "¿Estás seguro de que deseas purgar el historial de reservas antiguas y canceladas? Se recomienda descargar el archivo Excel previamente como respaldo. Esta acción no afectará las reservas activas futuras.",
+      onConfirm: async () => {
+        setLimpiandoHistorial(true);
+        try {
+          const resp = await apiDelete("/api/dashboard/historial/limpiar");
+          setToastNotificacion({ tipo: "exito", texto: resp.mensaje || "Historial purgado con éxito." });
+          await fetchHistorial();
+        } catch (err) {
+          setToastNotificacion({ tipo: "error", texto: err.message || "Error al limpiar el historial." });
+        } finally {
+          setLimpiandoHistorial(false);
+        }
+      }
+    });
   };
 
   useEffect(() => {
@@ -1673,15 +1755,39 @@ export default function Dashboard() {
                   Consulta el registro permanente de reservas pasadas, archivadas o canceladas por los estudiantes.
                 </p>
               </div>
-              <button
-                onClick={() => {
-                  setMostrarHistorial(!mostrarHistorial);
-                  if (!mostrarHistorial) fetchHistorial();
-                }}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-extrabold rounded-2xl shadow-md transition-all transform hover:scale-105 cursor-pointer self-start md:self-auto"
-              >
-                <span>{mostrarHistorial ? "🙈 Ocultar Historial" : "👁️ Cargar Historial Completo"}</span>
-              </button>
+              <div className="flex flex-wrap items-center gap-2.5 self-start md:self-auto">
+                <button
+                  type="button"
+                  onClick={handleDescargarExcelHistorial}
+                  disabled={exportandoExcel || cargandoHistorial}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-2xl shadow-md transition-all transform hover:scale-105 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Exportar archivo Excel (.xlsx)"
+                >
+                  <span>📊</span>
+                  <span>{exportandoExcel ? "Generando Excel..." : "Descargar Excel"}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleLimpiarHistorial}
+                  disabled={limpiandoHistorial || cargandoHistorial || historial.length === 0}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 text-xs font-bold rounded-2xl shadow-sm transition-all transform hover:scale-105 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Purgar y vaciar historial antiguo"
+                >
+                  <span>🗑️</span>
+                  <span>{limpiandoHistorial ? "Limpiando..." : "Limpiar Historial"}</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setMostrarHistorial(!mostrarHistorial);
+                    if (!mostrarHistorial) fetchHistorial();
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-extrabold rounded-2xl shadow-md transition-all transform hover:scale-105 cursor-pointer"
+                >
+                  <span>{mostrarHistorial ? "🙈 Ocultar" : "👁️ Mostrar"}</span>
+                </button>
+              </div>
             </div>
 
             {mostrarHistorial && (

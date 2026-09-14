@@ -2023,6 +2023,30 @@ async def obtener_historial_reservas(
         return historial
 
 
+@app.delete("/api/dashboard/historial/limpiar")
+async def limpiar_historial_reservas(current_user: dict = Depends(get_current_user)):
+    if current_user.get("rol") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
+
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            res_h = await conn.execute("DELETE FROM historial_reservas")
+            res_r = await conn.execute(
+                """
+                DELETE FROM reservas 
+                WHERE (fecha < CURRENT_DATE) 
+                   OR (fecha = CURRENT_DATE AND hora::time < CURRENT_TIME)
+                """
+            )
+            count_h = int(res_h.split(" ")[1]) if " " in res_h else 0
+            count_r = int(res_r.split(" ")[1]) if " " in res_r else 0
+            total_limpiado = count_h + count_r
+            return {
+                "mensaje": f"Historial eliminado con éxito. Se eliminaron {total_limpiado} registros antiguos.",
+                "total_eliminados": total_limpiado
+            }
+
+
 async def procesar_edicion_reserva(
     reserva_id_target: Optional[int],
     data: EsquemaEditarReserva,
