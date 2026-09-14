@@ -195,7 +195,6 @@ httpx_client: Optional[httpx.AsyncClient] = None
 redis_client: Optional[aioredis.Redis] = None
 
 BLOQUES_HORARIOS = [
-    {"hora": "08:00", "rango": "08:00 - 09:00"},
     {"hora": "09:00", "rango": "09:00 - 10:00"},
     {"hora": "10:00", "rango": "10:00 - 11:00"},
     {"hora": "11:00", "rango": "11:00 - 12:00"},
