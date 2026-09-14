@@ -13,6 +13,46 @@ const obtenerSessionId = (rut) => {
   return `session_rut_${rutLimpio}`;
 };
 
+const extraerDatosReserva = (texto) => {
+  if (!texto) return null;
+
+  const esConfirmada = /reserva\s+(creada|confirmada|agendada|registrada|exitosa)|confirmada con éxito|agendado con éxito/i.test(texto);
+  const esPreguntaConfirmar = /¿deseas confirmar|para confirmar|¿confirmas|deseas que confirme|¿estás seguro de (cancelar|eliminar)|¿deseas cancelar/i.test(texto);
+  const esCancelada = /reserva\s+(cancelada|eliminada)|cancelada con éxito|eliminada con éxito/i.test(texto);
+
+  if (!esConfirmada && !esPreguntaConfirmar && !esCancelada) {
+    return null;
+  }
+
+  let campus = null;
+  if (/san\s*juan\s*pablo\s*ii/i.test(texto)) campus = "Campus San Juan Pablo II";
+  else if (/san\s*francisco/i.test(texto)) campus = "Campus San Francisco";
+  else {
+    const campusMatch = texto.match(/campus\s+([A-Za-zÁÉÍÓÚáéíóú\s]+)/i);
+    if (campusMatch) campus = campusMatch[0].trim();
+  }
+
+  let cubiculo = null;
+  const cubMatch = texto.match(/cub[íi]culo\s*:?\s*([A-Za-z0-9\-_]+)/i) || texto.match(/\b(CUB[0-9A-Za-z\-_]*)\b/i);
+  if (cubMatch) cubiculo = cubMatch[1];
+
+  let fecha = null;
+  const fechaMatch = texto.match(/\b(\d{4}-\d{2}-\d{2})\b/) || texto.match(/\b(\d{1,2}\/\d{1,2}\/\d{2,4})\b/) || texto.match(/\b(\d{1,2}\s+de\s+[a-zA-Z]+(?:\s+de\s+\d{4})?)\b/i);
+  if (fechaMatch) fecha = fechaMatch[0];
+
+  let hora = null;
+  const horaMatch = texto.match(/\b(\d{1,2}:\d{2}(?:\s*(?:a|-)\s*\d{1,2}:\d{2})?)\s*(?:hrs|horas)?\b/i);
+  if (horaMatch) hora = horaMatch[0];
+
+  return {
+    tipo: esConfirmada ? "confirmada" : esCancelada ? "cancelada" : "pendiente_confirmacion",
+    campus,
+    cubiculo,
+    fecha,
+    hora,
+  };
+};
+
 export default function ChatbotFlotante() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -77,16 +117,15 @@ export default function ChatbotFlotante() {
     }
   }, [user?.id, user?.rut]);
 
-  const handleEnviarMensaje = async (e) => {
-    e.preventDefault();
+  const enviarMensajeTexto = async (textoAEnviar) => {
     if (!user) {
       setIsChatOpen(false);
       navigate('/login');
       return;
     }
-    if (!nuevoMensaje.trim() || cargandoBot) return;
+    if (!textoAEnviar.trim() || cargandoBot) return;
 
-    const mensajeTexto = nuevoMensaje;
+    const mensajeTexto = textoAEnviar;
     const mensajeUsuario = { id: Date.now(), texto: mensajeTexto, esBot: false };
     setMensajes((prev) => [...prev, mensajeUsuario]);
     setNuevoMensaje('');
@@ -135,6 +174,11 @@ export default function ChatbotFlotante() {
     } finally {
       setCargandoBot(false);
     }
+  };
+
+  const handleEnviarMensaje = (e) => {
+    e.preventDefault();
+    enviarMensajeTexto(nuevoMensaje);
   };
 
   const irALogin = () => {
@@ -189,17 +233,110 @@ export default function ChatbotFlotante() {
             </div>
           ) : (
             <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-slate-50/80">
-              {mensajes.map((msg) => (
-                <div key={msg.id} className={`flex ${msg.esBot ? 'justify-start' : 'justify-end'}`}>
-                  <div className={`max-w-[88%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-line ${msg.esBot
-                    ? 'bg-white text-slate-700 rounded-tl-none border border-slate-200/60 shadow-sm shadow-slate-100'
-                    : 'bg-[#00629B] text-white rounded-tr-none shadow-md'
-                    } ${msg.texto === 'Escribiendo...' ? 'text-slate-400 italic bg-slate-100/50 animate-pulse' : ''}`}>
-                    {msg.texto}
+              {mensajes.map((msg) => {
+                const cardData = msg.esBot && msg.texto !== 'Escribiendo...' ? extraerDatosReserva(msg.texto) : null;
+
+                return (
+                  <div key={msg.id} className={`flex flex-col ${msg.esBot ? 'items-start' : 'items-end'}`}>
+                    <div className={`max-w-[88%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-line ${msg.esBot
+                      ? 'bg-white text-slate-700 rounded-tl-none border border-slate-200/60 shadow-sm shadow-slate-100'
+                      : 'bg-[#00629B] text-white rounded-tr-none shadow-md'
+                      } ${msg.texto === 'Escribiendo...' ? 'text-slate-400 italic bg-slate-100/50 animate-pulse' : ''}`}>
+                      {msg.texto}
+                    </div>
+
+                    {cardData && (
+                      <div className="max-w-[88%] mt-2 rounded-2xl border p-3.5 shadow-md text-xs space-y-2.5 bg-gradient-to-br from-white to-slate-50 border-sky-200">
+                        <div className="flex items-center justify-between border-b pb-2 border-slate-100">
+                          <span className={`font-bold flex items-center gap-1.5 ${cardData.tipo === 'confirmada' ? 'text-emerald-700' : cardData.tipo === 'cancelada' ? 'text-rose-600' : 'text-amber-700'}`}>
+                            <span>{cardData.tipo === 'confirmada' ? '✅' : cardData.tipo === 'cancelada' ? '🗑️' : '⚡'}</span>
+                            <span>{cardData.tipo === 'confirmada' ? 'Reserva Confirmada' : cardData.tipo === 'cancelada' ? 'Reserva Cancelada' : 'Confirmar Reserva'}</span>
+                          </span>
+                          <span className="text-[10px] uppercase font-black px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                            Biblioteca UCT
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 text-[11px] bg-slate-50/70 p-2.5 rounded-xl border border-slate-100">
+                          <div>
+                            <p className="text-slate-400 font-medium">Sede / Campus:</p>
+                            <p className="font-bold text-slate-800">{cardData.campus || "Sede seleccionada"}</p>
+                          </div>
+                          <div>
+                            <p className="text-slate-400 font-medium">Cubículo:</p>
+                            <p className="font-bold text-slate-800">{cardData.cubiculo || "Asignado"}</p>
+                          </div>
+                          <div>
+                            <p className="text-slate-400 font-medium">Fecha:</p>
+                            <p className="font-bold text-slate-800">{cardData.fecha || "Fecha solicitada"}</p>
+                          </div>
+                          <div>
+                            <p className="text-slate-400 font-medium">Horario:</p>
+                            <p className="font-bold text-slate-800">{cardData.hora || "Bloque agendado"}</p>
+                          </div>
+                        </div>
+
+                        {cardData.tipo === 'pendiente_confirmacion' && (
+                          <div className="flex items-center gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => enviarMensajeTexto("Sí, confirmo la reserva")}
+                              disabled={cargandoBot}
+                              className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs transition-all shadow-sm cursor-pointer disabled:opacity-50"
+                            >
+                              ✓ Sí, Confirmar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => enviarMensajeTexto("No, deseo cancelar la solicitud")}
+                              disabled={cargandoBot}
+                              className="py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold text-xs transition-all cursor-pointer disabled:opacity-50"
+                            >
+                              ✕ Cancelar
+                            </button>
+                          </div>
+                        )}
+
+                        {cardData.tipo === 'confirmada' && (
+                          <div className="pt-1 flex justify-end">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsChatOpen(false);
+                                navigate('/mis-reservas');
+                              }}
+                              className="w-full py-2 px-3 bg-sky-600 hover:bg-sky-700 text-white rounded-xl font-bold text-xs transition-all shadow-sm cursor-pointer flex items-center justify-center gap-1.5"
+                            >
+                              <span>📋</span> Ver en Mis Reservas
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
               <div ref={chatEndRef} />
+            </div>
+          )}
+
+          {user && !cargandoBot && (
+            <div className="px-3 pt-2 pb-1 flex items-center gap-1.5 overflow-x-auto bg-white border-t border-slate-100 scrollbar-none">
+              {[
+                { label: "📅 Agendar cubículo", texto: "Quiero agendar un cubículo" },
+                { label: "🔍 Ver mis reservas", texto: "Muéstrame mis reservas activas" },
+                { label: "❓ Disponibilidad", texto: "Consultar disponibilidad para hoy" },
+                { label: "❌ Cancelar reserva", texto: "Deseo cancelar mi reserva" }
+              ].map((chip, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => enviarMensajeTexto(chip.texto)}
+                  className="px-2.5 py-1 bg-slate-50 hover:bg-sky-50 border border-slate-200 hover:border-sky-300 rounded-full text-[11px] font-semibold text-slate-700 hover:text-sky-700 whitespace-nowrap transition-colors cursor-pointer shadow-2xs"
+                >
+                  {chip.label}
+                </button>
+              ))}
             </div>
           )}
 
