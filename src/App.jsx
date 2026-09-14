@@ -11,6 +11,7 @@ const ChatbotFlotante = lazy(() => import("./ChatBotFlotante"));
 const Login = lazy(() => import("./pages/Login"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const MisReservas = lazy(() => import("./pages/MisReservas"));
+const Reglamento = lazy(() => import("./pages/Reglamento"));
 
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider, useAuth } from "./context/AuthContext";
@@ -85,6 +86,9 @@ function NavBar() {
               <Link to="/reservar" className={getLinkStyle("/reservar")}>
                 Reservar
               </Link>
+              <Link to="/reglamento" className={getLinkStyle("/reglamento")}>
+                Reglamento
+              </Link>
             </div>
 
             {user ? (
@@ -147,6 +151,14 @@ function NavBar() {
                         <span>📅</span> Reservar Cubículo
                       </Link>
 
+                      <Link
+                        to="/reglamento"
+                        onClick={() => setDropdownOpen(false)}
+                        className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-sky-50 hover:text-sky-700 transition md:hidden"
+                      >
+                        <span>📜</span> Reglamento y Horarios
+                      </Link>
+
                     </div>
 
                     <div className="border-t border-slate-100 pt-1 mt-1">
@@ -187,14 +199,13 @@ export default function App() {
         <NavBar />
         <Suspense fallback={<LoadingFallback />}>
           <Routes>
-            {/* Ruta Pública de Login */}
             <Route path="/login" element={<Login />} />
 
-            {/* Rutas para cualquier usuario autenticado (Estudiante o Admin) */}
             <Route element={<ProtectedRoute />}>
               <Route path="/" element={<PaginaInicio />} />
               <Route path="/reservar" element={<FormularioReserva />} />
               <Route path="/mis-reservas" element={<MisReservas />} />
+              <Route path="/reglamento" element={<Reglamento />} />
             </Route>
 
             {/* Ruta protegida EXCLUSIVA para Administradores */}

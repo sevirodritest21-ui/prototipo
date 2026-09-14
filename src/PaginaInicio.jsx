@@ -28,7 +28,7 @@ export default function PaginaInicio() {
     return () => clearInterval(timer);
   }, [anuncios.length]);
 
-  const slideActual = anuncios[currentSlide] || {
+  const slideDefault = {
     titulo: "RESERVA INTELIGENTE CON ASISTENCIA IA",
     subtitulo: "¿Sabías que puedes consultar disponibilidad y agendar tu espacio directamente desde el chat flotante?",
     badge: "NUEVO SERVICIO",
@@ -36,6 +36,8 @@ export default function PaginaInicio() {
     boton_link: "open-chat",
     color_fondo: "#4A4D55"
   };
+
+  const slides = anuncios.length > 0 ? anuncios : [slideDefault];
 
   const handleBotonClick = (link) => {
     if (link === "open-chat") {
@@ -79,62 +81,73 @@ export default function PaginaInicio() {
 
       <main className="mx-auto max-w-7xl px-6 py-10">
 
-        <div className="relative mb-10 overflow-hidden rounded-2xl shadow-xl border-l-8 border-[#00A3E0] transition-all duration-500" style={{ backgroundColor: slideActual.color_fondo || "#4A4D55" }}>
-          <div className="p-6 md:p-8 text-white flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative z-10">
-            <div className="space-y-2 max-w-3xl">
-              <div className="flex items-center gap-2">
-                <span className="bg-[#00A3E0] text-white text-[10px] font-black px-2.5 py-0.5 rounded uppercase tracking-wider">
-                  {slideActual.badge || "ANUNCIO"}
-                </span>
-              </div>
-              <h2 className="text-xl md:text-3xl font-black text-white tracking-tight leading-snug">
-                {slideActual.titulo}
-              </h2>
-              <p className="text-xs md:text-sm text-slate-200 leading-relaxed">
-                {slideActual.subtitulo}
-              </p>
-            </div>
+        <div className="relative mb-10 overflow-hidden rounded-2xl shadow-xl border-l-8 border-[#00A3E0]">
+          <div
+            className="flex transition-transform duration-700 ease-in-out"
+            style={{ transform: `translateX(-${currentSlide * 100}%)` }}
+          >
+            {slides.map((slide, idx) => (
+              <div
+                key={slide.id || idx}
+                className="w-full shrink-0 p-6 md:p-8 text-white flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative"
+                style={{ backgroundColor: slide.color_fondo || "#4A4D55" }}
+              >
+                <div className="space-y-2 max-w-3xl">
+                  <div className="flex items-center gap-2">
+                    <span className="bg-[#00A3E0] text-white text-[10px] font-black px-2.5 py-0.5 rounded uppercase tracking-wider">
+                      {slide.badge || "ANUNCIO"}
+                    </span>
+                  </div>
+                  <h2 className="text-xl md:text-3xl font-black text-white tracking-tight leading-snug">
+                    {slide.titulo}
+                  </h2>
+                  <p className="text-xs md:text-sm text-slate-200 leading-relaxed">
+                    {slide.subtitulo}
+                  </p>
+                </div>
 
-            {slideActual.boton_texto && (
-              slideActual.boton_link === "open-chat" ? (
-                <button
-                  onClick={() => handleBotonClick(slideActual.boton_link)}
-                  className="px-6 py-3 bg-[#00A3E0] hover:bg-[#0082B3] text-white font-bold text-xs uppercase tracking-wider rounded-full shadow-lg transition-all cursor-pointer whitespace-nowrap"
-                >
-                  {slideActual.boton_texto}
-                </button>
-              ) : (
-                <Link
-                  to={slideActual.boton_link || "/reservar"}
-                  className="px-6 py-3 bg-[#00A3E0] hover:bg-[#0082B3] text-white font-bold text-xs uppercase tracking-wider rounded-full shadow-lg transition-all text-center whitespace-nowrap"
-                >
-                  {slideActual.boton_texto}
-                </Link>
-              )
-            )}
+                {slide.boton_texto && (
+                  slide.boton_link === "open-chat" ? (
+                    <button
+                      onClick={() => handleBotonClick(slide.boton_link)}
+                      className="px-6 py-3 bg-[#00A3E0] hover:bg-[#0082B3] text-white font-bold text-xs uppercase tracking-wider rounded-full shadow-lg transition-all cursor-pointer whitespace-nowrap"
+                    >
+                      {slide.boton_texto}
+                    </button>
+                  ) : (
+                    <Link
+                      to={slide.boton_link || "/reservar"}
+                      className="px-6 py-3 bg-[#00A3E0] hover:bg-[#0082B3] text-white font-bold text-xs uppercase tracking-wider rounded-full shadow-lg transition-all text-center whitespace-nowrap"
+                    >
+                      {slide.boton_texto}
+                    </Link>
+                  )
+                )}
+              </div>
+            ))}
           </div>
 
-          {anuncios.length > 1 && (
-            <div className="flex items-center justify-between px-6 pb-4 pt-1 border-t border-white/10 relative z-10">
+          {slides.length > 1 && (
+            <div className="flex items-center justify-between px-6 pb-4 pt-2 bg-black/20 backdrop-blur-xs relative z-10">
               <div className="flex items-center gap-2">
-                {anuncios.map((_, idx) => (
+                {slides.map((_, idx) => (
                   <button
                     key={idx}
                     onClick={() => setCurrentSlide(idx)}
-                    className={`h-2 rounded-full transition-all ${idx === currentSlide ? "w-8 bg-[#00A3E0]" : "w-2 bg-white/40 hover:bg-white/60"}`}
+                    className={`h-2 rounded-full transition-all cursor-pointer ${idx === currentSlide ? "w-8 bg-[#00A3E0]" : "w-2 bg-white/40 hover:bg-white/60"}`}
                   />
                 ))}
               </div>
               <div className="flex gap-2">
                 <button
-                  onClick={() => setCurrentSlide((prev) => (prev - 1 + anuncios.length) % anuncios.length)}
-                  className="w-7 h-7 rounded-full bg-black/20 hover:bg-black/40 text-white text-xs flex items-center justify-center transition"
+                  onClick={() => setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length)}
+                  className="w-7 h-7 rounded-full bg-black/20 hover:bg-black/40 text-white text-xs flex items-center justify-center transition cursor-pointer"
                 >
                   ‹
                 </button>
                 <button
-                  onClick={() => setCurrentSlide((prev) => (prev + 1) % anuncios.length)}
-                  className="w-7 h-7 rounded-full bg-black/20 hover:bg-black/40 text-white text-xs flex items-center justify-center transition"
+                  onClick={() => setCurrentSlide((prev) => (prev + 1) % slides.length)}
+                  className="w-7 h-7 rounded-full bg-black/20 hover:bg-black/40 text-white text-xs flex items-center justify-center transition cursor-pointer"
                 >
                   ›
                 </button>
