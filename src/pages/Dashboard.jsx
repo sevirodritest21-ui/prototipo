@@ -699,7 +699,7 @@ export default function Dashboard() {
               <div className="flex items-center gap-2">
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-3 py-0.5 text-xs font-bold text-sky-800">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                  Panel Administrador Pro
+                  Panel Administrador
                 </span>
                 <span className="text-xs font-semibold text-slate-400">| Sede Activa: <strong className="text-slate-700">{campusSeleccionadoObj?.nombre || "General"}</strong></span>
               </div>
@@ -746,8 +746,8 @@ export default function Dashboard() {
                       if (tab.id === "historial") fetchHistorial();
                     }}
                     className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer border ${isSelected
-                        ? "bg-slate-900 text-white border-slate-900 shadow-md scale-[1.02]"
-                        : "bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200"
+                      ? "bg-slate-900 text-white border-slate-900 shadow-md scale-[1.02]"
+                      : "bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200"
                       }`}
                   >
                     <span>{tab.icon}</span>
@@ -1751,12 +1751,12 @@ export default function Dashboard() {
                             <td className="p-3">
                               <span
                                 className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${h.estado === "cancelada"
-                                    ? "bg-red-100 text-red-700 border border-red-200"
-                                    : h.estado === "activa"
-                                      ? "bg-sky-100 text-sky-800 border border-sky-200"
-                                      : h.estado === "expirada" || h.estado === "inactiva"
-                                        ? "bg-amber-100 text-amber-800 border border-amber-200"
-                                        : "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                                  ? "bg-red-100 text-red-700 border border-red-200"
+                                  : h.estado === "activa"
+                                    ? "bg-sky-100 text-sky-800 border border-sky-200"
+                                    : h.estado === "expirada" || h.estado === "inactiva"
+                                      ? "bg-amber-100 text-amber-800 border border-amber-200"
+                                      : "bg-emerald-100 text-emerald-800 border border-emerald-200"
                                   }`}
                               >
                                 {h.estado}
@@ -2163,11 +2163,10 @@ export default function Dashboard() {
                             📅 {b.fecha}
                           </span>
                           <span
-                            className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
-                              b.campus_id
+                            className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${b.campus_id
                                 ? "bg-amber-100 border-amber-300 text-amber-900"
                                 : "bg-red-100 border-red-300 text-red-900"
-                            }`}
+                              }`}
                           >
                             {b.campus_nombre ? `🏛️ ${b.campus_nombre}` : "🌐 Todas las sedes"}
                           </span>
