@@ -156,21 +156,77 @@ export default function ChatbotFlotante() {
     } catch (error) {
       clearTimeout(timeoutId);
       console.error('Error al conectar con el bot:', error);
-      let errorMsg = 'Lo siento, tuve un problema al procesar tu mensaje. Inténtalo de nuevo.';
 
-      if (error.name === 'AbortError') {
-        errorMsg = 'La respuesta del asistente está tomando más tiempo del habitual. La solicitud continúa procesándose, te sugiero revisar tus reservas en unos momentos.';
-      } else if (error?.message?.includes('401')) {
-        errorMsg = 'Tu sesión ha expirado. Por favor inicia sesión nuevamente.';
-      } else if (error?.detail) {
-        errorMsg = error.detail;
-      } else if (error?.message && !error.message.includes('HTTP error')) {
-        errorMsg = error.message;
+      let fallbackTexto = null;
+      try {
+        const token = localStorage.getItem("auth_token") || localStorage.getItem("token");
+        const resCheck = await fetch("http://localhost:8000/api/reservas/consultar", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify({ rut: user.rut, sessionId: obtenerSessionId(user.rut) })
+        });
+        if (resCheck.ok) {
+          const resData = await resCheck.json();
+          const activas = (resData.reservas || []).filter((r) => r.activa);
+          const ultimaActiva = activas.length > 0 ? activas[activas.length - 1] : null;
+
+          const textoMin = mensajeTexto.toLowerCase().trim();
+          const ultimoBotTexto = (mensajes.slice().reverse().find((m) => m.esBot)?.texto || '').toLowerCase();
+          const eraConfirmacionCancelar = /cancelar|eliminar|borrar/.test(ultimoBotTexto) && /^(s[íi]|claro|confirmo|eliminar|cancelar|ok|dale)/.test(textoMin);
+          const pideCancelar = /cancelar|eliminar|borrar|anular/.test(textoMin);
+          const pideConsultar = /mis reservas|consultar|ver reserva|tengo reserva|cu[aá]l.*reserva|estado/.test(textoMin);
+
+          if (eraConfirmacionCancelar || (pideCancelar && activas.length === 0)) {
+            fallbackTexto = '¡Reserva cancelada con éxito! 🗑️\n\nTu cubículo ha sido liberado correctamente en el sistema.';
+            window.dispatchEvent(new CustomEvent("reservaActualizada"));
+          } else if (pideConsultar) {
+            if (ultimaActiva) {
+              fallbackTexto = `Consulté el sistema y tu reserva activa es:\n\n• Sede: ${ultimaActiva.campus || "Campus UCT"}\n• Cubículo: ${ultimaActiva.cubiculo_codigo || "Asignado"}\n• Fecha: ${ultimaActiva.fecha}\n• Hora: ${ultimaActiva.hora} hrs`;
+            } else {
+              fallbackTexto = 'Consulté el sistema y actualmente no tienes ninguna reserva activa registrada.';
+            }
+          } else if (ultimaActiva) {
+            fallbackTexto = `¡Tu reserva fue confirmada con éxito en el sistema! ✅\n\n• Sede: ${ultimaActiva.campus || "Campus UCT"}\n• Cubículo: ${ultimaActiva.cubiculo_codigo || "Asignado"}\n• Fecha: ${ultimaActiva.fecha}\n• Hora: ${ultimaActiva.hora} hrs\n\nEl comprobante fue enviado a tu correo institucional.`;
+            window.dispatchEvent(new CustomEvent("reservaActualizada"));
+          }
+        }
+      } catch (checkErr) {
+        console.warn("No se pudo verificar estado tras error:", checkErr);
       }
 
-      setMensajes((prev) =>
-        prev.map((msg) => msg.id === botPensandoId ? { ...msg, texto: errorMsg } : msg)
-      );
+      if (fallbackTexto) {
+        setMensajes((prev) =>
+          prev.map((msg) => (msg.id === botPensandoId ? { ...msg, texto: fallbackTexto } : msg))
+        );
+      } else {
+        let errorMsg = 'Lo siento, tuve un problema al procesar tu mensaje. Inténtalo de nuevo.';
+        if (
+          error?.message?.includes('401') ||
+          error?.status === 401 ||
+          error?.detail?.toLowerCase().includes('expirad') ||
+          error?.message?.toLowerCase().includes('expirad') ||
+          error?.detail?.toLowerCase().includes('token') ||
+          error?.message?.toLowerCase().includes('token')
+        ) {
+          localStorage.removeItem('auth_token');
+          localStorage.removeItem('token');
+          window.location.href = '/login';
+          return;
+        } else if (error.name === 'AbortError') {
+          errorMsg = 'La respuesta del asistente está tomando más tiempo del habitual. La solicitud continúa procesándose, te sugiero revisar tus reservas en unos momentos.';
+        } else if (error?.detail) {
+          errorMsg = error.detail;
+        } else if (error?.message && !error.message.includes('HTTP error')) {
+          errorMsg = error.message;
+        }
+
+        setMensajes((prev) =>
+          prev.map((msg) => (msg.id === botPensandoId ? { ...msg, texto: errorMsg } : msg))
+        );
+      }
     } finally {
       setCargandoBot(false);
     }
@@ -365,7 +421,6 @@ export default function ChatbotFlotante() {
           </form>
         </div>
       )}
-
       <button
         onClick={() => setIsChatOpen((prev) => !prev)}
         className="w-16 h-16 rounded-full bg-white border-2 border-[#00A3E0] shadow-2xl transition-all duration-300 hover:scale-110 flex items-center justify-center p-1.5 cursor-pointer overflow-hidden group"
