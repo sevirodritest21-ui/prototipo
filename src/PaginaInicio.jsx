@@ -34,7 +34,7 @@ export default function PaginaInicio() {
     badge: "NUEVO SERVICIO",
     boton_texto: "Abrir Chatbot Ahora",
     boton_link: "open-chat",
-    color_fondo: "#4A4D55"
+    color_fondo: "#f0ce0fff"
   };
 
   const slides = anuncios.length > 0 ? anuncios : [slideDefault];
@@ -90,7 +90,7 @@ export default function PaginaInicio() {
               <div
                 key={slide.id || idx}
                 className="w-full shrink-0 p-6 md:p-8 text-white flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative"
-                style={{ backgroundColor: slide.color_fondo || "#4A4D55" }}
+                style={{ backgroundColor: slide.color_fondo || "#fde50dff" }}
               >
                 <div className="space-y-2 max-w-3xl">
                   <div className="flex items-center gap-2">
