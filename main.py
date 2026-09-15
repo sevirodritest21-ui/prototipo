@@ -84,7 +84,6 @@ async def notificar_cancelacion_n8n(detalles: List[dict]):
                             email_encontrado = row_u["email"]
                 except Exception as ex_db:
                     print(f"⚠️ Error al buscar email de usuario: {ex_db}")
-
             payload = {
                 "event": "reserva_cancelada",
                 "reserva_id": str(item.get("id", "")),
