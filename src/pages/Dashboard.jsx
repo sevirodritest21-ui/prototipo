@@ -516,15 +516,19 @@ export default function Dashboard() {
 
   const handleGuardarEditCubiculo = async (cubId) => {
     const valLimpio = editCubiculoCodigoVal.trim();
-    if (!valLimpio || !campusAEditar) return;
+    if (!valLimpio) return;
     try {
       await apiPut(`/api/cubiculos/${cubId}`, { codigo: valLimpio });
       setEditingCubiculoId(null);
-      await fetchCubiculosModal(campusAEditar.id);
-      await fetchCampus();
-      if (campusSeleccionado === campusAEditar.id) {
-        await fetchCubiculos(campusSeleccionado);
+      if (campusAEditar) {
+        await fetchCubiculosModal(campusAEditar.id);
       }
+      await fetchCampus();
+      const idAUsar = campusDestinoCubiculo || campusSeleccionado;
+      if (idAUsar) {
+        await fetchCubiculos(idAUsar);
+      }
+      setToastNotificacion({ tipo: "exito", texto: "Código de cubículo modificado con éxito." });
     } catch (err) {
       setToastNotificacion({ tipo: "error", texto: err.message || "Error al actualizar cubículo" });
     }
@@ -538,12 +542,13 @@ export default function Dashboard() {
       onConfirm: async () => {
         try {
           await apiDelete(`/api/cubiculos/${cubId}`);
-          await fetchCubiculosModal(campusAEditar.id);
+          if (campusAEditar) {
+            await fetchCubiculosModal(campusAEditar.id);
+          }
           await fetchCampus();
-          if (campusDestinoCubiculo && Number(campusDestinoCubiculo) === campusAEditar.id) {
-            await fetchCubiculos(campusDestinoCubiculo);
-          } else if (campusSeleccionado === campusAEditar.id) {
-            await fetchCubiculos(campusSeleccionado);
+          const idAUsar = campusDestinoCubiculo || campusSeleccionado;
+          if (idAUsar) {
+            await fetchCubiculos(idAUsar);
           }
           setToastNotificacion({ tipo: "exito", texto: `Cubículo '${codigo}' eliminado.` });
         } catch (err) {
@@ -1106,14 +1111,68 @@ export default function Dashboard() {
                     <p className="text-[11px] font-bold text-slate-500 mb-2">
                       Cubículos registrados en {campus.find((c) => String(c.id) === String(campusDestinoCubiculo))?.nombre || "la sede"} ({cubiculosCampus.length}):
                     </p>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-2.5">
                       {cubiculosCampus.map((cb) => (
-                        <span
-                          key={cb.id}
-                          className="px-3 py-1 bg-white border border-sky-200 rounded-xl text-xs font-bold text-sky-800 shadow-sm"
-                        >
-                          {cb.codigo}
-                        </span>
+                        editingCubiculoId === cb.id ? (
+                          <div
+                            key={cb.id}
+                            className="flex items-center gap-1.5 bg-white border border-sky-300 rounded-xl px-2 py-1 shadow-sm"
+                          >
+                            <input
+                              type="text"
+                              value={editCubiculoCodigoVal}
+                              onChange={(e) => setEditCubiculoCodigoVal(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") handleGuardarEditCubiculo(cb.id);
+                                if (e.key === "Escape") setEditingCubiculoId(null);
+                              }}
+                              className="w-24 px-2 py-0.5 bg-slate-50 border border-sky-300 rounded-lg text-xs font-bold text-slate-800 outline-none uppercase"
+                              autoFocus
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleGuardarEditCubiculo(cb.id)}
+                              className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold cursor-pointer transition-colors"
+                              title="Guardar código"
+                            >
+                              ✓
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingCubiculoId(null)}
+                              className="px-2 py-0.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-bold cursor-pointer transition-colors"
+                              title="Cancelar"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ) : (
+                          <div
+                            key={cb.id}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-sky-200 hover:border-sky-300 rounded-xl text-xs font-bold text-sky-900 shadow-sm transition-all"
+                          >
+                            <span>🚪 {cb.codigo}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingCubiculoId(cb.id);
+                                setEditCubiculoCodigoVal(cb.codigo);
+                              }}
+                              className="text-sky-600 hover:text-sky-800 hover:bg-sky-50 p-1 rounded-md cursor-pointer transition-colors"
+                              title="Modificar código del cubículo"
+                            >
+                              ✏️
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleEliminarCubiculoModal(cb.id, cb.codigo)}
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded-md cursor-pointer transition-colors"
+                              title="Eliminar cubículo"
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        )
                       ))}
                     </div>
                   </div>
@@ -1274,7 +1333,12 @@ export default function Dashboard() {
                                 type="text"
                                 value={editCubiculoCodigoVal}
                                 onChange={(e) => setEditCubiculoCodigoVal(e.target.value)}
-                                className="w-full px-2 py-1 bg-slate-50 border border-sky-300 rounded-lg text-xs font-bold text-slate-800"
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") handleGuardarEditCubiculo(cb.id);
+                                  if (e.key === "Escape") setEditingCubiculoId(null);
+                                }}
+                                className="w-full px-2 py-1 bg-slate-50 border border-sky-300 rounded-lg text-xs font-bold text-slate-800 uppercase"
+                                autoFocus
                               />
                               <button
                                 type="button"
