@@ -357,44 +357,149 @@ export default function MisReservas() {
                   {reservasActivas.map((res) => (
                     <div
                       key={res.id}
-                      className="rounded-3xl border border-sky-200 bg-white p-6 shadow-md hover:shadow-xl transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
+                      className="relative overflow-hidden rounded-3xl border border-sky-200/80 bg-white shadow-xl shadow-sky-500/10 transition-all hover:shadow-2xl hover:shadow-sky-500/15"
                     >
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-extrabold text-slate-900 text-base">{res.campus}</span>
-                          <span className="text-xs px-2.5 py-1 rounded-lg font-mono bg-sky-100 text-sky-800 font-bold border border-sky-200">
-                            Cubículo {res.cubiculo_codigo}
-                          </span>
-                          <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase bg-emerald-100 text-emerald-800 border border-emerald-300">
-                            Activa
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-4 text-xs text-slate-600">
-                          <span>📅 <strong>{res.fecha}</strong></span>
-                          <span>⏰ <strong>{res.hora} hrs</strong></span>
-                        </div>
-                        {res.acompanantes && res.acompanantes.length > 0 && (
-                          <div className="text-xs text-slate-500 pt-1">
-                            👥 <strong>Acompañantes:</strong> {res.acompanantes.map((a) => a.nombre).join(", ")}
+                      <div className="bg-gradient-to-r from-slate-900 via-sky-950 to-indigo-950 px-6 py-4 text-white flex flex-wrap items-center justify-between gap-3 border-b border-white/10">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center text-lg border border-white/20">
+                            🎟️
                           </div>
-                        )}
+                          <div>
+                            <span className="text-[10px] font-bold tracking-widest uppercase text-sky-300">
+                              Universidad Católica de Temuco • Biblioteca
+                            </span>
+                            <h3 className="text-sm md:text-base font-black tracking-tight text-white">
+                              Pase Digital de Estudio
+                            </h3>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 backdrop-blur-md">
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                            Pase Activo
+                          </span>
+                          <span className="font-mono text-xs font-bold text-slate-400 bg-white/5 px-2.5 py-1 rounded-xl border border-white/10">
+                            #RES-{res.id}
+                          </span>
+                        </div>
                       </div>
 
-                      <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
-                        <button
-                          type="button"
-                          onClick={() => abrirModalEdicion(res)}
-                          className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl shadow transition-all cursor-pointer flex items-center gap-1.5"
-                        >
-                          <span>✏️</span> Editar
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleCancelarReserva(res.id)}
-                          className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow transition-all cursor-pointer flex items-center gap-1.5"
-                        >
-                          <span>🗑️</span> Cancelar
-                        </button>
+                      <div className="flex flex-col lg:flex-row">
+                        <div className="flex-1 p-6 space-y-6">
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                            <div className="space-y-1">
+                              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                📍 Sede / Campus
+                              </span>
+                              <p className="font-black text-slate-900 text-sm md:text-base">
+                                {res.campus}
+                              </p>
+                            </div>
+
+                            <div className="space-y-1">
+                              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                🚪 Cubículo
+                              </span>
+                              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-sky-100 text-sky-900 font-mono font-black text-sm border border-sky-200">
+                                {res.cubiculo_codigo}
+                              </div>
+                            </div>
+
+                            <div className="space-y-1">
+                              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                📅 Fecha
+                              </span>
+                              <p className="font-bold text-slate-800 text-sm">
+                                {res.fecha}
+                              </p>
+                            </div>
+
+                            <div className="space-y-1">
+                              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                ⏰ Horario Bloque
+                              </span>
+                              <p className="font-black text-sky-700 text-sm">
+                                {res.hora} hrs
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="pt-4 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                            <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 space-y-0.5">
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                🎓 Estudiante Titular
+                              </span>
+                              <p className="font-bold text-slate-900 text-sm">
+                                {user?.nombre || "Estudiante"}
+                              </p>
+                              <p className="font-mono text-slate-500 text-[11px]">
+                                RUT: {user?.rut || res.rut || "N/A"}
+                              </p>
+                            </div>
+
+                            <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 space-y-1">
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                👥 Acompañantes Registrados
+                              </span>
+                              {res.acompanantes && res.acompanantes.length > 0 ? (
+                                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                                  {res.acompanantes.map((ac, idx) => (
+                                    <span
+                                      key={idx}
+                                      className="inline-block px-2 py-0.5 bg-white border border-slate-200 rounded-lg text-[11px] font-semibold text-slate-700"
+                                    >
+                                      • {ac.nombre} {ac.rut ? `(${ac.rut})` : ""}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-slate-400 italic text-[11px] pt-1">
+                                  Sin acompañantes registrados (uso individual)
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="relative border-t lg:border-t-0 lg:border-l border-dashed border-sky-200 bg-gradient-to-b from-sky-50/50 via-white to-amber-50/40 p-6 flex flex-col items-center justify-between gap-4 lg:w-72">
+                          <div className="hidden lg:block absolute -top-3.5 -left-3.5 w-7 h-7 bg-slate-50 border border-sky-200/80 rounded-full z-10"></div>
+                          <div className="hidden lg:block absolute -bottom-3.5 -left-3.5 w-7 h-7 bg-slate-50 border border-sky-200/80 rounded-full z-10"></div>
+
+                          <div className="text-center space-y-2">
+                            <div className="w-16 h-16 rounded-2xl bg-sky-100/80 border border-sky-200/80 flex items-center justify-center text-3xl shadow-sm mx-auto">
+                              🏛️
+                            </div>
+                            <div>
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                Espacio Asignado
+                              </span>
+                              <p className="font-mono text-base font-black text-sky-900">
+                                {res.cubiculo_codigo}
+                              </p>
+                              <p className="font-mono text-[11px] font-medium text-slate-500">
+                                Pase ID #{res.id}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="w-full space-y-2 pt-2 border-t border-slate-200/60">
+                            <button
+                              type="button"
+                              onClick={() => abrirModalEdicion(res)}
+                              className="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                            >
+                              <span>✏️</span> Modificar Reserva
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleCancelarReserva(res.id)}
+                              className="w-full py-2.5 px-4 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                            >
+                              <span>🗑️</span> Cancelar Cupo
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   ))}

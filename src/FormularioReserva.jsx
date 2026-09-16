@@ -515,339 +515,415 @@ export default function FormularioReserva() {
           </p>
         </div>
 
-        {/* Card Formulario */}
-        <div className="mx-auto max-w-2xl rounded-3xl border border-sky-100 bg-white p-8 md:p-10 shadow-[0_20px_60px_rgba(14,165,233,0.15)]">
+        <div className="mx-auto max-w-3xl rounded-[2.5rem] border border-sky-100/80 bg-white/95 backdrop-blur-xl shadow-[0_25px_70px_rgba(14,165,233,0.12)] overflow-hidden">
+          <div className="bg-gradient-to-r from-[#FFC20E] via-[#FFCA28] to-[#FFA000] px-6 sm:px-8 py-5 text-slate-900 flex flex-wrap items-center justify-between gap-3 border-b border-amber-300/80 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-white/80 border border-amber-400/40 flex items-center justify-center text-lg shadow-sm">
+                🏛️
+              </div>
+              <div>
+                <h2 className="text-sm font-black tracking-tight text-slate-900">Sistema de Reserva de Cubículos</h2>
+                <p className="text-[11px] font-bold text-slate-800/90">Biblioteca Central Universitaria</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/85 border border-amber-300/80 text-emerald-800 text-xs font-bold shadow-sm">
+              <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
+              Disponibilidad en Tiempo Real
+            </div>
+          </div>
 
-          {sancionUsuario?.suspendido && (
-            <div className="rounded-2xl border border-rose-300 bg-gradient-to-r from-rose-50 to-red-50 p-4 text-slate-800 text-sm shadow-sm mb-6 flex items-start gap-3">
-              <span className="text-2xl shrink-0">🚫</span>
-              <div className="space-y-1">
-                <strong className="block font-bold text-rose-900">
-                  Cuenta suspendida temporalmente ({sancionUsuario.inasistencias_periodo || 2}/2 inasistencias)
-                </strong>
-                <p className="text-xs text-slate-700">
-                  Has acumulado el límite de 2 inasistencias a cubículos reservados. Por reglamento universitario, tu cuenta está inhabilitada para reservar por 3 días.
-                </p>
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-100 text-rose-800 rounded-lg text-xs font-bold mt-1">
-                  <span>⏳</span> Desbloqueo: {sancionUsuario.fecha_desbloqueo || `${sancionUsuario.dias_restantes || 3} días restantes`}
+          <div className="p-6 sm:p-10">
+            {sancionUsuario?.suspendido && (
+              <div className="rounded-2xl border border-rose-300 bg-gradient-to-r from-rose-50 to-red-50 p-4 text-slate-800 text-sm shadow-sm mb-6 flex items-start gap-3">
+                <span className="text-2xl shrink-0">🚫</span>
+                <div className="space-y-1">
+                  <strong className="block font-bold text-rose-900">
+                    Cuenta suspendida temporalmente ({sancionUsuario.inasistencias_periodo || 2}/2 inasistencias)
+                  </strong>
+                  <p className="text-xs text-slate-700">
+                    Has acumulado el límite de 2 inasistencias a cubículos reservados. Por reglamento universitario, tu cuenta está inhabilitada para reservar por 3 días.
+                  </p>
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-100 text-rose-800 rounded-lg text-xs font-bold mt-1">
+                    <span>⏳</span> Desbloqueo: {sancionUsuario.fecha_desbloqueo || `${sancionUsuario.dias_restantes || 3} días restantes`}
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {sancionUsuario && !sancionUsuario.suspendido && sancionUsuario.inasistencias_periodo === 1 && (
-            <div className="rounded-2xl border border-amber-300 bg-amber-50 p-3.5 text-slate-800 text-xs shadow-sm mb-6 flex items-start gap-2.5">
-              <span className="text-xl shrink-0">⚠️</span>
-              <div>
-                <strong className="font-bold text-amber-900">Aviso de asistencia: Tienes 1 inasistencia registrada</strong>
-                <p className="mt-0.5 text-slate-700">
-                  Recuerda que al sumar 2 inasistencias tu cuenta será suspendida automáticamente por 3 días.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Banner de Reserva Activa Existente */}
-          {reservaActivaUser && (
-            <div className="rounded-2xl border border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50 p-4 text-slate-800 text-sm shadow-sm mb-6 flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <span className="text-2xl shrink-0">⚠️</span>
+            {sancionUsuario && !sancionUsuario.suspendido && sancionUsuario.inasistencias_periodo === 1 && (
+              <div className="rounded-2xl border border-amber-300 bg-amber-50 p-3.5 text-slate-800 text-xs shadow-sm mb-6 flex items-start gap-2.5">
+                <span className="text-xl shrink-0">⚠️</span>
                 <div>
-                  <strong className="block font-bold text-amber-900">Tienes 1 reserva activa registrada</strong>
+                  <strong className="font-bold text-amber-900">Aviso de asistencia: Tienes 1 inasistencia registrada</strong>
                   <p className="mt-0.5 text-slate-700">
-                    Sede: <strong>{reservaActivaUser.campus}</strong> • Cubículo: <strong>{reservaActivaUser.cubiculo_codigo}</strong><br />
-                    Fecha: <strong>{reservaActivaUser.fecha}</strong> a las <strong>{reservaActivaUser.hora} hrs</strong>.
+                    Recuerda que al sumar 2 inasistencias tu cuenta será suspendida automáticamente por 3 días.
                   </p>
-                  <span className="inline-block mt-1 text-xs text-amber-800 font-medium">
-                    (Solo se permite 1 reserva activa por usuario. Para agendar otro bloque, primero debes cancelar la reserva actual).
-                  </span>
                 </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+            )}
+
+            {reservaActivaUser && (
+              <div className="rounded-2xl border border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50 p-4 text-slate-800 text-sm shadow-sm mb-6 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <span className="text-2xl shrink-0">⚠️</span>
+                  <div>
+                    <strong className="block font-bold text-amber-900">Tienes 1 reserva activa registrada</strong>
+                    <p className="mt-0.5 text-slate-700">
+                      Sede: <strong>{reservaActivaUser.campus}</strong> • Cubículo: <strong>{reservaActivaUser.cubiculo_codigo}</strong><br />
+                      Fecha: <strong>{reservaActivaUser.fecha}</strong> a las <strong>{reservaActivaUser.hora} hrs</strong>.
+                    </p>
+                    <span className="inline-block mt-1 text-xs text-amber-800 font-medium">
+                      (Solo se permite 1 reserva activa por usuario. Para agendar otro bloque, primero debes cancelar la reserva actual).
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+                  <Link
+                    to="/mis-reservas"
+                    className="px-3.5 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl shadow transition-all flex items-center gap-1 cursor-pointer"
+                  >
+                    📋 Mis Reservas
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => abrirModalEdicion(reservaActivaUser)}
+                    className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow transition-all flex items-center gap-1 cursor-pointer"
+                  >
+                    ✏️ Editar
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {isEstudiante && (
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4 text-slate-800 text-sm flex items-start gap-3 shadow-sm mb-6">
+                <span className="text-xl flex-shrink-0">🎓</span>
+                <div>
+                  <strong className="block font-bold text-emerald-900">Sesión Estudiantil Activa</strong>
+                  <span className="text-slate-700">Estás autenticado como <strong>{user.nombre}</strong> (RUT: {user.rut}). Tus datos principales se completaron automáticamente para agilizar la reserva.</span>
+                </div>
+              </div>
+            )}
+
+            {isAdmin && (
+              <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-slate-800 text-sm flex items-start gap-3 shadow-sm mb-6">
+                <span className="text-xl flex-shrink-0">🔒</span>
+                <div>
+                  <strong className="block font-bold text-amber-900">Modo Administrador (Vista Previa)</strong>
+                  <span className="text-slate-700">Has iniciado sesión como administrador. El formulario está bloqueado ya que las reservas corresponden a los estudiantes.</span>
+                </div>
+              </div>
+            )}
+
+            {!user && (
+              <div className="rounded-2xl border border-sky-200 bg-sky-50/80 p-4 text-slate-800 text-xs flex items-center justify-between gap-3 shadow-sm mb-6">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">💡</span>
+                  <span>¿Eres estudiante? <strong className="text-sky-800">Inicia sesión</strong> para autocompletar tus datos.</span>
+                </div>
                 <Link
-                  to="/mis-reservas"
-                  className="px-3.5 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl shadow transition-all flex items-center gap-1 cursor-pointer"
+                  to="/login"
+                  className="px-3 py-1.5 rounded-xl bg-white border border-sky-300 text-sky-700 font-bold hover:bg-sky-100 transition-all text-xs shrink-0"
                 >
-                  📋 Mis Reservas
+                  Iniciar sesión →
                 </Link>
-                <button
-                  type="button"
-                  onClick={() => abrirModalEdicion(reservaActivaUser)}
-                  className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow transition-all flex items-center gap-1 cursor-pointer"
-                >
-                  ✏️ Editar
-                </button>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Banner para Estudiante Autenticado */}
-          {isEstudiante && (
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4 text-slate-800 text-sm flex items-start gap-3 shadow-sm mb-6">
-              <span className="text-xl flex-shrink-0">🎓</span>
-              <div>
-                <strong className="block font-bold text-emerald-900">Sesión Estudiantil Activa</strong>
-                <span>Estás autenticado como <strong>{user.nombre}</strong> (RUT: {user.rut}). Tus datos principales se completaron automáticamente para agilizar la reserva.</span>
-              </div>
-            </div>
-          )}
+            <form onSubmit={handleSubmit} className="space-y-8">
+              <div className="space-y-4">
+                <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100">
+                  <span className="w-6 h-6 rounded-full bg-sky-100 text-sky-700 text-xs font-bold flex items-center justify-center">1</span>
+                  <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">Campus y Datos del Titular</h3>
+                </div>
 
-          {/* Banner para Administrador */}
-          {isAdmin && (
-            <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-slate-800 text-sm flex items-start gap-3 shadow-sm mb-6">
-              <span className="text-xl flex-shrink-0">🔒</span>
-              <div>
-                <strong className="block font-bold text-amber-900">Modo Administrador (Vista Previa)</strong>
-                <span>Has iniciado sesión como administrador. El formulario está bloqueado ya que las reservas corresponden a los estudiantes.</span>
-              </div>
-            </div>
-          )}
-
-          {/* Banner para Usuario Invitado no logueado */}
-          {!user && (
-            <div className="rounded-2xl border border-sky-200 bg-sky-50/80 p-4 text-slate-800 text-xs flex items-center justify-between gap-3 shadow-sm mb-6">
-              <div className="flex items-center gap-2">
-                <span className="text-base">💡</span>
-                <span>¿Eres estudiante? <strong className="text-sky-800">Inicia sesión</strong> para autocompletar tus datos.</span>
-              </div>
-              <Link
-                to="/login"
-                className="px-3 py-1.5 rounded-xl bg-white border border-sky-300 text-sky-700 font-bold hover:bg-sky-100 transition-all text-xs shrink-0"
-              >
-                Iniciar sesión →
-              </Link>
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-6">
-
-            {/* Campus */}
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">
-                Selecciona el Campus
-              </label>
-
-              <select
-                name="campus_id"
-                required
-                disabled={isAdmin}
-                value={formData.campus_id}
-                onChange={handleChange}
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100 bg-white text-slate-800 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
-              >
-                <option value="">-- Selecciona un Campus --</option>
-                {campusList.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nombre}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Nombre */}
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2 flex justify-between items-center">
-                <span>Nombre Completo (Titular)</span>
-                {isEstudiante && <span className="text-[11px] text-emerald-600 font-bold">✓ Autocompletado</span>}
-              </label>
-
-              <input
-                type="text"
-                name="nombre"
-                required
-                disabled={isAdmin || isEstudiante}
-                value={formData.nombre}
-                onChange={handleChange}
-                placeholder="Juan Pérez"
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100 disabled:bg-slate-100 disabled:text-slate-700 font-medium disabled:cursor-not-allowed"
-              />
-            </div>
-
-            {/* RUT */}
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2 flex justify-between items-center">
-                <span>RUT (Titular)</span>
-                {isEstudiante && <span className="text-[11px] text-emerald-600 font-bold">✓ Autocompletado</span>}
-              </label>
-
-              <input
-                type="text"
-                name="rut"
-                required
-                disabled={isAdmin || isEstudiante}
-                value={formData.rut}
-                onChange={handleChange}
-                placeholder="12.345.678-9"
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100 disabled:bg-slate-100 disabled:text-slate-700 font-medium disabled:cursor-not-allowed"
-              />
-            </div>
-
-            {/* Pregunta Acompañantes */}
-            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200">
-              <label className="block text-sm font-semibold text-slate-800 mb-3">
-                ¿Asistirás con acompañantes?
-              </label>
-              <div className="flex items-center gap-6">
-                <label className={`inline-flex items-center ${isAdmin ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
-                  <input
-                    type="radio"
-                    name="tiene_acompanantes"
-                    value="no"
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                    Sede Universitaria
+                  </label>
+                  <select
+                    name="campus_id"
+                    required
                     disabled={isAdmin}
-                    checked={!tieneAcompanantes}
-                    onChange={handleToggleAcompanantes}
-                    className="w-4 h-4 text-sky-600 focus:ring-sky-500 border-slate-300"
-                  />
-                  <span className="ml-2 text-sm text-slate-700 font-medium">No (Asistiré solo)</span>
-                </label>
-                <label className={`inline-flex items-center ${isAdmin ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
-                  <input
-                    type="radio"
-                    name="tiene_acompanantes"
-                    value="si"
-                    disabled={isAdmin}
-                    checked={tieneAcompanantes}
-                    onChange={handleToggleAcompanantes}
-                    className="w-4 h-4 text-sky-600 focus:ring-sky-500 border-slate-300"
-                  />
-                  <span className="ml-2 text-sm text-slate-700 font-medium">Sí</span>
-                </label>
+                    value={formData.campus_id}
+                    onChange={handleChange}
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3.5 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100 bg-slate-50/40 text-slate-800 font-medium text-sm disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed transition-all"
+                  >
+                    <option value="">-- Selecciona una Sede Universitaria --</option>
+                    {campusList.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        📍 {c.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex justify-between items-center">
+                      <span>Nombre del Titular</span>
+                      {isEstudiante && <span className="text-[11px] text-emerald-600 font-bold">✓ Verificado</span>}
+                    </label>
+                    <input
+                      type="text"
+                      name="nombre"
+                      required
+                      disabled={isAdmin || isEstudiante}
+                      value={formData.nombre}
+                      onChange={handleChange}
+                      placeholder="Juan Pérez"
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100 bg-slate-50/40 text-slate-800 text-sm disabled:bg-slate-100 disabled:text-slate-700 font-medium disabled:cursor-not-allowed transition-all"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex justify-between items-center">
+                      <span>RUT del Titular</span>
+                      {isEstudiante && <span className="text-[11px] text-emerald-600 font-bold">✓ Verificado</span>}
+                    </label>
+                    <input
+                      type="text"
+                      name="rut"
+                      required
+                      disabled={isAdmin || isEstudiante}
+                      value={formData.rut}
+                      onChange={handleChange}
+                      placeholder="12.345.678-9"
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100 bg-slate-50/40 text-slate-800 text-sm disabled:bg-slate-100 disabled:text-slate-700 font-medium disabled:cursor-not-allowed transition-all"
+                    />
+                  </div>
+                </div>
               </div>
 
-              {/* Lista Dinámica de Acompañantes */}
-              {tieneAcompanantes && (
-                <div className="mt-4 space-y-3">
-                  <p className="text-xs text-slate-500 font-medium">
-                    Registra los datos de cada acompañante para el aforo y trazabilidad:
-                  </p>
-                  {listAcompanantes.map((ac, index) => (
-                    <div key={index} className="flex flex-col sm:flex-row gap-2 items-start sm:items-center bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
-                      <input
-                        type="text"
-                        required
-                        disabled={isAdmin}
-                        placeholder={`Nombre acompañante ${index + 1}`}
-                        value={ac.nombre}
-                        onChange={(e) => handleAcompananteChange(index, "nombre", e.target.value)}
-                        className="w-full sm:flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none disabled:bg-slate-100 disabled:cursor-not-allowed"
-                      />
-                      <input
-                        type="text"
-                        disabled={isAdmin}
-                        placeholder="RUT (Opcional)"
-                        value={ac.rut}
-                        onChange={(e) => handleAcompananteChange(index, "rut", e.target.value)}
-                        className="w-full sm:w-36 rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none disabled:bg-slate-100 disabled:cursor-not-allowed"
-                      />
-                      <button
-                        type="button"
-                        disabled={isAdmin}
-                        onClick={() => handleRemoverAcompanante(index)}
-                        className="text-rose-500 hover:text-rose-700 text-xs font-semibold px-2 py-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        ✕ Quitar
-                      </button>
+              <div className="space-y-4">
+                <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100">
+                  <span className="w-6 h-6 rounded-full bg-sky-100 text-sky-700 text-xs font-bold flex items-center justify-center">2</span>
+                  <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">Modalidad de Uso</h3>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    disabled={isAdmin}
+                    onClick={() => {
+                      if (tieneAcompanantes) {
+                        setTieneAcompanantes(false);
+                        setListAcompanantes([]);
+                        setFormData((prev) => ({ ...prev, acompanantes: [] }));
+                      }
+                    }}
+                    className={`p-4 rounded-2xl border text-left transition-all flex items-center gap-3.5 cursor-pointer ${
+                      !tieneAcompanantes
+                        ? "bg-sky-50/80 border-sky-500 ring-2 ring-sky-200 text-slate-900 shadow-sm"
+                        : "bg-slate-50/50 border-slate-200 text-slate-600 hover:border-sky-200 hover:bg-white"
+                    } ${isAdmin ? "cursor-not-allowed opacity-60" : ""}`}
+                  >
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 ${
+                      !tieneAcompanantes ? "bg-sky-500 text-white shadow-sm shadow-sky-500/30" : "bg-white border border-slate-200 text-slate-600"
+                    }`}>
+                      👤
                     </div>
-                  ))}
+                    <div>
+                      <div className="text-sm font-bold text-slate-900">Individual</div>
+                      <div className="text-xs text-slate-500">Solo tú utilizarás el cubículo</div>
+                    </div>
+                  </button>
 
                   <button
                     type="button"
                     disabled={isAdmin}
-                    onClick={handleAgregarAcompanante}
-                    className="mt-2 text-xs font-bold text-sky-600 hover:text-sky-700 bg-sky-100/60 px-3 py-2 rounded-xl border border-sky-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={() => {
+                      if (!tieneAcompanantes) {
+                        setTieneAcompanantes(true);
+                        setListAcompanantes([{ nombre: "", rut: "" }]);
+                      }
+                    }}
+                    className={`p-4 rounded-2xl border text-left transition-all flex items-center gap-3.5 cursor-pointer ${
+                      tieneAcompanantes
+                        ? "bg-sky-50/80 border-sky-500 ring-2 ring-sky-200 text-slate-900 shadow-sm"
+                        : "bg-slate-50/50 border-slate-200 text-slate-600 hover:border-sky-200 hover:bg-white"
+                    } ${isAdmin ? "cursor-not-allowed opacity-60" : ""}`}
                   >
-                    + Agregar otro acompañante
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 ${
+                      tieneAcompanantes ? "bg-sky-500 text-white shadow-sm shadow-sky-500/30" : "bg-white border border-slate-200 text-slate-600"
+                    }`}>
+                      👥
+                    </div>
+                    <div>
+                      <div className="text-sm font-bold text-slate-900">Con Acompañantes</div>
+                      <div className="text-xs text-slate-500">Estudio grupal en equipo</div>
+                    </div>
                   </button>
                 </div>
-              )}
-            </div>
 
-            {/* Fecha */}
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">
-                Fecha de Reserva
-              </label>
+                {tieneAcompanantes && (
+                  <div className="rounded-2xl border border-sky-100 bg-sky-50/40 p-4 space-y-3">
+                    <p className="text-xs text-slate-600 font-medium flex items-center gap-1.5">
+                      <span>ℹ️</span> Registra a tus acompañantes para cumplir con el aforo y trazabilidad institucional:
+                    </p>
+                    {listAcompanantes.map((ac, index) => (
+                      <div key={index} className="flex flex-col sm:flex-row gap-2 items-start sm:items-center bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+                        <input
+                          type="text"
+                          required
+                          disabled={isAdmin}
+                          placeholder={`Nombre acompañante ${index + 1}`}
+                          value={ac.nombre}
+                          onChange={(e) => handleAcompananteChange(index, "nombre", e.target.value)}
+                          className="w-full sm:flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none disabled:bg-slate-100 disabled:cursor-not-allowed"
+                        />
+                        <input
+                          type="text"
+                          disabled={isAdmin}
+                          placeholder="RUT (Opcional)"
+                          value={ac.rut}
+                          onChange={(e) => handleAcompananteChange(index, "rut", e.target.value)}
+                          className="w-full sm:w-36 rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none disabled:bg-slate-100 disabled:cursor-not-allowed"
+                        />
+                        <button
+                          type="button"
+                          disabled={isAdmin}
+                          onClick={() => handleRemoverAcompanante(index)}
+                          className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 px-2 py-1 rounded-lg text-xs font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          ✕ Quitar
+                        </button>
+                      </div>
+                    ))}
 
-              <DatePicker
-                selected={fechaSeleccionada}
-                onChange={handleFechaChange}
-                disabled={isAdmin}
-                filterDate={esDiaLaboral}
-                minDate={new Date()}
-                locale="es"
-                dateFormat="dd/MM/yyyy"
-                placeholderText="Selecciona una fecha"
-                required
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100 bg-white disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed cursor-pointer"
-              />
-            </div>
+                    <button
+                      type="button"
+                      disabled={isAdmin}
+                      onClick={handleAgregarAcompanante}
+                      className="text-xs font-bold text-sky-700 hover:text-sky-800 bg-white hover:bg-sky-50 px-3 py-2 rounded-xl border border-sky-200 shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5"
+                    >
+                      <span>➕</span> Agregar otro acompañante
+                    </button>
+                  </div>
+                )}
+              </div>
 
-            {/* Bloques de Horarios Dinámicos */}
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">
-                Selecciona el Horario (Bloques de 1 Hora)
-              </label>
+              <div className="space-y-4">
+                <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100">
+                  <span className="w-6 h-6 rounded-full bg-sky-100 text-sky-700 text-xs font-bold flex items-center justify-center">3</span>
+                  <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">Fecha y Horario</h3>
+                </div>
 
-              {!formData.campus_id || !formData.fecha ? (
-                <p className="text-sm text-slate-400 bg-slate-50 p-4 rounded-2xl text-center border border-dashed border-slate-200">
-                  👈 Primero selecciona un campus y una fecha para ver los bloques disponibles.
-                </p>
-              ) : cargandoHorarios ? (
-                <p className="text-sm text-sky-600 bg-sky-50 p-4 rounded-2xl text-center animate-pulse">
-                  Cargando disponibilidad de cubículos...
-                </p>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {bloquesHorarios.map((b) => {
-                    const esSeleccionado = formData.hora === b.hora;
-                    return (
-                      <button
-                        key={b.hora}
-                        type="button"
-                        disabled={b.agotado || isAdmin}
-                        onClick={() => setFormData((prev) => ({ ...prev, hora: b.hora }))}
-                        className={`
-                          p-3 rounded-2xl text-left border transition-all flex flex-col justify-between cursor-pointer
-                          ${b.agotado || isAdmin
-                            ? "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-60"
-                            : esSeleccionado
-                              ? "bg-sky-600 border-sky-600 text-white shadow-md shadow-sky-200 ring-2 ring-sky-300 ring-offset-1"
-                              : "bg-white border-slate-200 text-slate-700 hover:border-sky-400 hover:bg-sky-50/50"
-                          }
-                        `}
-                      >
-                        <span className="font-bold text-sm">{b.rango}</span>
-                        <span className={`text-[11px] mt-1 font-medium ${b.agotado
-                          ? "text-rose-500"
-                          : esSeleccionado
-                            ? "text-sky-100"
-                            : "text-emerald-600"
-                          }`}>
-                          {b.agotado ? "Agotado (0/10)" : `${b.disponibles} libres`}
-                        </span>
-                      </button>
-                    );
-                  })}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                    Día de Reserva (Lunes a Viernes)
+                  </label>
+                  <DatePicker
+                    selected={fechaSeleccionada}
+                    onChange={handleFechaChange}
+                    disabled={isAdmin}
+                    filterDate={esDiaLaboral}
+                    minDate={new Date()}
+                    locale="es"
+                    dateFormat="dd/MM/yyyy"
+                    placeholderText="Selecciona una fecha en el calendario"
+                    required
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3.5 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100 bg-slate-50/40 text-slate-800 font-medium text-sm disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed cursor-pointer transition-all"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                    Bloque Horario Disponible
+                  </label>
+
+                  {!formData.campus_id || !formData.fecha ? (
+                    <div className="text-xs text-slate-500 bg-slate-50 p-5 rounded-2xl text-center border border-dashed border-slate-200 space-y-1">
+                      <div className="text-base">📍 📅</div>
+                      <p className="font-semibold text-slate-700">Paso previo requerido</p>
+                      <p>Selecciona primero un campus y una fecha para calcular la disponibilidad exacta.</p>
+                    </div>
+                  ) : cargandoHorarios ? (
+                    <div className="text-xs text-sky-700 bg-sky-50/70 border border-sky-100 p-5 rounded-2xl text-center animate-pulse flex items-center justify-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-sky-600 animate-ping" />
+                      Consultando disponibilidad de cubículos en tiempo real...
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                      {bloquesHorarios.map((b) => {
+                        const esSeleccionado = formData.hora === b.hora;
+                        return (
+                          <button
+                            key={b.hora}
+                            type="button"
+                            disabled={b.agotado || isAdmin}
+                            onClick={() => setFormData((prev) => ({ ...prev, hora: b.hora }))}
+                            className={`
+                              p-3.5 rounded-2xl text-left border transition-all duration-200 flex flex-col justify-between cursor-pointer
+                              ${b.agotado || isAdmin
+                                ? "bg-slate-100/70 border-slate-200 text-slate-400 cursor-not-allowed opacity-60"
+                                : esSeleccionado
+                                  ? "bg-gradient-to-br from-sky-600 to-sky-700 border-sky-600 text-white shadow-lg shadow-sky-500/25 ring-2 ring-sky-300 ring-offset-2 scale-[1.02]"
+                                  : "bg-white border-slate-200 text-slate-700 hover:border-sky-300 hover:bg-sky-50/40 hover:shadow-sm"
+                              }
+                            `}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-sm tracking-tight">{b.rango}</span>
+                              <span className={`w-2 h-2 rounded-full ${
+                                b.agotado ? "bg-rose-400" : esSeleccionado ? "bg-sky-200" : "bg-emerald-500"
+                              }`} />
+                            </div>
+                            <span className={`text-[11px] mt-2 font-semibold ${b.agotado
+                              ? "text-rose-500 line-through"
+                              : esSeleccionado
+                                ? "text-sky-100"
+                                : "text-emerald-600"
+                              }`}>
+                              {b.agotado ? "Sin cupos (0/10)" : `${b.disponibles} disponibles`}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {formData.campus_id && formData.fecha && formData.hora && (
+                <div className="rounded-2xl bg-gradient-to-r from-sky-50 via-slate-50 to-amber-50/60 border border-sky-200/80 p-4 flex flex-wrap items-center justify-between gap-3 text-xs shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">📋</span>
+                    <span className="font-bold text-slate-800">Resumen:</span>
+                    <span className="text-slate-900 font-semibold">{campusList.find(c => String(c.id) === String(formData.campus_id))?.nombre || "Sede"}</span>
+                    <span className="text-slate-300">•</span>
+                    <span className="text-slate-900 font-semibold">{formData.fecha}</span>
+                    <span className="text-slate-300">•</span>
+                    <span className="text-sky-700 font-bold">{formData.hora}:00 hrs</span>
+                  </div>
+                  <span className="text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full font-bold inline-flex items-center gap-1">
+                    ✓ Listo para reservar
+                  </span>
                 </div>
               )}
-            </div>
 
-            <button
-              type="submit"
-              disabled={isAdmin || sancionUsuario?.suspendido}
-              className={`w-full rounded-2xl py-4 font-semibold text-white transition-all ${
-                isAdmin || sancionUsuario?.suspendido
-                  ? "bg-slate-300 text-slate-500 cursor-not-allowed shadow-none"
-                  : "bg-gradient-to-r from-sky-500 to-sky-600 shadow-lg hover:scale-[1.02] active:scale-95 cursor-pointer"
-              }`}
-            >
-              {isAdmin
-                ? "🔒 Formulario Bloqueado para Administradores"
-                : sancionUsuario?.suspendido
-                  ? "🚫 Suspendido por Inasistencias (3 días)"
-                  : "Confirmar Reserva"}
-            </button>
-          </form>
+              <button
+                type="submit"
+                disabled={isAdmin || sancionUsuario?.suspendido}
+                className={`w-full rounded-2xl py-4 font-bold text-base transition-all duration-200 flex items-center justify-center gap-2.5 ${
+                  isAdmin || sancionUsuario?.suspendido
+                    ? "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
+                    : "bg-gradient-to-r from-sky-600 via-sky-500 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white shadow-xl shadow-sky-500/25 hover:shadow-sky-500/35 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
+                }`}
+              >
+                {isAdmin ? (
+                  "🔒 Formulario Bloqueado para Administradores"
+                ) : sancionUsuario?.suspendido ? (
+                  "🚫 Suspendido por Inasistencias (3 días)"
+                ) : (
+                  <>
+                    <span>Confirmar Reserva</span>
+                    <span>→</span>
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
         </div>
       </div>
 
