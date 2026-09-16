@@ -1,4 +1,4 @@
-﻿import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { apiPost, apiGet } from '../services/api';
 
 const AuthContext = createContext(null);
@@ -41,7 +41,10 @@ export function AuthProvider({ children }) {
     return userData;
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    try {
+      await apiPost('/api/auth/logout');
+    } catch {}
     localStorage.removeItem('auth_token');
     setToken(null);
     setUser(null);

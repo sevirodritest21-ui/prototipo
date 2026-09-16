@@ -4,13 +4,14 @@ import json
 import hmac
 import hashlib
 import math
+import html
 from typing import List, Optional, Any, Dict
 from datetime import datetime, date, time, timedelta
 import httpx
 import asyncpg
 import redis.asyncio as aioredis
 from redis.exceptions import RedisError
-from fastapi import FastAPI, HTTPException, status, Depends, Request, BackgroundTasks, Query
+from fastapi import FastAPI, HTTPException, status, Depends, Request, Response, BackgroundTasks, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, root_validator
@@ -190,6 +191,34 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "img-src 'self' data: https:; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com data:; "
+        "connect-src 'self' http://localhost:8000 http://127.0.0.1:8000 https://api.feriadosdev.com; "
+        "frame-ancestors 'none';"
+    )
+    return response
+
+
+def sanitizar_texto(texto: Optional[str], max_length: int = 500) -> str:
+    if not texto:
+        return ""
+    limpio = html.escape(str(texto).strip())
+    return limpio[:max_length]
+
+
 pool: Optional[asyncpg.Pool] = None
 httpx_client: Optional[httpx.AsyncClient] = None
 redis_client: Optional[aioredis.Redis] = None
@@ -337,6 +366,46 @@ async def shutdown():
 
 
 rate_limit_fallback_store: Dict[str, List[float]] = {}
+token_blacklist_fallback: Dict[str, float] = {}
+
+
+def get_token_hash(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+async def blacklist_token(token: str, expires_in_seconds: int = 3600):
+    if not token:
+        return
+    token_hash = get_token_hash(token)
+    r_key = f"token_blacklist:{token_hash}"
+    if redis_client:
+        try:
+            await redis_client.setex(r_key, expires_in_seconds, "1")
+            return
+        except Exception:
+            pass
+    token_blacklist_fallback[token_hash] = datetime.utcnow().timestamp() + expires_in_seconds
+
+
+async def is_token_blacklisted(token: str) -> bool:
+    if not token:
+        return False
+    token_hash = get_token_hash(token)
+    r_key = f"token_blacklist:{token_hash}"
+    if redis_client:
+        try:
+            val = await redis_client.get(r_key)
+            if val:
+                return True
+        except Exception:
+            pass
+    exp = token_blacklist_fallback.get(token_hash)
+    if exp:
+        if datetime.utcnow().timestamp() < exp:
+            return True
+        else:
+            del token_blacklist_fallback[token_hash]
+    return False
 
 
 async def check_rate_limit(key_prefix: str, identifier: str, max_requests: int = 15, window_seconds: int = 60, increment: bool = True) -> bool:
@@ -462,9 +531,10 @@ class AcompananteBase(BaseModel):
     @root_validator(pre=True)
     def force_string_acompanante(cls, values):
         if isinstance(values, dict):
-            for field in ["nombre", "rut"]:
-                if field in values and values[field] is not None:
-                    values[field] = str(values[field])
+            if "nombre" in values and values["nombre"] is not None:
+                values["nombre"] = sanitizar_texto(values["nombre"], max_length=120)
+            if "rut" in values and values["rut"] is not None:
+                values["rut"] = sanitizar_texto(values["rut"], max_length=20)
         return values
 
 
@@ -482,6 +552,9 @@ class ReservaBase(BaseModel):
     def parse_n8n_and_types(cls, values: Dict[str, Any]):
         if not isinstance(values, dict):
             return values
+
+        if "nombre" in values and values["nombre"] is not None:
+            values["nombre"] = sanitizar_texto(values["nombre"], max_length=150)
 
         if "parameters2_Value" in values and not values.get("fecha"):
             values["fecha"] = values["parameters2_Value"]
@@ -559,6 +632,15 @@ class MessageInput(BaseModel):
     rut: Optional[str] = None
     nombre: Optional[str] = None
     email: Optional[str] = None
+
+    @root_validator(pre=True)
+    def sanitizar_mensaje(cls, values):
+        if isinstance(values, dict):
+            if "message" in values and values["message"] is not None:
+                values["message"] = sanitizar_texto(values["message"], max_length=1000)
+            if "nombre" in values and values["nombre"] is not None:
+                values["nombre"] = sanitizar_texto(values["nombre"], max_length=150)
+        return values
 
 
 class EsquemaEliminar(BaseModel):
@@ -681,7 +763,11 @@ class TokenResponse(BaseModel):
 
 
 class RefreshTokenRequest(BaseModel):
-    refresh_token: str
+    refresh_token: Optional[str] = None
+
+
+class LogoutRequest(BaseModel):
+    refresh_token: Optional[str] = None
 
 
 class AnuncioCMSRequest(BaseModel):
@@ -708,6 +794,12 @@ class BloqueoDiaRequest(BaseModel):
     motivo: Optional[str] = "Día bloqueado administrativamente"
     campus_id: Optional[int] = None
 
+    @root_validator(pre=True)
+    def sanitizar_motivo(cls, values):
+        if isinstance(values, dict) and "motivo" in values and values["motivo"] is not None:
+            values["motivo"] = sanitizar_texto(values["motivo"], max_length=250)
+        return values
+
 
 class UsuarioResponse(BaseModel):
     id: int
@@ -723,6 +815,15 @@ class CrearUsuarioRequest(BaseModel):
     nombre: str
     rut: Optional[str] = None
     rol: str = "estudiante"
+
+    @root_validator(pre=True)
+    def sanitizar_usuario(cls, values):
+        if isinstance(values, dict):
+            if "nombre" in values and values["nombre"] is not None:
+                values["nombre"] = sanitizar_texto(values["nombre"], max_length=150)
+            if "email" in values and values["email"] is not None:
+                values["email"] = str(values["email"]).strip().lower()
+        return values
 
 
 # --- Autenticación JWT ---
@@ -761,6 +862,13 @@ async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] =
     )
     if not credentials or not credentials.credentials:
         raise credentials_exception
+
+    if await is_token_blacklisted(credentials.credentials):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token revocado. Por favor inicia sesión nuevamente.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     try:
         payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
@@ -811,7 +919,7 @@ async def registrar_usuario(data: CrearUsuarioRequest, request: Request):
 
 
 @app.post("/api/auth/login", response_model=TokenResponse)
-async def login(data: LoginRequest, request: Request):
+async def login(data: LoginRequest, request: Request, response: Response):
     client_ip = request.client.host if request.client else "anon"
     
     if not await check_rate_limit("login_failed", client_ip, max_requests=5, window_seconds=60, increment=False):
@@ -834,6 +942,19 @@ async def login(data: LoginRequest, request: Request):
         )
     access_token = create_access_token(data={"sub": row["email"]})
     refresh_token = create_refresh_token(data={"sub": row["email"]})
+
+    cookie_max_age = REFRESH_TOKEN_EXPIRE_DAYS * 86400
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        max_age=cookie_max_age,
+        expires=cookie_max_age,
+        httponly=True,
+        samesite="lax",
+        secure=False,
+        path="/"
+    )
+
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
@@ -842,14 +963,26 @@ async def login(data: LoginRequest, request: Request):
 
 
 @app.post("/api/auth/refresh", response_model=TokenResponse)
-async def refresh_token(data: RefreshTokenRequest):
+async def refresh_token(request: Request, response: Response, data: Optional[RefreshTokenRequest] = None):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Refresh token inválido o expirado.",
+        detail="Refresh token inválido, revocado o expirado.",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    token_candidate = None
+    if data and data.refresh_token:
+        token_candidate = data.refresh_token
+    if not token_candidate:
+        token_candidate = request.cookies.get("refresh_token")
+
+    if not token_candidate:
+        raise credentials_exception
+
+    if await is_token_blacklisted(token_candidate):
+        raise credentials_exception
+
     try:
-        payload = jwt.decode(data.refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token_candidate, SECRET_KEY, algorithms=[ALGORITHM])
         if payload.get("type") != "refresh":
             raise credentials_exception
         email: str = payload.get("sub")
@@ -863,13 +996,50 @@ async def refresh_token(data: RefreshTokenRequest):
         if not row:
             raise credentials_exception
 
+    await blacklist_token(token_candidate, expires_in_seconds=REFRESH_TOKEN_EXPIRE_DAYS * 86400)
+
     new_access_token = create_access_token(data={"sub": email})
     new_refresh_token = create_refresh_token(data={"sub": email})
+
+    cookie_max_age = REFRESH_TOKEN_EXPIRE_DAYS * 86400
+    response.set_cookie(
+        key="refresh_token",
+        value=new_refresh_token,
+        max_age=cookie_max_age,
+        expires=cookie_max_age,
+        httponly=True,
+        samesite="lax",
+        secure=False,
+        path="/"
+    )
+
     return {
         "access_token": new_access_token,
         "refresh_token": new_refresh_token,
         "token_type": "bearer"
     }
+
+
+@app.post("/api/auth/logout")
+async def logout(
+    request: Request,
+    response: Response,
+    data: Optional[LogoutRequest] = None,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)
+):
+    if credentials and credentials.credentials:
+        await blacklist_token(credentials.credentials, expires_in_seconds=ACCESS_TOKEN_EXPIRE_MINUTES * 60)
+
+    rf_token = None
+    if data and data.refresh_token:
+        rf_token = data.refresh_token
+    if not rf_token:
+        rf_token = request.cookies.get("refresh_token")
+    if rf_token:
+        await blacklist_token(rf_token, expires_in_seconds=REFRESH_TOKEN_EXPIRE_DAYS * 86400)
+
+    response.delete_cookie(key="refresh_token", path="/")
+    return {"mensaje": "Sesión cerrada y tokens revocados exitosamente."}
 
 
 @app.get("/api/auth/me", response_model=UsuarioResponse)

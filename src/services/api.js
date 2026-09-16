@@ -25,6 +25,7 @@ export async function apiGet(path) {
   const response = await fetch(`${BASE_URL}${path}`, {
     method: 'GET',
     headers: getAuthHeaders(),
+    credentials: 'include',
   });
   return handleResponse(response);
 }
@@ -33,6 +34,7 @@ export async function apiPost(path, body) {
   const response = await fetch(`${BASE_URL}${path}`, {
     method: 'POST',
     headers: getAuthHeaders(),
+    credentials: 'include',
     body: JSON.stringify(body),
   });
   return handleResponse(response);
@@ -42,6 +44,7 @@ export async function apiPut(path, body) {
   const response = await fetch(`${BASE_URL}${path}`, {
     method: 'PUT',
     headers: getAuthHeaders(),
+    credentials: 'include',
     body: JSON.stringify(body),
   });
   return handleResponse(response);
@@ -51,6 +54,7 @@ export async function apiDelete(path, body) {
   const response = await fetch(`${BASE_URL}${path}`, {
     method: 'DELETE',
     headers: getAuthHeaders(),
+    credentials: 'include',
     body: body ? JSON.stringify(body) : undefined,
   });
   return handleResponse(response);
