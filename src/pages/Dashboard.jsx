@@ -417,6 +417,55 @@ export default function Dashboard() {
     });
   };
 
+  const haPasadoTolerancia10Min = (fechaStr, horaStr) => {
+    if (!fechaStr || !horaStr) return false;
+    const horaLimpia = horaStr.split(/[\s-]/)[0].trim();
+    const partesHora = horaLimpia.split(":").map(Number);
+    const partesFecha = fechaStr.split("-").map(Number);
+    if (partesHora.length < 2 || partesFecha.length < 3) return false;
+    const [h, m] = partesHora;
+    const [year, month, day] = partesFecha;
+    if (isNaN(year) || isNaN(month) || isNaN(day) || isNaN(h) || isNaN(m)) return false;
+    const limite = new Date(year, month - 1, day, h, m + 10, 0);
+    return new Date() >= limite;
+  };
+
+  const ejecutarMarcarInasistencia = async (reservaId, rut, nombre) => {
+    setEliminandoReservaId(reservaId);
+    try {
+      const resp = await apiPost(`/api/reservas/${reservaId}/inasistencia`);
+      const reservasActualizadas = reservasBloque.filter((r) => r.id !== reservaId);
+      setReservasBloque(reservasActualizadas);
+      await fetchResumen();
+      if (activeTab === "historial") {
+        await fetchHistorial();
+      }
+      if (reservasActualizadas.length === 0) {
+        setBloqueSeleccionado(null);
+      }
+      const detalleSancion = resp.sancion?.suspendido
+        ? ` Alumno sancionado por 3 días (${resp.sancion.inasistencias_periodo}/2 inasistencias).`
+        : ` Inasistencias registradas: ${resp.sancion?.inasistencias_periodo || 1}/2.`;
+      setToastNotificacion({
+        tipo: "exito",
+        texto: `Reserva eliminada y registrada como inasistencia.${detalleSancion}`
+      });
+    } catch (err) {
+      setToastNotificacion({ tipo: "error", texto: "Error al registrar inasistencia: " + (err.message || "Intenta nuevamente") });
+    } finally {
+      setEliminandoReservaId(null);
+    }
+  };
+
+  const handleMarcarInasistencia = (reservaId, rut, nombre) => {
+    setConfirmModal({
+      open: true,
+      titulo: "⚠️ Marcar Inasistencia (+10 min)",
+      mensaje: `¿Marcar inasistencia para el alumno ${nombre || rut} (ID ${reservaId})? La reserva será eliminada del bloque y registrada en el historial. Si el alumno acumula 2 inasistencias quedará suspendido por 3 días.`,
+      onConfirm: () => ejecutarMarcarInasistencia(reservaId, rut, nombre)
+    });
+  };
+
   // Handler para Añadir Nuevo Campus
   const handleCrearCampus = async (e) => {
     e.preventDefault();
@@ -1922,14 +1971,16 @@ export default function Dashboard() {
                               <span
                                 className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${h.estado === "cancelada"
                                   ? "bg-red-100 text-red-700 border border-red-200"
-                                  : h.estado === "activa"
-                                    ? "bg-sky-100 text-sky-800 border border-sky-200"
-                                    : h.estado === "expirada" || h.estado === "inactiva"
-                                      ? "bg-amber-100 text-amber-800 border border-amber-200"
-                                      : "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                                  : h.estado === "inasistencia"
+                                    ? "bg-rose-100 text-rose-800 border border-rose-300"
+                                    : h.estado === "activa"
+                                      ? "bg-sky-100 text-sky-800 border border-sky-200"
+                                      : h.estado === "expirada" || h.estado === "inactiva"
+                                        ? "bg-amber-100 text-amber-800 border border-amber-200"
+                                        : "bg-emerald-100 text-emerald-800 border border-emerald-200"
                                   }`}
                               >
-                                {h.estado}
+                                {h.estado === "inasistencia" ? "⚠️ Inasistencia" : h.estado}
                               </span>
                             </td>
                           </tr>
@@ -1988,7 +2039,33 @@ export default function Dashboard() {
                         <div className="flex items-center gap-2">
                           <span className="text-[11px] text-slate-400">ID: {res.id}</span>
 
-                          {/* BOTÓN ELIMINAR RESERVA */}
+                          {haPasadoTolerancia10Min(res.fecha || fechaSeleccionada, res.hora || bloqueSeleccionado?.hora) ? (
+                            <button
+                              type="button"
+                              onClick={() => handleMarcarInasistencia(res.id, res.rut, res.nombre)}
+                              disabled={eliminandoReservaId === res.id}
+                              className="px-3 py-1 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs transition-all flex items-center gap-1 shadow-sm cursor-pointer disabled:opacity-50"
+                              title="Pasaron 10 minutos. Eliminar y registrar como inasistencia."
+                            >
+                              {eliminandoReservaId === res.id ? (
+                                <span>Procesando...</span>
+                              ) : (
+                                <>
+                                  <span>⚠️</span> Inasistencia (+10m)
+                                </>
+                              )}
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled
+                              className="px-2.5 py-1 rounded-xl bg-slate-100 border border-slate-200 text-slate-400 font-semibold text-[11px] flex items-center gap-1 cursor-not-allowed opacity-80"
+                              title="Se activará tras 10 minutos del inicio del bloque"
+                            >
+                              <span>⏱️</span> Espera 10m
+                            </button>
+                          )}
+
                           <button
                             type="button"
                             onClick={() => handleEliminarReserva(res.id)}

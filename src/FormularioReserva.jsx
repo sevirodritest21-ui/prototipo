@@ -56,8 +56,8 @@ export default function FormularioReserva() {
   const [reservaActivaUser, setReservaActivaUser] = useState(null);
   const [todasLasReservas, setTodasLasReservas] = useState([]);
   const [cargandoReservaActiva, setCargandoReservaActiva] = useState(false);
+  const [sancionUsuario, setSancionUsuario] = useState(null);
 
-  // Estado Modal Edición de Reserva
   const [modalEdicionOpen, setModalEdicionOpen] = useState(false);
   const [editFormData, setEditFormData] = useState({
     id: null,
@@ -76,6 +76,7 @@ export default function FormularioReserva() {
     if (!rutConsultar) {
       setReservaActivaUser(null);
       setTodasLasReservas([]);
+      setSancionUsuario(null);
       return;
     }
     setCargandoReservaActiva(true);
@@ -95,13 +96,16 @@ export default function FormularioReserva() {
         setTodasLasReservas(lista);
         const activa = lista.find((r) => r.activa);
         setReservaActivaUser(activa || null);
+        setSancionUsuario(data.sancion || null);
       } else {
         setReservaActivaUser(null);
         setTodasLasReservas([]);
+        setSancionUsuario(null);
       }
     } catch (e) {
       setReservaActivaUser(null);
       setTodasLasReservas([]);
+      setSancionUsuario(null);
     } finally {
       setCargandoReservaActiva(false);
     }
@@ -425,6 +429,14 @@ export default function FormularioReserva() {
       return;
     }
 
+    if (sancionUsuario?.suspendido) {
+      setToastNotificacion({
+        tipo: "error",
+        texto: `Tu cuenta se encuentra suspendida por inasistencias (${sancionUsuario.inasistencias_periodo || 2}/2). No puedes reservar hasta: ${sancionUsuario.fecha_desbloqueo || "3 días"}.`
+      });
+      return;
+    }
+
     if (!formData.fecha) {
       setToastNotificacion({ tipo: "error", texto: "Por favor selecciona una fecha válida." });
       return;
@@ -505,6 +517,35 @@ export default function FormularioReserva() {
 
         {/* Card Formulario */}
         <div className="mx-auto max-w-2xl rounded-3xl border border-sky-100 bg-white p-8 md:p-10 shadow-[0_20px_60px_rgba(14,165,233,0.15)]">
+
+          {sancionUsuario?.suspendido && (
+            <div className="rounded-2xl border border-rose-300 bg-gradient-to-r from-rose-50 to-red-50 p-4 text-slate-800 text-sm shadow-sm mb-6 flex items-start gap-3">
+              <span className="text-2xl shrink-0">🚫</span>
+              <div className="space-y-1">
+                <strong className="block font-bold text-rose-900">
+                  Cuenta suspendida temporalmente ({sancionUsuario.inasistencias_periodo || 2}/2 inasistencias)
+                </strong>
+                <p className="text-xs text-slate-700">
+                  Has acumulado el límite de 2 inasistencias a cubículos reservados. Por reglamento universitario, tu cuenta está inhabilitada para reservar por 3 días.
+                </p>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-100 text-rose-800 rounded-lg text-xs font-bold mt-1">
+                  <span>⏳</span> Desbloqueo: {sancionUsuario.fecha_desbloqueo || `${sancionUsuario.dias_restantes || 3} días restantes`}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {sancionUsuario && !sancionUsuario.suspendido && sancionUsuario.inasistencias_periodo === 1 && (
+            <div className="rounded-2xl border border-amber-300 bg-amber-50 p-3.5 text-slate-800 text-xs shadow-sm mb-6 flex items-start gap-2.5">
+              <span className="text-xl shrink-0">⚠️</span>
+              <div>
+                <strong className="font-bold text-amber-900">Aviso de asistencia: Tienes 1 inasistencia registrada</strong>
+                <p className="mt-0.5 text-slate-700">
+                  Recuerda que al sumar 2 inasistencias tu cuenta será suspendida automáticamente por 3 días.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Banner de Reserva Activa Existente */}
           {reservaActivaUser && (
@@ -791,17 +832,20 @@ export default function FormularioReserva() {
               )}
             </div>
 
-            {/* Botón Submit */}
             <button
               type="submit"
-              disabled={isAdmin}
+              disabled={isAdmin || sancionUsuario?.suspendido}
               className={`w-full rounded-2xl py-4 font-semibold text-white transition-all ${
-                isAdmin
+                isAdmin || sancionUsuario?.suspendido
                   ? "bg-slate-300 text-slate-500 cursor-not-allowed shadow-none"
                   : "bg-gradient-to-r from-sky-500 to-sky-600 shadow-lg hover:scale-[1.02] active:scale-95 cursor-pointer"
               }`}
             >
-              {isAdmin ? "🔒 Formulario Bloqueado para Administradores" : "Confirmar Reserva"}
+              {isAdmin
+                ? "🔒 Formulario Bloqueado para Administradores"
+                : sancionUsuario?.suspendido
+                  ? "🚫 Suspendido por Inasistencias (3 días)"
+                  : "Confirmar Reserva"}
             </button>
           </form>
         </div>

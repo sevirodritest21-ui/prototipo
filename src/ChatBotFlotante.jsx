@@ -60,6 +60,8 @@ export default function ChatbotFlotante() {
   const [mensajes, setMensajes] = useState([]);
   const [nuevoMensaje, setNuevoMensaje] = useState('');
   const [cargandoBot, setCargandoBot] = useState(false);
+  const [escuchandoVoz, setEscuchandoVoz] = useState(false);
+  const recognitionRef = useRef(null);
 
   // Referencia para el Auto-Scroll al final de la conversación
   const chatEndRef = useRef(null);
@@ -149,8 +151,13 @@ export default function ChatbotFlotante() {
       const data = await apiPost('/api/chat', payload, { signal: controller.signal });
       clearTimeout(timeoutId);
 
+      let textoRespuesta = (data.response || '').replace(/Calling\s+[a-zA-Z0-9_\-]+(\s*with\s+input:)?\s*\{[\s\S]*?\}/gi, '').trim();
+      if (!textoRespuesta) {
+        textoRespuesta = 'Estoy procesando tu solicitud de cubículos. ¿En qué fecha, hora y sede te gustaría agendar?';
+      }
+
       setMensajes((prev) =>
-        prev.map((msg) => msg.id === botPensandoId ? { ...msg, texto: data.response } : msg)
+        prev.map((msg) => msg.id === botPensandoId ? { ...msg, texto: textoRespuesta } : msg)
       );
       window.dispatchEvent(new CustomEvent("reservaActualizada"));
     } catch (error) {
@@ -232,8 +239,60 @@ export default function ChatbotFlotante() {
     }
   };
 
+  const toggleDictadoPorVoz = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert('Tu navegador no soporta entrada por voz.');
+      return;
+    }
+
+    if (escuchandoVoz && recognitionRef.current) {
+      recognitionRef.current.stop();
+      setEscuchandoVoz(false);
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'es-CL';
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    let transcritoFinal = '';
+
+    recognition.onstart = () => {
+      setEscuchandoVoz(true);
+      setNuevoMensaje('');
+    };
+
+    recognition.onresult = (event) => {
+      transcritoFinal = Array.from(event.results)
+        .map((res) => res[0].transcript)
+        .join('');
+      setNuevoMensaje(transcritoFinal);
+    };
+
+    recognition.onerror = () => {
+      setEscuchandoVoz(false);
+    };
+
+    recognition.onend = () => {
+      setEscuchandoVoz(false);
+      const textoParaEnviar = transcritoFinal.trim();
+      if (textoParaEnviar) {
+        setNuevoMensaje('');
+        enviarMensajeTexto(textoParaEnviar);
+      }
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  };
+
   const handleEnviarMensaje = (e) => {
     e.preventDefault();
+    if (escuchandoVoz && recognitionRef.current) {
+      recognitionRef.current.stop();
+      setEscuchandoVoz(false);
+    }
     enviarMensajeTexto(nuevoMensaje);
   };
 
@@ -396,7 +455,7 @@ export default function ChatbotFlotante() {
             </div>
           )}
 
-          <form onSubmit={handleEnviarMensaje} className="p-3 border-t border-slate-100 bg-white flex space-x-2">
+          <form onSubmit={handleEnviarMensaje} className="p-3 border-t border-slate-100 bg-white flex items-center space-x-2">
             <input
               type="text"
               value={nuevoMensaje}
@@ -405,15 +464,38 @@ export default function ChatbotFlotante() {
               placeholder={
                 !user
                   ? "Debes iniciar sesión para chatear..."
-                  : cargandoBot
-                    ? "Esperando respuesta del asistente..."
-                    : "Pídeme una reserva (ej: mañana a las 10:00)..."
+                  : escuchandoVoz
+                    ? "🎙️ Escuchando... habla ahora..."
+                    : cargandoBot
+                      ? "Esperando respuesta del asistente..."
+                      : "Pídeme una reserva (ej: mañana a las 10:00)..."
               }
-              className="flex-1 px-4 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#00A3E0] bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+              className={`flex-1 px-4 py-2 text-sm border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#00A3E0] transition-all ${
+                escuchandoVoz
+                  ? "border-red-400 bg-red-50/50 text-red-900 placeholder:text-red-500 font-medium"
+                  : "border-slate-200 bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+              }`}
             />
+            {user && (
+              <button
+                type="button"
+                onClick={toggleDictadoPorVoz}
+                disabled={cargandoBot}
+                title={escuchandoVoz ? "Detener dictado" : "Dictar mensaje por voz"}
+                className={`p-2 rounded-xl transition-all flex items-center justify-center cursor-pointer shadow-sm ${
+                  escuchandoVoz
+                    ? "bg-red-500 hover:bg-red-600 text-white animate-pulse"
+                    : "bg-slate-100 hover:bg-sky-50 text-slate-700 hover:text-sky-700 border border-slate-200 hover:border-sky-200"
+                } disabled:opacity-40 disabled:cursor-not-allowed`}
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m-4 0h8m-4-8a3 3 0 003-3V5a3 3 0 00-6 0v6a3 3 0 003 3z" />
+                </svg>
+              </button>
+            )}
             <button
               type="submit"
-              disabled={!user || cargandoBot}
+              disabled={!user || cargandoBot || !nuevoMensaje.trim()}
               className="bg-[#00A3E0] hover:bg-[#0082B3] text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors shadow-sm cursor-pointer disabled:bg-slate-300 disabled:cursor-not-allowed"
             >
               {cargandoBot ? '...' : 'Enviar'}

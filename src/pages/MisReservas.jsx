@@ -31,6 +31,7 @@ export default function MisReservas() {
   const { user } = useAuth();
   const [reservas, setReservas] = useState([]);
   const [cargando, setCargando] = useState(true);
+  const [sancion, setSancion] = useState(null);
   const [campusList, setCampusList] = useState([]);
   const [feriados, setFeriados] = useState(FERIADOS_CHILE_2026);
   const [diasBloqueados, setDiasBloqueados] = useState([]);
@@ -50,7 +51,6 @@ export default function MisReservas() {
   const [confirmModal, setConfirmModal] = useState({ open: false, titulo: "", mensaje: "", onConfirm: null });
   const [toastNotificacion, setToastNotificacion] = useState({ tipo: "", texto: "" });
 
-  // Cargar lista de campus
   useEffect(() => {
     fetch("http://localhost:8000/api/campus")
       .then((res) => res.json())
@@ -58,7 +58,6 @@ export default function MisReservas() {
       .catch(console.error);
   }, []);
 
-  // Cargar feriados
   useEffect(() => {
     const yearActual = new Date().getFullYear();
     fetch(`https://api.feriadosdev.com/api/v1/feriados/${yearActual}`)
@@ -77,10 +76,10 @@ export default function MisReservas() {
       .catch(() => setDiasBloqueados([]));
   }, []);
 
-  // Cargar reservas del usuario
   const cargarReservas = async () => {
     if (!user || !user.rut) {
       setCargando(false);
+      setSancion(null);
       return;
     }
     setCargando(true);
@@ -97,12 +96,15 @@ export default function MisReservas() {
       if (res.ok) {
         const data = await res.json();
         setReservas(data.reservas || []);
+        setSancion(data.sancion || null);
       } else {
         setReservas([]);
+        setSancion(null);
       }
     } catch (err) {
       console.error(err);
       setReservas([]);
+      setSancion(null);
     } finally {
       setCargando(false);
     }
@@ -289,6 +291,35 @@ export default function MisReservas() {
           </Link>
         </div>
 
+        {sancion?.suspendido && (
+          <div className="rounded-2xl border border-rose-300 bg-rose-50/90 p-4 text-slate-800 text-sm shadow-sm mb-6 flex items-start gap-3">
+            <span className="text-2xl shrink-0">🚫</span>
+            <div>
+              <strong className="block font-bold text-rose-900">
+                Cuenta suspendida temporalmente ({sancion.inasistencias_periodo || 2}/2 inasistencias)
+              </strong>
+              <p className="mt-0.5 text-xs text-slate-700">
+                Has alcanzado el límite de 2 inasistencias a cubículos reservados. No podrás realizar nuevas reservas por 3 días.
+              </p>
+              <p className="mt-1 text-xs font-bold text-rose-700">
+                ⏳ Desbloqueo: {sancion.fecha_desbloqueo || `${sancion.dias_restantes || 3} días restantes`}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {sancion && !sancion.suspendido && sancion.inasistencias_periodo === 1 && (
+          <div className="rounded-2xl border border-amber-300 bg-amber-50/90 p-3.5 text-slate-800 text-xs shadow-sm mb-6 flex items-start gap-2.5">
+            <span className="text-xl shrink-0">⚠️</span>
+            <div>
+              <strong className="font-bold text-amber-900">Aviso de asistencia: Tienes 1 inasistencia acumulada</strong>
+              <p className="mt-0.5 text-slate-700">
+                Asiste puntualmente o cancela con anticipación. Al acumular 2 inasistencias, el sistema suspenderá tu cuenta por 3 días.
+              </p>
+            </div>
+          </div>
+        )}
+
         {cargando ? (
           <div className="rounded-3xl border border-sky-100 bg-white p-12 text-center shadow-lg">
             <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-sky-500 border-t-transparent" />
@@ -389,8 +420,14 @@ export default function MisReservas() {
                           <span className="text-[11px] px-2 py-0.5 rounded font-mono bg-slate-200 text-slate-700 font-semibold">
                             {res.cubiculo_codigo}
                           </span>
-                          <span className="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase bg-slate-200 text-slate-600">
-                            Finalizada
+                          <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase ${
+                            res.estado === "inasistencia"
+                              ? "bg-rose-100 text-rose-800 border border-rose-300"
+                              : res.estado === "cancelada"
+                              ? "bg-amber-100 text-amber-800 border border-amber-200"
+                              : "bg-slate-200 text-slate-600"
+                          }`}>
+                            {res.estado === "inasistencia" ? "⚠️ Inasistencia" : res.estado || "Finalizada"}
                           </span>
                         </div>
                         <p className="text-xs text-slate-500 mt-1">

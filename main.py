@@ -3,6 +3,7 @@ import re
 import json
 import hmac
 import hashlib
+import math
 from typing import List, Optional, Any, Dict
 from datetime import datetime, date, time, timedelta
 import httpx
@@ -270,7 +271,7 @@ async def startup():
             UPDATE historial_reservas
             SET estado = 'expirada'
             WHERE (fecha < CURRENT_DATE OR (fecha = CURRENT_DATE AND hora::time < CURRENT_TIME))
-              AND estado != 'cancelada';
+              AND estado NOT IN ('cancelada', 'inasistencia');
 
             CREATE TABLE IF NOT EXISTS anuncios_cms (
                 id SERIAL PRIMARY KEY,
@@ -366,6 +367,71 @@ async def check_rate_limit(key_prefix: str, identifier: str, max_requests: int =
         timestamps.append(now)
         rate_limit_fallback_store[key] = timestamps
     return True
+
+
+async def enforce_rate_limit(key_prefix: str, identifier: str, max_requests: int = 15, window_seconds: int = 60, custom_message: Optional[str] = None):
+    allowed = await check_rate_limit(key_prefix, identifier, max_requests=max_requests, window_seconds=window_seconds, increment=True)
+    if not allowed:
+        msg = custom_message or f"Demasiadas solicitudes ({max_requests} por cada {window_seconds}s). Por favor espera un momento antes de reintentar."
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=msg,
+            headers={"Retry-After": str(window_seconds)}
+        )
+
+
+async def verificar_sancion_usuario(conn, rut: str) -> dict:
+    if not rut:
+        return {"suspendido": False, "total_inasistencias": 0, "dias_restantes": 0, "fecha_desbloqueo": None, "mensaje": ""}
+
+    rut_limpio = str(rut).replace(".", "").replace("-", "").replace(" ", "").upper().strip()
+
+    rows = await conn.fetch(
+        """
+        SELECT id, fecha, hora, fecha_registro 
+        FROM historial_reservas 
+        WHERE REPLACE(REPLACE(REPLACE(UPPER(rut), '.', ''), '-', ''), ' ', '') = $1 
+          AND estado = 'inasistencia'
+        ORDER BY fecha_registro DESC, id DESC
+        """,
+        rut_limpio
+    )
+
+    total_inasistencias = len(rows)
+    if total_inasistencias < 2:
+        return {
+            "suspendido": False,
+            "total_inasistencias": total_inasistencias,
+            "dias_restantes": 0,
+            "fecha_desbloqueo": None,
+            "mensaje": f"Tienes {total_inasistencias} inasistencia(s) registrada(s)." if total_inasistencias > 0 else ""
+        }
+
+    ultima = rows[0]
+    fecha_ref = ultima["fecha_registro"] or datetime.combine(ultima["fecha"], datetime.min.time())
+
+    fecha_fin_suspension = fecha_ref + timedelta(days=3)
+    ahora = datetime.utcnow()
+
+    if ahora < fecha_fin_suspension:
+        tiempo_restante = fecha_fin_suspension - ahora
+        dias_restantes = max(1, int(math.ceil(tiempo_restante.total_seconds() / 86400)))
+        fecha_desbloqueo_str = fecha_fin_suspension.strftime("%d/%m/%Y a las %H:%M")
+        return {
+            "suspendido": True,
+            "total_inasistencias": total_inasistencias,
+            "dias_restantes": dias_restantes,
+            "fecha_desbloqueo": fecha_desbloqueo_str,
+            "mensaje": f"Has acumulado {total_inasistencias} inasistencias. Tu cuenta está suspendida por 3 días y no puedes realizar reservas hasta el {fecha_desbloqueo_str}."
+        }
+
+    return {
+        "suspendido": False,
+        "total_inasistencias": total_inasistencias,
+        "dias_restantes": 0,
+        "fecha_desbloqueo": None,
+        "mensaje": "Sanción previa cumplida."
+    }
 
 
 async def invalidar_caches_disponibilidad(campus_id: Optional[int] = None, fecha_str: Optional[str] = None):
@@ -716,7 +782,15 @@ async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] =
 # --- Endpoints de Autenticación ---
 
 @app.post("/api/auth/register", response_model=UsuarioResponse, status_code=status.HTTP_201_CREATED)
-async def registrar_usuario(data: CrearUsuarioRequest):
+async def registrar_usuario(data: CrearUsuarioRequest, request: Request):
+    client_ip = request.client.host if request.client else "anon"
+    await enforce_rate_limit(
+        "register",
+        client_ip,
+        max_requests=5,
+        window_seconds=300,
+        custom_message="Límite de registros alcanzado para esta IP. Por favor espera 5 minutos."
+    )
     hashed = get_password_hash(data.password)
     async with pool.acquire() as conn:
         try:
@@ -903,6 +977,107 @@ async def eliminar_cubiculo(cubiculo_id: int, current_user: dict = Depends(get_c
         )
         await invalidar_caches_disponibilidad()
         return {"mensaje": "Cubículo eliminado exitosamente", "campus_id": campus_id}
+
+
+@app.post("/api/reservas/{reserva_id}/inasistencia")
+async def marcar_inasistencia_reserva(reserva_id: int, current_user: dict = Depends(get_current_user)):
+    if current_user.get("rol") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acceso denegado. Solo administradores pueden registrar inasistencias."
+        )
+
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            res = await conn.fetchrow(
+                "SELECT id, nombre, rut, campus_id, fecha, hora, cubiculo_id FROM reservas WHERE id = $1",
+                reserva_id
+            )
+            if not res:
+                h_row = await conn.fetchrow("SELECT id, estado, rut FROM historial_reservas WHERE reserva_id = $1", reserva_id)
+                if h_row and h_row["estado"] == "inasistencia":
+                    sancion = await verificar_sancion_usuario(conn, h_row["rut"])
+                    return {
+                        "success": True,
+                        "reserva_id": reserva_id,
+                        "estado": "inasistencia",
+                        "total_inasistencias": sancion.get("total_inasistencias", 0),
+                        "suspendido": sancion.get("suspendido", False),
+                        "mensaje": "La reserva ya había sido registrada como inasistencia."
+                    }
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"No se encontró la reserva activa ID {reserva_id}.")
+
+            rut_estudiante = res["rut"]
+            nombre_estudiante = res["nombre"]
+            campus_id = res["campus_id"]
+            fecha_res = res["fecha"]
+            hora_res = str(res["hora"])
+
+            await conn.execute(
+                """
+                INSERT INTO historial_reservas (reserva_id, nombre, rut, campus_id, fecha, hora, estado, fecha_registro)
+                VALUES ($1, $2, $3, $4, $5, $6, 'inasistencia', NOW())
+                ON CONFLICT (id) DO NOTHING
+                """,
+                reserva_id, nombre_estudiante, rut_estudiante, campus_id, fecha_res, hora_res
+            )
+            await conn.execute(
+                """
+                UPDATE historial_reservas
+                SET estado = 'inasistencia', fecha_registro = NOW()
+                WHERE reserva_id = $1
+                """,
+                reserva_id
+            )
+
+            await conn.execute("DELETE FROM reservas WHERE id = $1", reserva_id)
+
+            sancion = await verificar_sancion_usuario(conn, rut_estudiante)
+            total_inasistencias = sancion.get("total_inasistencias", 1)
+            suspendido = sancion.get("suspendido", False)
+
+            mensaje = f"Inasistencia registrada para {nombre_estudiante} (RUT: {rut_estudiante}). Cubículo liberado con éxito."
+            if suspendido:
+                mensaje += f" Acumula {total_inasistencias} inasistencias y su cuenta fue suspendida por 3 días (hasta {sancion.get('fecha_desbloqueo')})."
+            else:
+                mensaje += f" Acumula {total_inasistencias} inasistencia(s)."
+
+            await invalidar_caches_disponibilidad()
+
+            return {
+                "success": True,
+                "reserva_id": reserva_id,
+                "estado": "inasistencia",
+                "total_inasistencias": total_inasistencias,
+                "suspendido": suspendido,
+                "fecha_desbloqueo": sancion.get("fecha_desbloqueo"),
+                "mensaje": mensaje
+            }
+
+
+@app.get("/api/usuarios/sancion")
+async def consultar_sancion_usuario(
+    rut: Optional[str] = None,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)
+):
+    rut_target = rut
+    if credentials and credentials.credentials:
+        try:
+            payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+            email = payload.get("sub")
+            if email:
+                async with pool.acquire() as conn:
+                    row_u = await conn.fetchrow("SELECT rut, rol FROM usuarios WHERE email = $1", email)
+                    if row_u and (row_u["rol"] != "admin" or not rut_target):
+                        rut_target = row_u["rut"]
+        except Exception:
+            pass
+
+    if not rut_target:
+        return {"suspendido": False, "total_inasistencias": 0, "dias_restantes": 0, "fecha_desbloqueo": None, "mensaje": ""}
+
+    async with pool.acquire() as conn:
+        return await verificar_sancion_usuario(conn, rut_target)
 
 
 @app.get("/api/cms/anuncios")
@@ -1346,7 +1521,15 @@ async def obtener_resumen_dashboard(campus_id: Optional[int] = None, fecha: Opti
 
 
 @app.get("/api/disponibilidad")
-async def consultar_disponibilidad(campus_id: int, fecha: str):
+async def consultar_disponibilidad(campus_id: int, fecha: str, request: Request):
+    client_ip = request.client.host if request.client else "anon"
+    await enforce_rate_limit(
+        "disponibilidad",
+        client_ip,
+        max_requests=60,
+        window_seconds=60,
+        custom_message="Límite de consultas de disponibilidad alcanzado. Por favor espera un momento."
+    )
     try:
         fecha_parsed = datetime.strptime(fecha.strip(), "%Y-%m-%d").date()
         fecha_str = fecha_parsed.strftime("%Y-%m-%d")
@@ -1575,6 +1758,13 @@ async def crear_reserva(
                         detail=f"No se permite agendar reservas en la fecha {reserva.fecha}: {bloqueo['motivo']}."
                     )
 
+                sancion = await verificar_sancion_usuario(conn, rut_limpio)
+                if sancion.get("suspendido"):
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=sancion.get("mensaje")
+                    )
+
                 reserva_activa = await conn.fetchrow(
                     """
                     SELECT r.id, r.fecha, r.hora, c.nombre AS campus_nombre, cb.codigo AS cubiculo_codigo
@@ -1753,6 +1943,9 @@ async def hablar_con_bot(input_data: MessageInput, request: Request, current_use
         data = response.json()
         bot_response = data.get("output", "Reserva procesada con éxito.")
         bot_response = re.sub(r'\[Usuario autenticado:[^\]]*\]\s*', '', bot_response)
+        bot_response = re.sub(r'(?i)Calling\s+[a-zA-Z0-9_\-]+(\s*with\s+input:)?\s*\{[\s\S]*?\}', '', bot_response).strip()
+        if not bot_response:
+            bot_response = "Estoy procesando tu solicitud de cubículos. ¿En qué fecha, hora y sede te gustaría agendar?"
         return {"response": bot_response}
 
     except HTTPException:
@@ -1814,7 +2007,15 @@ async def obtener_recordatorios_manana(dias: int = 1):
 
 
 @app.delete("/api/reservas")
-async def eliminar_reserva(data: EsquemaEliminar, background_tasks: BackgroundTasks, credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)):
+async def eliminar_reserva(data: EsquemaEliminar, request: Request, background_tasks: BackgroundTasks, credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)):
+    client_id = data.sessionId or (request.client.host if request.client else "anon")
+    await enforce_rate_limit(
+        "eliminar_reserva",
+        client_id,
+        max_requests=15,
+        window_seconds=60,
+        custom_message="Demasiadas solicitudes de cancelación. Por favor espera un momento."
+    )
     try:
         rut_consulta = data.rut
         current_user = None
@@ -1899,10 +2100,19 @@ async def eliminar_reserva(data: EsquemaEliminar, background_tasks: BackgroundTa
 @app.delete("/api/reservas/{reserva_id}")
 async def eliminar_reserva_por_id(
     reserva_id: int,
+    request: Request,
     background_tasks: BackgroundTasks,
     sessionId: Optional[str] = Query(None),
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)
 ):
+    client_id = sessionId or (request.client.host if request.client else "anon")
+    await enforce_rate_limit(
+        "eliminar_reserva_id",
+        client_id,
+        max_requests=15,
+        window_seconds=60,
+        custom_message="Demasiadas solicitudes de cancelación. Por favor espera un momento."
+    )
     current_user = None
     if credentials and credentials.credentials:
         try:
@@ -1997,6 +2207,7 @@ async def obtener_historial_reservas(
                 h.id, h.reserva_id, h.nombre, h.rut, h.fecha::text, h.hora::text,
                 CASE 
                     WHEN h.estado = 'cancelada' THEN 'cancelada'
+                    WHEN h.estado = 'inasistencia' THEN 'inasistencia'
                     WHEN (h.fecha < CURRENT_DATE) OR (h.fecha = CURRENT_DATE AND h.hora::time < CURRENT_TIME) THEN 'expirada'
                     ELSE h.estado
                 END AS estado,
@@ -2266,7 +2477,15 @@ async def editar_reserva(data: EsquemaEditarReserva, background_tasks: Backgroun
 
 
 @app.post("/api/reservas/consultar")
-async def consultar_reservas(data: EsquemaConsulta, credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)):
+async def consultar_reservas(data: EsquemaConsulta, request: Request, credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)):
+    client_id = data.sessionId or (request.client.host if request.client else "anon")
+    await enforce_rate_limit(
+        "consultar_reservas",
+        client_id,
+        max_requests=30,
+        window_seconds=60,
+        custom_message="Límite de consultas de reservas alcanzado. Por favor espera un momento."
+    )
     try:
         rut_consulta = data.rut
         current_user = None
@@ -2346,10 +2565,41 @@ async def consultar_reservas(data: EsquemaConsulta, credentials: Optional[HTTPAu
                     "campus": r["campus_nombre"] or "Sin asignación",
                     "cubiculo_codigo": r["cubiculo_codigo"] or "Sin asignación",
                     "activa": es_activa,
-                    "acompanantes": lista_ac
+                    "acompanantes": lista_ac,
+                    "estado": "activa" if es_activa else "expirada"
                 })
 
-            return {"success": True, "reservas": respuesta}
+            historial_pasadas = await conn.fetch(
+                """
+                SELECT h.id, h.reserva_id, h.nombre, h.rut, h.fecha, h.hora, c.nombre AS campus_nombre, h.campus_id, h.estado
+                FROM historial_reservas h
+                LEFT JOIN campus c ON h.campus_id = c.id
+                WHERE REPLACE(REPLACE(REPLACE(UPPER(h.rut), '.', ''), '-', ''), ' ', '') = $1
+                  AND NOT EXISTS (SELECT 1 FROM reservas r WHERE r.id = h.reserva_id)
+                ORDER BY h.fecha_registro DESC
+                LIMIT 20
+                """,
+                rut_limpio
+            )
+            for h in historial_pasadas:
+                h_fecha = h["fecha"]
+                h_hora_str = str(h["hora"])
+                respuesta.append({
+                    "id": str(h["reserva_id"] or h["id"]),
+                    "nombre": h["nombre"],
+                    "rut": h["rut"],
+                    "fecha": h_fecha.strftime("%Y-%m-%d") if isinstance(h_fecha, (date, datetime)) else str(h_fecha),
+                    "hora": h_hora_str[:5] if len(h_hora_str) >= 5 else h_hora_str,
+                    "campus_id": h["campus_id"],
+                    "campus": h["campus_nombre"] or "Campus UCT",
+                    "cubiculo_codigo": "Finalizado",
+                    "activa": False,
+                    "estado": h["estado"],
+                    "acompanantes": []
+                })
+
+            sancion = await verificar_sancion_usuario(conn, rut_limpio)
+            return {"success": True, "reservas": respuesta, "sancion": sancion}
 
     except HTTPException:
         raise
@@ -2386,6 +2636,8 @@ async def obtener_reservas_bloque(campus_id: int, fecha: str, hora: str, current
                     "nombre": r["nombre"],
                     "rut": r["rut"],
                     "sessionId": r["session_id"],
+                    "fecha": fecha.strip(),
+                    "hora": hora.strip(),
                     "cubiculo_codigo": r["cubiculo_codigo"] or "N/A",
                     "acompanantes": [{"nombre": ac["nombre"], "rut": ac["rut"]} for ac in filas_ac]
                 })
