@@ -304,23 +304,31 @@ export default function ChatbotFlotante() {
   return (
     <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
       {isChatOpen && (
-        <div className="mb-4 w-[calc(100vw-2rem)] sm:w-96 h-[520px] rounded-2xl bg-white shadow-2xl border border-slate-100 flex flex-col overflow-hidden transition-all duration-300 origin-bottom-right">
-          <div className="bg-[#00629B] p-4 text-white flex justify-between items-center shadow-md border-b-2 border-[#00A3E0]">
+        <div className="mb-4 w-[calc(100vw-2rem)] sm:w-[400px] h-[540px] rounded-3xl bg-white/95 backdrop-blur-2xl shadow-[0_20px_60px_-15px_rgba(0,98,155,0.3)] border border-sky-100 flex flex-col overflow-hidden transition-all duration-300 origin-bottom-right">
+          <div className="bg-gradient-to-r from-[#004B75] via-[#00629B] to-[#007AB8] p-4 text-white flex justify-between items-center shadow-md relative border-b-2 border-[#FFC20E]">
             <div className="flex items-center space-x-3">
-              <div className="relative flex h-2.5 w-2.5">
-                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${user ? 'bg-[#7AB800]' : 'bg-rose-300'} opacity-75`}></span>
-                <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${user ? 'bg-[#7AB800]' : 'bg-rose-400'}`}></span>
+              <div className="w-10 h-10 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 p-1 flex items-center justify-center shrink-0 shadow-inner">
+                <img src={logoUCT} alt="UCT" className="w-full h-full object-contain" />
               </div>
               <div>
-                <p className="font-semibold text-sm tracking-wide leading-tight">Asistente Virtual IA</p>
-                <p className="text-[11px] text-sky-100">
-                  {user ? `${user.nombre}` : 'Acceso Restringido (Requiere Login)'}
-                </p>
+                <div className="flex items-center gap-1.5">
+                  <p className="font-extrabold text-sm tracking-tight text-white">Asistente Virtual</p>
+                  <span className="text-[10px] font-black px-1.5 py-0.2 rounded bg-[#FFC20E] text-slate-900 tracking-wider">UCT</span>
+                </div>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="relative flex h-2 w-2">
+                    <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${user ? 'bg-emerald-400' : 'bg-rose-400'} opacity-75`}></span>
+                    <span className={`relative inline-flex rounded-full h-2 w-2 ${user ? 'bg-emerald-400' : 'bg-rose-500'}`}></span>
+                  </span>
+                  <p className="text-[11px] text-sky-100/90 font-medium">
+                    {user ? user.nombre : 'Acceso Restringido'}
+                  </p>
+                </div>
               </div>
             </div>
             <button
               onClick={() => setIsChatOpen(false)}
-              className="text-sky-200 hover:text-white transition-colors p-1 rounded-lg hover:bg-[#00A3E0]/50 cursor-pointer"
+              className="text-white/80 hover:text-white transition-all p-1.5 rounded-xl hover:bg-white/15 cursor-pointer"
             >
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -329,50 +337,53 @@ export default function ChatbotFlotante() {
           </div>
 
           {!user ? (
-            <div className="flex-1 p-6 flex flex-col items-center justify-center text-center bg-slate-50">
-              <div className="w-16 h-16 rounded-full bg-amber-100 border border-amber-200 flex items-center justify-center mb-4 text-2xl shadow-inner">
+            <div className="flex-1 p-6 flex flex-col items-center justify-center text-center bg-slate-50/80 backdrop-blur-md">
+              <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-amber-100 to-amber-200 border border-amber-300/80 flex items-center justify-center mb-4 text-2xl shadow-inner">
                 🔒
               </div>
-              <h3 className="text-base font-bold text-slate-800 mb-1">
-                Chatbot Bloqueado
+              <h3 className="text-base font-black text-slate-800 mb-1">
+                Chatbot Institucional
               </h3>
               <p className="text-xs text-slate-500 mb-6 max-w-xs leading-relaxed">
-                Debes iniciar sesión con tu cuenta institucional para utilizar el asistente virtual IA y solicitar reservas de cubículos.
+                Inicia sesión con tu cuenta universitaria para consultar disponibilidad o reservar cubículos con inteligencia artificial.
               </p>
               <button
                 onClick={irALogin}
-                className="w-full max-w-xs py-2.5 px-4 bg-[#00A3E0] hover:bg-[#0082B3] text-white rounded-xl font-semibold text-sm transition-all shadow-md flex items-center justify-center space-x-2 cursor-pointer"
+                className="w-full max-w-xs py-3 px-4 bg-gradient-to-r from-[#00629B] to-[#0082B3] hover:from-[#004B75] hover:to-[#00629B] text-white rounded-2xl font-bold text-xs tracking-wide transition-all shadow-lg shadow-sky-900/20 flex items-center justify-center space-x-2 cursor-pointer"
               >
                 <span>🔑 Iniciar Sesión</span>
               </button>
             </div>
           ) : (
-            <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-slate-50/80">
+            <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-gradient-to-b from-sky-50/30 via-slate-50/50 to-white/80 backdrop-blur-md">
               {mensajes.map((msg) => {
                 const cardData = msg.esBot && msg.texto !== 'Escribiendo...' ? extraerDatosReserva(msg.texto) : null;
 
                 return (
                   <div key={msg.id} className={`flex flex-col ${msg.esBot ? 'items-start' : 'items-end'}`}>
-                    <div className={`max-w-[88%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-line ${msg.esBot
-                      ? 'bg-white text-slate-700 rounded-tl-none border border-slate-200/60 shadow-sm shadow-slate-100'
-                      : 'bg-[#00629B] text-white rounded-tr-none shadow-md'
-                      } ${msg.texto === 'Escribiendo...' ? 'text-slate-400 italic bg-slate-100/50 animate-pulse' : ''}`}>
+                    <div className={`max-w-[88%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-line backdrop-blur-md transition-all ${
+                      msg.esBot
+                        ? 'bg-white/85 text-slate-800 rounded-tl-sm border border-slate-200/70 shadow-[0_4px_16px_rgba(0,0,0,0.03)]'
+                        : 'bg-gradient-to-r from-[#00629B] to-[#007AB8] text-white rounded-tr-sm shadow-[0_4px_16px_rgba(0,98,155,0.25)] border border-sky-400/30'
+                    } ${msg.texto === 'Escribiendo...' ? 'text-slate-400 italic bg-white/50 animate-pulse' : ''}`}>
                       {msg.texto}
                     </div>
 
                     {cardData && (
-                      <div className="max-w-[88%] mt-2 rounded-2xl border p-3.5 shadow-md text-xs space-y-2.5 bg-gradient-to-br from-white to-slate-50 border-sky-200">
+                      <div className="max-w-[90%] mt-2 rounded-2xl border border-sky-200/80 p-3.5 shadow-lg shadow-sky-950/5 text-xs space-y-2.5 bg-white/90 backdrop-blur-lg">
                         <div className="flex items-center justify-between border-b pb-2 border-slate-100">
-                          <span className={`font-bold flex items-center gap-1.5 ${cardData.tipo === 'confirmada' ? 'text-emerald-700' : cardData.tipo === 'cancelada' ? 'text-rose-600' : 'text-amber-700'}`}>
+                          <span className={`font-bold flex items-center gap-1.5 ${
+                            cardData.tipo === 'confirmada' ? 'text-emerald-700' : cardData.tipo === 'cancelada' ? 'text-rose-600' : 'text-amber-700'
+                          }`}>
                             <span>{cardData.tipo === 'confirmada' ? '✅' : cardData.tipo === 'cancelada' ? '🗑️' : '⚡'}</span>
                             <span>{cardData.tipo === 'confirmada' ? 'Reserva Confirmada' : cardData.tipo === 'cancelada' ? 'Reserva Cancelada' : 'Confirmar Reserva'}</span>
                           </span>
-                          <span className="text-[10px] uppercase font-black px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
-                            Biblioteca UCT
+                          <span className="text-[10px] uppercase font-black px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
+                            UCT
                           </span>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-2 text-[11px] bg-slate-50/70 p-2.5 rounded-xl border border-slate-100">
+                        <div className="grid grid-cols-2 gap-2 text-[11px] bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
                           <div>
                             <p className="text-slate-400 font-medium">Sede / Campus:</p>
                             <p className="font-bold text-slate-800">{cardData.campus || "Sede seleccionada"}</p>
@@ -420,7 +431,7 @@ export default function ChatbotFlotante() {
                                 setIsChatOpen(false);
                                 navigate('/mis-reservas');
                               }}
-                              className="w-full py-2 px-3 bg-sky-600 hover:bg-sky-700 text-white rounded-xl font-bold text-xs transition-all shadow-sm cursor-pointer flex items-center justify-center gap-1.5"
+                              className="w-full py-2 px-3 bg-[#00629B] hover:bg-[#004B75] text-white rounded-xl font-bold text-xs transition-all shadow-sm cursor-pointer flex items-center justify-center gap-1.5"
                             >
                               <span>📋</span> Ver en Mis Reservas
                             </button>
@@ -436,7 +447,7 @@ export default function ChatbotFlotante() {
           )}
 
           {user && !cargandoBot && (
-            <div className="px-3 pt-2 pb-1 flex items-center gap-1.5 overflow-x-auto bg-white border-t border-slate-100 scrollbar-none">
+            <div className="px-3 pt-2 pb-1 flex items-center gap-1.5 overflow-x-auto bg-white/80 backdrop-blur-md border-t border-slate-100 scrollbar-none">
               {[
                 { label: "📅 Agendar cubículo", texto: "Quiero agendar un cubículo" },
                 { label: "🔍 Ver mis reservas", texto: "Muéstrame mis reservas activas" },
@@ -447,7 +458,7 @@ export default function ChatbotFlotante() {
                   key={idx}
                   type="button"
                   onClick={() => enviarMensajeTexto(chip.texto)}
-                  className="px-2.5 py-1 bg-slate-50 hover:bg-sky-50 border border-slate-200 hover:border-sky-300 rounded-full text-[11px] font-semibold text-slate-700 hover:text-sky-700 whitespace-nowrap transition-colors cursor-pointer shadow-2xs"
+                  className="px-2.5 py-1 bg-sky-50/60 hover:bg-sky-100/70 border border-sky-200/70 hover:border-[#FFC20E] rounded-full text-[11px] font-semibold text-slate-700 hover:text-sky-900 whitespace-nowrap transition-all cursor-pointer shadow-2xs"
                 >
                   {chip.label}
                 </button>
@@ -455,7 +466,7 @@ export default function ChatbotFlotante() {
             </div>
           )}
 
-          <form onSubmit={handleEnviarMensaje} className="p-3 border-t border-slate-100 bg-white flex items-center space-x-2">
+          <form onSubmit={handleEnviarMensaje} className="p-3 border-t border-slate-100 bg-white/90 backdrop-blur-md flex items-center space-x-2">
             <input
               type="text"
               value={nuevoMensaje}
@@ -470,10 +481,10 @@ export default function ChatbotFlotante() {
                       ? "Esperando respuesta del asistente..."
                       : "Pídeme una reserva (ej: mañana a las 10:00)..."
               }
-              className={`flex-1 px-4 py-2 text-sm border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#00A3E0] transition-all ${
+              className={`flex-1 px-4 py-2.5 text-sm border rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#00629B] transition-all ${
                 escuchandoVoz
                   ? "border-red-400 bg-red-50/50 text-red-900 placeholder:text-red-500 font-medium"
-                  : "border-slate-200 bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                  : "border-slate-200 bg-slate-50/70 focus:bg-white disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
               }`}
             />
             {user && (
@@ -482,7 +493,7 @@ export default function ChatbotFlotante() {
                 onClick={toggleDictadoPorVoz}
                 disabled={cargandoBot}
                 title={escuchandoVoz ? "Detener dictado" : "Dictar mensaje por voz"}
-                className={`p-2 rounded-xl transition-all flex items-center justify-center cursor-pointer shadow-sm ${
+                className={`p-2.5 rounded-2xl transition-all flex items-center justify-center cursor-pointer shadow-sm ${
                   escuchandoVoz
                     ? "bg-red-500 hover:bg-red-600 text-white animate-pulse"
                     : "bg-slate-100 hover:bg-sky-50 text-slate-700 hover:text-sky-700 border border-slate-200 hover:border-sky-200"
@@ -496,7 +507,7 @@ export default function ChatbotFlotante() {
             <button
               type="submit"
               disabled={!user || cargandoBot || !nuevoMensaje.trim()}
-              className="bg-[#00A3E0] hover:bg-[#0082B3] text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors shadow-sm cursor-pointer disabled:bg-slate-300 disabled:cursor-not-allowed"
+              className="bg-gradient-to-r from-[#00629B] to-[#0082B3] hover:from-[#004B75] hover:to-[#00629B] text-white px-4 py-2.5 rounded-2xl text-sm font-bold transition-all shadow-md shadow-sky-900/15 cursor-pointer disabled:bg-slate-300 disabled:shadow-none disabled:cursor-not-allowed"
             >
               {cargandoBot ? '...' : 'Enviar'}
             </button>
@@ -505,7 +516,7 @@ export default function ChatbotFlotante() {
       )}
       <button
         onClick={() => setIsChatOpen((prev) => !prev)}
-        className="w-16 h-16 rounded-full bg-white border-2 border-[#00A3E0] shadow-2xl transition-all duration-300 hover:scale-110 flex items-center justify-center p-1.5 cursor-pointer overflow-hidden group"
+        className="w-16 h-16 rounded-full bg-white border-2 border-[#FFC20E] shadow-[0_10px_30px_rgba(0,98,155,0.3)] transition-all duration-300 hover:scale-110 flex items-center justify-center p-1.5 cursor-pointer overflow-hidden group ring-4 ring-[#00629B]/10"
         title="Abrir Asistente Virtual UCT"
       >
         <img

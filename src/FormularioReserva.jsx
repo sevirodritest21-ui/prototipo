@@ -887,9 +887,20 @@ export default function FormularioReserva() {
                       <p>Selecciona primero un campus y una fecha para calcular la disponibilidad exacta.</p>
                     </div>
                   ) : cargandoHorarios ? (
-                    <div className="text-xs text-sky-700 bg-sky-50/70 border border-sky-100 p-5 rounded-2xl text-center animate-pulse flex items-center justify-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-sky-600 animate-ping" />
-                      Consultando disponibilidad de cubículos en tiempo real...
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                      {[1, 2, 3, 4, 5, 6].map((i) => (
+                        <div
+                          key={i}
+                          className="relative overflow-hidden p-3.5 rounded-2xl border border-sky-100/80 bg-white/70 shadow-sm flex flex-col justify-between h-[76px]"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="h-4 w-20 bg-slate-200/70 rounded-md" />
+                            <div className="h-2.5 w-2.5 rounded-full bg-emerald-200" />
+                          </div>
+                          <div className="h-3 w-16 bg-slate-200/60 rounded-md mt-2" />
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-sky-100/50 to-transparent animate-shimmer" />
+                        </div>
+                      ))}
                     </div>
                   ) : (
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
@@ -1064,7 +1075,18 @@ export default function FormularioReserva() {
                   Selecciona Nuevo Horario
                 </label>
                 {cargandoEditBloques ? (
-                  <p className="text-xs text-sky-600 animate-pulse font-medium">Cargando disponibilidad...</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[1, 2, 3, 4].map((i) => (
+                      <div
+                        key={i}
+                        className="relative overflow-hidden p-2.5 rounded-xl border border-slate-100 bg-white/70 shadow-sm flex flex-col justify-between h-[56px]"
+                      >
+                        <div className="h-3.5 w-16 bg-slate-200/70 rounded-md" />
+                        <div className="h-2.5 w-12 bg-slate-200/60 rounded-md mt-1.5" />
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-sky-100/50 to-transparent animate-shimmer" />
+                      </div>
+                    ))}
+                  </div>
                 ) : editBloques.length === 0 ? (
                   <p className="text-xs text-slate-400 italic">Selecciona sede y fecha para ver bloques disponibles.</p>
                 ) : (
