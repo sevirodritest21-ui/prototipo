@@ -48,7 +48,7 @@ export default function MisReservas() {
   });
   const [editBloques, setEditBloques] = useState([]);
   const [cargandoEditBloques, setCargandoEditBloques] = useState(false);
-  const [confirmModal, setConfirmModal] = useState({ open: false, titulo: "", mensaje: "", onConfirm: null });
+  const [confirmModal, setConfirmModal] = useState({ open: false, reserva: null, onConfirm: null });
   const [toastNotificacion, setToastNotificacion] = useState({ tipo: "", texto: "" });
 
   useEffect(() => {
@@ -169,12 +169,11 @@ export default function MisReservas() {
     }
   };
 
-  const handleCancelarReserva = (reservaId) => {
+  const handleCancelarReserva = (reserva) => {
     setConfirmModal({
       open: true,
-      titulo: "Cancelar Reserva",
-      mensaje: `¿Estás seguro de que deseas cancelar la reserva ID ${reservaId}?`,
-      onConfirm: () => ejecutarCancelacion(reservaId)
+      reserva,
+      onConfirm: () => ejecutarCancelacion(reserva.id)
     });
   };
 
@@ -493,7 +492,7 @@ export default function MisReservas() {
                             </button>
                             <button
                               type="button"
-                              onClick={() => handleCancelarReserva(res.id)}
+                              onClick={() => handleCancelarReserva(res)}
                               className="w-full py-2.5 px-4 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5"
                             >
                               <span>🗑️</span> Cancelar Cupo
@@ -741,29 +740,79 @@ export default function MisReservas() {
       )}
 
       {confirmModal.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-fadeIn">
-          <div className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 text-center space-y-4">
-            <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-600 text-xl flex items-center justify-center mx-auto shadow-inner">
-              ⚠️
-            </div>
-            <h3 className="text-lg font-bold text-slate-900">{confirmModal.titulo || "Confirmación"}</h3>
-            <p className="text-xs text-slate-600 leading-relaxed">{confirmModal.mensaje}</p>
-            <div className="flex gap-3 pt-2">
-              <button
-                onClick={() => setConfirmModal({ open: false, titulo: "", mensaje: "", onConfirm: null })}
-                className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-50 transition-all cursor-pointer"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => {
-                  if (confirmModal.onConfirm) confirmModal.onConfirm();
-                  setConfirmModal({ open: false, titulo: "", mensaje: "", onConfirm: null });
-                }}
-                className="flex-1 py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-md transition-all cursor-pointer"
-              >
-                Confirmar
-              </button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-md p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-white rounded-[2rem] shadow-2xl border border-rose-100 overflow-hidden relative">
+            <div className="h-1.5 bg-gradient-to-r from-rose-500 via-amber-500 to-rose-600" />
+            
+            <div className="p-6 sm:p-7 text-center space-y-4">
+              <div className="w-14 h-14 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-center text-2xl mx-auto shadow-inner text-rose-600">
+                🗑️
+              </div>
+
+              <div>
+                <h3 className="text-lg font-black text-slate-900 tracking-tight">
+                  ¿Confirmas la cancelación de tu reserva?
+                </h3>
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  Esta acción liberará el espacio inmediatamente para que otro estudiante pueda utilizarlo.
+                </p>
+              </div>
+
+              {confirmModal.reserva && (
+                <div className="bg-slate-50/90 rounded-2xl border border-slate-200/80 p-3.5 text-xs text-left space-y-2">
+                  <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
+                    <span className="font-bold text-slate-700">Pase a cancelar:</span>
+                    <span className="font-mono font-bold text-sky-800 bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
+                      ID #{confirmModal.reserva.id}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    <div>
+                      <p className="text-slate-400 font-medium">Sede / Campus:</p>
+                      <p className="font-bold text-slate-800">{confirmModal.reserva.campus}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-400 font-medium">Cubículo:</p>
+                      <p className="font-bold text-slate-800">{confirmModal.reserva.cubiculo_codigo}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-400 font-medium">Fecha:</p>
+                      <p className="font-bold text-slate-800">{confirmModal.reserva.fecha}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-400 font-medium">Horario:</p>
+                      <p className="font-bold text-slate-800">{confirmModal.reserva.hora} hrs</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-[11px] text-amber-900 text-left flex items-start gap-2">
+                <span className="text-base shrink-0">ℹ️</span>
+                <span>
+                  <strong>Sin penalización:</strong> Cancelar con anticipación no acumula faltas ni afecta tu historial académico.
+                </span>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmModal({ open: false, reserva: null, onConfirm: null })}
+                  className="flex-1 py-3 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all cursor-pointer shadow-xs"
+                >
+                  Conservar Reserva
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirmModal.onConfirm) confirmModal.onConfirm();
+                    setConfirmModal({ open: false, reserva: null, onConfirm: null });
+                  }}
+                  className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white text-xs font-bold shadow-lg shadow-rose-600/25 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <span>🗑️</span> Sí, Cancelar Cupo
+                </button>
+              </div>
             </div>
           </div>
         </div>
