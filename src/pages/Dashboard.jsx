@@ -823,25 +823,44 @@ export default function Dashboard() {
   const cubiculosActuales = resumen?.cubiculas_fisicos ?? 10;
   const campusSeleccionadoObj = campus.find((c) => c.id === campusSeleccionado);
 
+  // ---- Tokens visuales reutilizables (solo estilo) ----
+  const CARD = "bg-white border border-slate-200/80 rounded-2xl shadow-[0_1px_2px_rgba(15,23,42,0.04),0_12px_32px_-18px_rgba(15,23,42,0.25)]";
+  const INPUT = "w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-[#00629B] focus:ring-4 focus:ring-[#00629B]/10";
+  const BTN_PRIMARY = "inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#00629B] hover:bg-[#004E7C] text-white text-xs font-semibold shadow-[0_6px_16px_-8px_rgba(0,98,155,0.9)] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none";
+  const BTN_ACCENT = "inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#FFC20E] hover:bg-[#EDB100] text-slate-950 text-xs font-bold shadow-[0_6px_16px_-8px_rgba(255,194,14,0.9)] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none";
+  const BTN_GHOST = "inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-700 text-xs font-semibold transition-all cursor-pointer";
+  const BTN_DANGER = "inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl border border-rose-200 bg-white hover:bg-rose-50 text-rose-600 text-xs font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed";
+  const EYEBROW = "inline-flex items-center gap-2 rounded-full border border-sky-100 bg-sky-50/80 px-3 py-1 text-[11px] font-semibold text-[#00629B]";
+  const SECTION_TITLE = "text-xl md:text-2xl font-serif font-bold text-slate-900 tracking-tight";
+  const LABEL = "block text-[11px] font-semibold text-slate-600 mb-1.5";
+  const OVERLAY = "fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 backdrop-blur-md p-4 animate-fadeIn";
+  const MODAL = "w-full bg-white rounded-2xl shadow-[0_32px_80px_-24px_rgba(15,23,42,0.5)] border border-white/60 ring-1 ring-slate-900/5";
+
   return (
-    <div className="min-h-screen bg-[#F4F6F9] pt-20 pb-16 px-4 font-sans text-slate-800">
+    <div className="min-h-screen bg-[#F6F8FB] pt-20 pb-16 px-4 font-sans text-slate-800 selection:bg-[#00629B]/15">
       <main className="relative mx-auto max-w-7xl w-full">
-        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden mb-8">
-          <div className="bg-[#00629B] text-white p-6 sm:p-8">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-[#FFC20E] px-3 py-0.5 text-xs font-bold text-slate-950">
-                    <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span>
+        {/* Encabezado principal */}
+        <div className={`${CARD} overflow-hidden mb-8`}>
+          <div className="relative overflow-hidden bg-gradient-to-br from-[#004E7C] via-[#00629B] to-[#0284C7] text-white p-6 sm:p-9">
+            <div className="pointer-events-none absolute -top-24 -right-16 h-64 w-64 rounded-full bg-[#00A3E0]/30 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-28 left-1/3 h-56 w-56 rounded-full bg-[#FFC20E]/20 blur-3xl" />
+
+            <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-5">
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-[#FFC20E] px-3 py-1 text-[11px] font-bold text-slate-950 shadow-sm">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-700 animate-pulse"></span>
                     Panel Administrador
                   </span>
-                  <span className="text-xs font-medium text-sky-100">| Sede Activa: <strong className="text-white font-semibold">{campusSeleccionadoObj?.nombre || "General"}</strong></span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-3 py-1 text-[11px] font-medium text-sky-50 backdrop-blur-sm">
+                    Sede activa: <strong className="text-white font-semibold">{campusSeleccionadoObj?.nombre || "General"}</strong>
+                  </span>
                 </div>
-                <h1 className="text-2xl md:text-3xl font-serif font-bold text-white tracking-tight">
+                <h1 className="text-2xl md:text-[2rem] leading-tight font-serif font-bold text-white tracking-tight">
                   Centro de Control Universitario
                 </h1>
-                <p className="text-xs md:text-sm text-sky-100">
-                  Bienvenido/a, <strong className="text-white font-bold">{user?.nombre}</strong> ({user?.email})
+                <p className="text-xs md:text-sm text-sky-100/90">
+                  Bienvenido/a, <strong className="text-white font-semibold">{user?.nombre}</strong> · {user?.email}
                 </p>
               </div>
 
@@ -849,7 +868,7 @@ export default function Dashboard() {
                 <button
                   id="dashboard-logout"
                   onClick={logout}
-                  className="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 backdrop-blur-sm px-4 py-2 text-xs font-semibold text-white hover:bg-white hover:text-red-700 transition-all cursor-pointer shadow-sm"
+                  className="inline-flex items-center gap-2 rounded-xl border border-white/25 bg-white/10 backdrop-blur-sm px-4 py-2.5 text-xs font-semibold text-white hover:bg-white hover:text-rose-700 hover:border-white transition-all cursor-pointer shadow-sm"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -860,10 +879,11 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="h-[2px] bg-gradient-to-r from-[#FFC20E] via-[#00A3E0] to-[#00629B]" />
+          <div className="h-[3px] bg-gradient-to-r from-[#FFC20E] via-[#00A3E0] to-[#00629B]" />
 
-          <div className="p-3 bg-white border-t border-slate-100">
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+          {/* Navegación por pestañas */}
+          <div className="p-3 bg-white">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none rounded-2xl bg-slate-100/70 p-1.5">
               {[
                 { id: "monitoreo", label: "Monitoreo y Bloques", icon: "📊" },
                 { id: "metricas", label: "Métricas y Análisis", icon: "📈" },
@@ -882,12 +902,12 @@ export default function Dashboard() {
                       if (tab.id === "calendario") fetchDiasBloqueados();
                       if (tab.id === "historial") fetchHistorial();
                     }}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${isSelected
-                      ? "bg-[#00629B] text-white shadow-sm font-bold"
-                      : "bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200"
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${isSelected
+                      ? "bg-white text-[#00629B] font-bold shadow-[0_2px_8px_-2px_rgba(15,23,42,0.18)] ring-1 ring-slate-200/70"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-white/70"
                       }`}
                   >
-                    <span>{tab.icon}</span>
+                    <span className="text-sm">{tab.icon}</span>
                     <span>{tab.label}</span>
                   </button>
                 );
@@ -899,15 +919,15 @@ export default function Dashboard() {
         {/* Mensaje de Operación */}
         {campusMsg.texto && (
           <div
-            className={`rounded-2xl p-4 text-sm mb-6 flex items-center justify-between border shadow-sm ${campusMsg.tipo === "exito"
-              ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-              : "bg-red-50 border-red-200 text-red-700"
+            className={`rounded-2xl p-4 text-xs font-medium mb-6 flex items-center justify-between border shadow-xs ${campusMsg.tipo === "exito"
+              ? "bg-emerald-50/80 border-emerald-200 text-emerald-800"
+              : "bg-rose-50/80 border-rose-200 text-rose-700"
               }`}
           >
             <span>{campusMsg.texto}</span>
             <button
               onClick={() => setCampusMsg({ tipo: "", texto: "" })}
-              className="text-xs underline font-bold ml-4 cursor-pointer"
+              className="text-[11px] font-bold ml-4 px-2.5 py-1 rounded-lg bg-white/70 border border-current/20 hover:bg-white cursor-pointer"
             >
               Cerrar
             </button>
@@ -915,87 +935,72 @@ export default function Dashboard() {
         )}
 
         {(activeTab === "cms") && (
-          <div className="bg-white border border-slate-200 rounded-xl p-6 md:p-8 shadow-sm mb-8 space-y-6 animate-fadeIn">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-              <div>
-                <span className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-0.5 text-xs font-semibold text-[#00629B] shadow-xs mb-1">
-                  🖼️ Administrador de Contenidos (CMS)
-                </span>
-                <h2 className="text-xl font-serif font-bold text-slate-900 flex items-center gap-2">
-                  Gestión del Portal de Inicio
-                </h2>
-                <p className="text-xs text-slate-600">
+          <div className={`${CARD} p-6 md:p-8 mb-8 space-y-7 animate-fadeIn`}>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+              <div className="space-y-1.5">
+                <span className={EYEBROW}>🖼️ Administrador de contenidos</span>
+                <h2 className={SECTION_TITLE}>Gestión del Portal de Inicio</h2>
+                <p className="text-xs text-slate-500 max-w-xl leading-relaxed">
                   Edita las diapositivas del carrusel informativo y las tarjetas de la página principal.
                 </p>
               </div>
-              <button
-                onClick={fetchCMS}
-                className="px-3.5 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-semibold text-xs rounded-lg transition cursor-pointer"
-              >
-                🔄 Actualizar Vistas
+              <button onClick={fetchCMS} className={BTN_GHOST}>
+                🔄 Actualizar vistas
               </button>
             </div>
 
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                    <span>🎡</span> Diapositivas del Carrusel Principal ({cmsAnuncios.length})
+                    <span>🎡</span> Diapositivas del carrusel principal
+                    <span className="text-[11px] font-semibold text-[#00629B] bg-sky-50 border border-sky-100 px-2 py-0.5 rounded-full">{cmsAnuncios.length}</span>
                   </h3>
-                  <p className="text-[11px] text-slate-500">Banners animados que rotan en la sección superior del inicio</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Banners animados que rotan en la sección superior del inicio</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleAbrirCrearAnuncio}
-                  className="px-3.5 py-2 bg-[#00629B] hover:bg-[#005180] text-white font-semibold text-xs rounded-lg shadow-sm transition-all cursor-pointer flex items-center gap-1.5"
-                >
-                  ➕ Añadir Diapositiva
+                <button type="button" onClick={handleAbrirCrearAnuncio} className={`${BTN_PRIMARY} px-4 py-2`}>
+                  ➕ Añadir diapositiva
                 </button>
               </div>
 
               {cargandoCMS ? (
-                <div className="py-6 text-center text-xs text-slate-500">Cargando anuncios...</div>
+                <div className="py-8 text-center text-xs text-slate-500">Cargando anuncios...</div>
               ) : cmsAnuncios.length === 0 ? (
-                <div className="p-6 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center text-xs text-slate-500">
-                  No hay anuncios personalizados registrados.
+                <div className="p-8 bg-slate-50/70 border border-dashed border-slate-200 rounded-2xl text-center text-xs text-slate-500">
+                  Aún no hay anuncios publicados. Crea la primera diapositiva del carrusel.
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {cmsAnuncios.map((an) => (
                     <div
                       key={an.id}
-                      className="p-5 rounded-xl border border-slate-200 bg-[#F8FAFC] flex flex-col justify-between gap-4 shadow-xs"
-                      style={{ borderLeftColor: an.color_fondo || "#00629B", borderLeftWidth: "4px" }}
+                      className="group relative p-5 rounded-2xl border border-slate-200/80 bg-white flex flex-col justify-between gap-4 shadow-xs hover:shadow-[0_12px_32px_-20px_rgba(15,23,42,0.4)] transition-shadow overflow-hidden"
                     >
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-sky-100 text-sky-800 border border-sky-200 uppercase">
+                      <span
+                        className="absolute left-0 top-0 h-full w-1.5"
+                        style={{ backgroundColor: an.color_fondo || "#00629B" }}
+                      />
+                      <div className="space-y-2 pl-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-sky-50 text-sky-800 border border-sky-100">
                             {an.badge || "ANUNCIO"}
                           </span>
-                          <span className="text-[10px] font-bold text-slate-400">Orden: {an.orden}</span>
+                          <span className="text-[10px] font-semibold text-slate-400">Orden {an.orden}</span>
                         </div>
                         <h4 className="font-bold text-sm text-slate-900 leading-snug">{an.titulo}</h4>
-                        <p className="text-xs text-slate-600 line-clamp-2">{an.subtitulo}</p>
+                        <p className="text-xs text-slate-600 leading-relaxed line-clamp-2">{an.subtitulo}</p>
                         {an.boton_texto && (
-                          <span className="inline-block text-[11px] font-semibold text-[#00629B] bg-white px-2.5 py-1 rounded-md border border-slate-200">
-                            Boton: "{an.boton_texto}" ({an.boton_link})
+                          <span className="inline-block text-[11px] font-semibold text-[#00629B] bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200">
+                            Botón: "{an.boton_texto}" ({an.boton_link})
                           </span>
                         )}
                       </div>
 
-                      <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200/60">
-                        <button
-                          type="button"
-                          onClick={() => handleAbrirEditarAnuncio(an)}
-                          className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-semibold transition shadow-xs cursor-pointer"
-                        >
+                      <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 pl-2">
+                        <button type="button" onClick={() => handleAbrirEditarAnuncio(an)} className={BTN_GHOST}>
                           ✏️ Editar
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => handleEliminarAnuncio(an.id, an.titulo)}
-                          className="px-3 py-1.5 rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 text-xs font-semibold transition shadow-xs cursor-pointer"
-                        >
+                        <button type="button" onClick={() => handleEliminarAnuncio(an.id, an.titulo)} className={BTN_DANGER}>
                           🗑️ Eliminar
                         </button>
                       </div>
@@ -1005,40 +1010,37 @@ export default function Dashboard() {
               )}
             </div>
 
-            <div className="space-y-4 pt-4 border-t border-slate-100">
-              <div className="flex items-center justify-between">
+            <div className="space-y-4 pt-6 border-t border-slate-100">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                    <span>📋</span> Tarjetas Informativas Inferiores ({cmsTarjetas.length})
+                    <span>📋</span> Tarjetas informativas inferiores
+                    <span className="text-[11px] font-semibold text-[#00629B] bg-sky-50 border border-sky-100 px-2 py-0.5 rounded-full">{cmsTarjetas.length}</span>
                   </h3>
-                  <p className="text-[11px] text-slate-500">Bloques con accesos directos situados abajo en el inicio</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Bloques con accesos directos situados abajo en el inicio</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleAbrirCrearTarjeta}
-                  className="px-3.5 py-2 bg-[#FFC20E] hover:bg-[#e5ad08] text-slate-950 font-bold text-xs rounded-lg shadow-sm transition-all cursor-pointer flex items-center gap-1.5"
-                >
-                  ➕ Añadir Tarjeta
+                <button type="button" onClick={handleAbrirCrearTarjeta} className={`${BTN_ACCENT} px-4 py-2`}>
+                  ➕ Añadir tarjeta
                 </button>
               </div>
 
               {cargandoCMS ? (
-                <div className="py-6 text-center text-xs text-slate-500">Cargando tarjetas...</div>
+                <div className="py-8 text-center text-xs text-slate-500">Cargando tarjetas...</div>
               ) : cmsTarjetas.length === 0 ? (
-                <div className="p-6 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center text-xs text-slate-500">
-                  No hay tarjetas informativas registradas.
+                <div className="p-8 bg-slate-50/70 border border-dashed border-slate-200 rounded-2xl text-center text-xs text-slate-500">
+                  Aún no hay tarjetas informativas. Crea la primera para el inicio.
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {cmsTarjetas.map((tj) => (
                     <div
                       key={tj.id}
-                      className="p-5 rounded-xl border border-slate-200 bg-white flex flex-col justify-between gap-4 shadow-xs"
+                      className="p-5 rounded-2xl border border-slate-200/80 bg-white flex flex-col justify-between gap-4 shadow-xs hover:shadow-[0_12px_32px_-20px_rgba(15,23,42,0.4)] transition-shadow"
                     >
-                      <div className="space-y-2">
+                      <div className="space-y-2.5">
                         <div className="flex items-center justify-between">
-                          <span className="text-xl p-2 bg-sky-50 rounded-lg border border-sky-100">{tj.icono || "📚"}</span>
-                          <span className="text-[10px] font-bold text-slate-400">Orden: {tj.orden}</span>
+                          <span className="text-xl w-11 h-11 flex items-center justify-center bg-sky-50 rounded-xl border border-sky-100">{tj.icono || "📚"}</span>
+                          <span className="text-[10px] font-semibold text-slate-400">Orden {tj.orden}</span>
                         </div>
                         <h4 className="font-bold text-sm text-slate-900">{tj.titulo}</h4>
                         <p className="text-xs text-slate-600 leading-relaxed">{tj.descripcion}</p>
@@ -1047,19 +1049,11 @@ export default function Dashboard() {
                         )}
                       </div>
 
-                      <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                        <button
-                          type="button"
-                          onClick={() => handleAbrirEditarTarjeta(tj)}
-                          className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-semibold transition shadow-xs cursor-pointer"
-                        >
+                      <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                        <button type="button" onClick={() => handleAbrirEditarTarjeta(tj)} className={BTN_GHOST}>
                           ✏️ Editar
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => handleEliminarTarjeta(tj.id, tj.titulo)}
-                          className="px-3 py-1.5 rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 text-xs font-semibold transition shadow-xs cursor-pointer"
-                        >
+                        <button type="button" onClick={() => handleEliminarTarjeta(tj.id, tj.titulo)} className={BTN_DANGER}>
                           🗑️ Eliminar
                         </button>
                       </div>
@@ -1072,27 +1066,24 @@ export default function Dashboard() {
         )}
 
         {(activeTab === "sedes") && (
-          <div className="bg-white border border-slate-200 rounded-xl p-6 md:p-8 shadow-sm mb-8 space-y-6 animate-fadeIn">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-              <div>
-                <span className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-0.5 text-xs font-semibold text-[#00629B] shadow-xs mb-1">
-                  🏛️ Infraestructura
-                </span>
-                <h2 className="text-xl font-serif font-bold text-slate-900 flex items-center gap-2">
-                  Gestión de Sedes y Cubículos Universitarios
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
+          <div className={`${CARD} p-6 md:p-8 mb-8 space-y-7 animate-fadeIn`}>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+              <div className="space-y-1.5">
+                <span className={EYEBROW}>🏛️ Infraestructura</span>
+                <h2 className={SECTION_TITLE}>Gestión de Sedes y Cubículos</h2>
+                <p className="text-xs text-slate-500 max-w-2xl leading-relaxed">
                   Añade sedes, edita sus datos de capacidad o crea cubículos individuales seleccionando el campus destino.
                 </p>
               </div>
-              <span className="text-xs font-semibold text-[#00629B] bg-sky-50 px-3 py-1 rounded-full border border-sky-200">
-                Total: {campus.length} campus
+              <span className="text-[11px] font-semibold text-[#00629B] bg-sky-50 px-3.5 py-1.5 rounded-full border border-sky-100 whitespace-nowrap">
+                {campus.length} campus registrados
               </span>
             </div>
 
-            <div className="space-y-2">
-              <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                1. Registrar Nueva Sede:
+            <div className="rounded-2xl border border-slate-200/80 bg-slate-50/60 p-5 space-y-3">
+              <h3 className="text-xs font-bold text-slate-800 flex items-center gap-2">
+                <span className="w-5 h-5 rounded-lg bg-[#00629B] text-white text-[10px] font-bold flex items-center justify-center">1</span>
+                Registrar nueva sede
               </h3>
               <form onSubmit={handleCrearCampus} className="flex flex-col sm:flex-row gap-3">
                 <div className="flex-1">
@@ -1101,29 +1092,30 @@ export default function Dashboard() {
                     value={nuevoCampusNombre}
                     onChange={(e) => setNuevoCampusNombre(e.target.value)}
                     placeholder="Nombre de la nueva sede (ej: Campus San Miguel)..."
-                    className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 bg-white text-xs font-medium text-slate-900 outline-none focus:border-[#00629B] focus:ring-1 focus:ring-[#00629B] shadow-xs"
+                    className={INPUT}
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={creandoCampus || !nuevoCampusNombre.trim()}
-                  className="px-5 py-2.5 bg-[#00629B] hover:bg-[#005180] text-white font-semibold text-xs rounded-lg shadow-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className={BTN_PRIMARY}
                 >
-                  {creandoCampus ? "Guardando..." : "➕ Añadir Sede"}
+                  {creandoCampus ? "Guardando..." : "➕ Añadir sede"}
                 </button>
               </form>
             </div>
 
-            <div className="pt-4 border-t border-slate-100 space-y-2">
-              <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                2. Crear Cubículo Individual y Asignar Sede Manualmente:
+            <div className="rounded-2xl border border-slate-200/80 bg-slate-50/60 p-5 space-y-3">
+              <h3 className="text-xs font-bold text-slate-800 flex items-center gap-2">
+                <span className="w-5 h-5 rounded-lg bg-[#00629B] text-white text-[10px] font-bold flex items-center justify-center">2</span>
+                Crear cubículo y asignar sede
               </h3>
               <form onSubmit={handleCrearCubiculo} className="flex flex-col sm:flex-row gap-3">
                 <div className="w-full sm:w-1/3">
                   <select
                     value={campusDestinoCubiculo}
                     onChange={(e) => setCampusDestinoCubiculo(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 bg-[#F8FAFC] text-xs font-bold text-slate-800 outline-none focus:border-[#00629B] shadow-xs cursor-pointer"
+                    className={`${INPUT} font-semibold cursor-pointer`}
                   >
                     {campus.map((c) => (
                       <option key={c.id} value={c.id}>
@@ -1138,17 +1130,17 @@ export default function Dashboard() {
                     type="text"
                     value={nuevoCodigoCubiculo}
                     onChange={(e) => setNuevoCodigoCubiculo(e.target.value)}
-                    placeholder="Código del Cubículo (ej: CUB01-SF, CUB02-JP)..."
-                    className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 bg-white text-xs font-medium text-slate-900 outline-none focus:border-[#00629B] focus:ring-1 focus:ring-[#00629B] shadow-xs"
+                    placeholder="Código del cubículo (ej: CUB01-SF, CUB02-JP)..."
+                    className={INPUT}
                   />
                 </div>
 
                 <button
                   type="submit"
                   disabled={creandoCubiculo || !nuevoCodigoCubiculo.trim() || !campusDestinoCubiculo}
-                  className="px-5 py-2.5 bg-[#FFC20E] hover:bg-[#e5ad08] text-slate-950 font-bold text-xs rounded-lg shadow-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className={BTN_ACCENT}
                 >
-                  {creandoCubiculo ? "Añadiendo..." : "🚪 Crear Cubículo"}
+                  {creandoCubiculo ? "Añadiendo..." : "🚪 Crear cubículo"}
                 </button>
               </form>
 
@@ -1159,15 +1151,15 @@ export default function Dashboard() {
                   </p>
                 ) : cubiculosCampus.length > 0 ? (
                   <div>
-                    <p className="text-[11px] font-semibold text-slate-500 mb-2">
-                      Cubículos registrados en {campus.find((c) => String(c.id) === String(campusDestinoCubiculo))?.nombre || "la sede"} ({cubiculosCampus.length}):
+                    <p className="text-[11px] font-semibold text-slate-500 mb-2.5">
+                      Cubículos en {campus.find((c) => String(c.id) === String(campusDestinoCubiculo))?.nombre || "la sede"} ({cubiculosCampus.length}):
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {cubiculosCampus.map((cb) => (
                         editingCubiculoId === cb.id ? (
                           <div
                             key={cb.id}
-                            className="flex items-center gap-1.5 bg-white border border-[#00629B] rounded-lg px-2 py-1 shadow-xs"
+                            className="flex items-center gap-1.5 bg-white border border-[#00629B] ring-4 ring-[#00629B]/10 rounded-xl px-2 py-1.5 shadow-xs"
                           >
                             <input
                               type="text"
@@ -1177,13 +1169,13 @@ export default function Dashboard() {
                                 if (e.key === "Enter") handleGuardarEditCubiculo(cb.id);
                                 if (e.key === "Escape") setEditingCubiculoId(null);
                               }}
-                              className="w-24 px-2 py-0.5 bg-slate-50 border border-slate-300 rounded-md text-xs font-bold text-slate-800 outline-none uppercase"
+                              className="w-24 px-2 py-0.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 outline-none uppercase"
                               autoFocus
                             />
                             <button
                               type="button"
                               onClick={() => handleGuardarEditCubiculo(cb.id)}
-                              className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-xs font-bold cursor-pointer transition-colors"
+                              className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold cursor-pointer transition-colors"
                               title="Guardar código"
                             >
                               ✓
@@ -1191,7 +1183,7 @@ export default function Dashboard() {
                             <button
                               type="button"
                               onClick={() => setEditingCubiculoId(null)}
-                              className="px-2 py-0.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-md text-xs font-bold cursor-pointer transition-colors"
+                              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold cursor-pointer transition-colors"
                               title="Cancelar"
                             >
                               ✕
@@ -1200,7 +1192,7 @@ export default function Dashboard() {
                         ) : (
                           <div
                             key={cb.id}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#F8FAFC] border border-slate-200 hover:border-slate-300 rounded-lg text-xs font-semibold text-slate-800 shadow-xs transition-all"
+                            className="group flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 bg-white border border-slate-200 hover:border-[#00629B]/40 rounded-xl text-xs font-semibold text-slate-800 shadow-xs transition-all"
                           >
                             <span>🚪 {cb.codigo}</span>
                             <button
@@ -1209,7 +1201,7 @@ export default function Dashboard() {
                                 setEditingCubiculoId(cb.id);
                                 setEditCubiculoCodigoVal(cb.codigo);
                               }}
-                              className="text-slate-500 hover:text-[#00629B] hover:bg-white p-1 rounded cursor-pointer transition-colors"
+                              className="text-slate-400 hover:text-[#00629B] hover:bg-sky-50 p-1 rounded-lg cursor-pointer transition-colors"
                               title="Modificar código del cubículo"
                             >
                               ✏️
@@ -1217,7 +1209,7 @@ export default function Dashboard() {
                             <button
                               type="button"
                               onClick={() => handleEliminarCubiculoModal(cb.id, cb.codigo)}
-                              className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded cursor-pointer transition-colors"
+                              className="text-rose-400 hover:text-rose-600 hover:bg-rose-50 p-1 rounded-lg cursor-pointer transition-colors"
                               title="Eliminar cubículo"
                             >
                               🗑️
@@ -1228,34 +1220,35 @@ export default function Dashboard() {
                     </div>
                   </div>
                 ) : (
-                  <p className="text-[11px] font-medium text-slate-400 italic">
-                    No hay cubículos individuales registrados en {campus.find((c) => String(c.id) === String(campusDestinoCubiculo))?.nombre || "esta sede"}.
+                  <p className="text-[11px] font-medium text-slate-400">
+                    No hay cubículos registrados en {campus.find((c) => String(c.id) === String(campusDestinoCubiculo))?.nombre || "esta sede"}.
                   </p>
                 )}
               </div>
             </div>
 
-            <div className="pt-4 border-t border-slate-100 space-y-2">
-              <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                Sedes Activas en la Base de Datos:
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="pt-2 space-y-3">
+              <h3 className="text-xs font-bold text-slate-800">Sedes activas</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
                 {campus.map((c) => (
                   <div
                     key={c.id}
-                    className="flex items-center justify-between p-4 rounded-xl border border-slate-200 bg-[#F8FAFC] hover:bg-slate-50 transition-all shadow-xs"
+                    className="flex items-center justify-between gap-3 p-4 rounded-2xl border border-slate-200/80 bg-white hover:border-slate-300 hover:shadow-[0_12px_32px_-20px_rgba(15,23,42,0.4)] transition-all shadow-xs"
                   >
-                    <div>
-                      <p className="font-bold text-sm text-slate-800">🏛️ {c.nombre}</p>
-                      <p className="text-[11px] text-slate-500">
-                        ID: {c.id} • {c.cubiculas_fisicos ?? 10} cubículos
-                      </p>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="w-10 h-10 shrink-0 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center text-base">🏛️</span>
+                      <div className="min-w-0">
+                        <p className="font-bold text-sm text-slate-900 truncate">{c.nombre}</p>
+                        <p className="text-[11px] text-slate-500">
+                          ID {c.id} · {c.cubiculas_fisicos ?? 10} cubículos
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 shrink-0">
                       <button
                         type="button"
                         onClick={() => handleIniciarEdicion(c)}
-                        className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-semibold transition-all shadow-xs cursor-pointer"
+                        className="w-8 h-8 flex items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:border-slate-300 text-xs transition-all cursor-pointer"
                         title="Editar sede"
                       >
                         ✏️
@@ -1263,7 +1256,7 @@ export default function Dashboard() {
                       <button
                         type="button"
                         onClick={() => setCampusAEliminar(c)}
-                        className="px-2.5 py-1.5 rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 text-xs font-semibold transition-all shadow-xs cursor-pointer"
+                        className="w-8 h-8 flex items-center justify-center rounded-xl border border-rose-200 bg-white text-rose-600 hover:bg-rose-50 text-xs transition-all cursor-pointer"
                         title="Eliminar sede"
                       >
                         🗑️
@@ -1277,51 +1270,47 @@ export default function Dashboard() {
         )}
 
         {campusAEditar && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-fadeIn">
-            <div className="w-full max-w-xl bg-white rounded-xl p-6 shadow-2xl border border-slate-200 space-y-5 max-h-[90vh] flex flex-col">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className={OVERLAY}>
+            <div className={`${MODAL} max-w-xl p-6 space-y-5 max-h-[90vh] flex flex-col`}>
+              <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
                 <div>
-                  <h3 className="text-lg font-serif font-bold text-slate-900 flex items-center gap-2">
-                    ✏️ Editar Sede y Cubículos (ID: {campusAEditar.id})
+                  <h3 className="text-lg font-serif font-bold text-slate-900">
+                    Editar sede y cubículos
                   </h3>
-                  <p className="text-xs text-slate-500">Gestiona la información general y los cubículos de esta sede</p>
+                  <p className="text-xs text-slate-500 mt-0.5">{campusAEditar.nombre} · ID {campusAEditar.id}</p>
                 </div>
                 <button
                   onClick={() => setCampusAEditar(null)}
-                  className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center text-xs cursor-pointer"
+                  className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center text-xs cursor-pointer transition-colors"
                 >
                   ✕
                 </button>
               </div>
 
               <div className="flex-1 overflow-y-auto space-y-5 pr-1">
-                <form onSubmit={handleGuardarEdicionCampus} className="space-y-3 bg-[#F8FAFC] p-4 rounded-xl border border-slate-200">
-                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Datos de la Sede</h4>
+                <form onSubmit={handleGuardarEdicionCampus} className="space-y-3 bg-slate-50/70 p-5 rounded-2xl border border-slate-200/80">
+                  <h4 className="text-xs font-bold text-slate-800">Datos de la sede</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">
-                        Nombre de la Sede:
-                      </label>
+                      <label className={LABEL}>Nombre de la sede</label>
                       <input
                         type="text"
                         value={editNombre}
                         onChange={(e) => setEditNombre(e.target.value)}
-                        className="w-full px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-medium text-slate-900 outline-none focus:border-[#00629B] shadow-xs"
+                        className={INPUT}
                         required
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">
-                        Capacidad Total:
-                      </label>
+                      <label className={LABEL}>Capacidad total</label>
                       <input
                         type="number"
                         min="1"
                         max="100"
                         value={editCubiculos}
                         onChange={(e) => setEditCubiculos(e.target.value)}
-                        className="w-full px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-medium text-slate-900 outline-none focus:border-[#00629B] shadow-xs"
+                        className={INPUT}
                         required
                       />
                     </div>
@@ -1331,19 +1320,18 @@ export default function Dashboard() {
                     <button
                       type="submit"
                       disabled={guardandoEdit || !editNombre.trim()}
-                      className="px-4 py-2 bg-[#00629B] hover:bg-[#005180] text-white text-xs font-semibold rounded-lg shadow-sm transition-all cursor-pointer"
+                      className={`${BTN_PRIMARY} px-4 py-2`}
                     >
-                      {guardandoEdit ? "Guardando..." : "💾 Actualizar Datos Sede"}
+                      {guardandoEdit ? "Guardando..." : "💾 Guardar cambios"}
                     </button>
                   </div>
                 </form>
 
-                <div className="space-y-3 pt-2">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1">
-                      🚪 Cubículos Registrados ({cubiculosEditModal.length})
-                    </h4>
-                  </div>
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold text-slate-800 flex items-center gap-2">
+                    🚪 Cubículos registrados
+                    <span className="text-[11px] font-semibold text-[#00629B] bg-sky-50 border border-sky-100 px-2 py-0.5 rounded-full">{cubiculosEditModal.length}</span>
+                  </h4>
 
                   <form onSubmit={handleCrearCubiculoModal} className="flex gap-2">
                     <input
@@ -1351,12 +1339,12 @@ export default function Dashboard() {
                       placeholder="Código del nuevo cubículo (ej: CUB-05)..."
                       value={nuevoCubiculoModalCodigo}
                       onChange={(e) => setNuevoCubiculoModalCodigo(e.target.value)}
-                      className="flex-1 px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-medium text-slate-900 outline-none focus:border-[#00629B] shadow-xs"
+                      className={INPUT}
                     />
                     <button
                       type="submit"
                       disabled={!nuevoCubiculoModalCodigo.trim()}
-                      className="px-4 py-2 bg-[#FFC20E] hover:bg-[#e5ad08] text-slate-950 font-bold text-xs rounded-lg shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                      className={`${BTN_ACCENT} px-4 py-2 whitespace-nowrap`}
                     >
                       ➕ Añadir
                     </button>
@@ -1367,18 +1355,18 @@ export default function Dashboard() {
                       Cargando cubículos...
                     </div>
                   ) : cubiculosEditModal.length === 0 ? (
-                    <div className="p-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center text-xs text-slate-500">
-                      No hay cubículos individuales registrados en esta sede.
+                    <div className="p-6 bg-slate-50/70 border border-dashed border-slate-200 rounded-2xl text-center text-xs text-slate-500">
+                      Esta sede todavía no tiene cubículos. Añade el primero arriba.
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-60 overflow-y-auto pr-1">
                       {cubiculosEditModal.map((cb) => (
                         <div
                           key={cb.id}
-                          className="flex items-center justify-between p-3 rounded-lg border border-slate-200 bg-white shadow-xs"
+                          className="flex items-center justify-between gap-2 p-2.5 rounded-xl border border-slate-200 bg-white shadow-xs"
                         >
                           {editingCubiculoId === cb.id ? (
-                            <div className="flex items-center gap-1.5 flex-1 mr-2">
+                            <div className="flex items-center gap-1.5 flex-1 mr-1">
                               <input
                                 type="text"
                                 value={editCubiculoCodigoVal}
@@ -1387,26 +1375,26 @@ export default function Dashboard() {
                                   if (e.key === "Enter") handleGuardarEditCubiculo(cb.id);
                                   if (e.key === "Escape") setEditingCubiculoId(null);
                                 }}
-                                className="w-full px-2 py-1 bg-slate-50 border border-slate-300 rounded-md text-xs font-bold text-slate-800 outline-none uppercase"
+                                className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 outline-none uppercase focus:border-[#00629B]"
                                 autoFocus
                               />
                               <button
                                 type="button"
                                 onClick={() => handleGuardarEditCubiculo(cb.id)}
-                                className="px-2 py-1 bg-emerald-600 text-white rounded-md text-[11px] font-bold"
+                                className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold cursor-pointer"
                               >
                                 ✓
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setEditingCubiculoId(null)}
-                                className="px-2 py-1 bg-slate-200 text-slate-700 rounded-md text-[11px] font-bold"
+                                className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-bold cursor-pointer"
                               >
                                 ✕
                               </button>
                             </div>
                           ) : (
-                            <span className="font-semibold text-xs text-slate-800 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
+                            <span className="font-semibold text-xs text-slate-800 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200">
                               🚪 {cb.codigo}
                             </span>
                           )}
@@ -1419,7 +1407,7 @@ export default function Dashboard() {
                                   setEditingCubiculoId(cb.id);
                                   setEditCubiculoCodigoVal(cb.codigo);
                                 }}
-                                className="p-1.5 rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-semibold transition-all"
+                                className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 text-xs transition-all cursor-pointer"
                                 title="Editar código del cubículo"
                               >
                                 ✏️
@@ -1427,7 +1415,7 @@ export default function Dashboard() {
                               <button
                                 type="button"
                                 onClick={() => handleEliminarCubiculoModal(cb.id, cb.codigo)}
-                                className="p-1.5 rounded-md border border-red-200 bg-white text-red-600 hover:bg-red-50 text-xs font-semibold transition-all"
+                                className="w-7 h-7 flex items-center justify-center rounded-lg border border-rose-200 bg-white text-rose-600 hover:bg-rose-50 text-xs transition-all cursor-pointer"
                                 title="Eliminar cubículo"
                               >
                                 🗑️
@@ -1441,11 +1429,11 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-slate-100 flex justify-end">
+              <div className="pt-4 border-t border-slate-100 flex justify-end">
                 <button
                   type="button"
                   onClick={() => setCampusAEditar(null)}
-                  className="py-2 px-5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg shadow-sm transition-all cursor-pointer"
+                  className="py-2.5 px-5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl shadow-sm transition-all cursor-pointer"
                 >
                   Cerrar
                 </button>
@@ -1456,13 +1444,13 @@ export default function Dashboard() {
 
         {/* Modal Eliminar Campus */}
         {campusAEliminar && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-fadeIn">
-            <div className="w-full max-w-md bg-white rounded-xl p-6 shadow-2xl border border-slate-200 text-center space-y-4">
-              <div className="w-12 h-12 rounded-full bg-red-50 text-red-600 text-xl flex items-center justify-center mx-auto border border-red-100">
+          <div className={OVERLAY}>
+            <div className={`${MODAL} max-w-md p-7 text-center space-y-4`}>
+              <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 text-2xl flex items-center justify-center mx-auto border border-rose-100">
                 ⚠️
               </div>
               <h3 className="text-lg font-serif font-bold text-slate-900">
-                ¿Eliminar el campus '{campusAEliminar.nombre}'?
+                ¿Eliminar el campus «{campusAEliminar.nombre}»?
               </h3>
               <p className="text-xs text-slate-600 leading-relaxed">
                 Esta acción es irreversible y eliminará la sede junto con todas las reservas de cubículos asociadas.
@@ -1471,16 +1459,16 @@ export default function Dashboard() {
                 <button
                   onClick={() => setCampusAEliminar(null)}
                   disabled={eliminandoCampus}
-                  className="flex-1 py-2.5 px-4 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-all cursor-pointer"
+                  className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-all cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={handleConfirmarEliminarCampus}
                   disabled={eliminandoCampus}
-                  className="flex-1 py-2.5 px-4 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-semibold shadow-sm transition-all cursor-pointer flex items-center justify-center gap-2"
+                  className="flex-1 py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-[0_6px_16px_-8px_rgba(225,29,72,0.9)] transition-all cursor-pointer"
                 >
-                  {eliminandoCampus ? "Eliminando..." : "Confirmar Eliminación"}
+                  {eliminandoCampus ? "Eliminando..." : "Eliminar sede"}
                 </button>
               </div>
             </div>
@@ -1489,11 +1477,10 @@ export default function Dashboard() {
 
         {(activeTab === "monitoreo") && (
           <>
-            {/* Panel de Filtros */}
-            <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm mb-6 flex flex-col gap-4">
+            <div className={`${CARD} p-5 md:p-6 mb-6 flex flex-col gap-5`}>
               <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                <span className="text-xs font-bold text-slate-700 uppercase tracking-wider min-w-[110px]">
-                  Sede / Campus:
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider min-w-[96px]">
+                  Sede / Campus
                 </span>
                 <div className="flex flex-wrap gap-2">
                   {campus.map((c) => {
@@ -1502,9 +1489,9 @@ export default function Dashboard() {
                       <button
                         key={c.id}
                         onClick={() => setCampusSeleccionado(c.id)}
-                        className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-xs cursor-pointer ${esActivo
-                          ? "bg-[#00629B] text-white shadow-sm font-bold"
-                          : "bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100"
+                        className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${esActivo
+                          ? "bg-[#00629B] text-white shadow-[0_6px_16px_-8px_rgba(0,98,155,0.9)] scale-[1.02]"
+                          : "bg-white border border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50"
                           }`}
                       >
                         🏛️ {c.nombre}
@@ -1518,8 +1505,8 @@ export default function Dashboard() {
 
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wider min-w-[110px]">
-                    Fecha:
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider min-w-[96px]">
+                    Fecha
                   </span>
                   <div className="flex flex-wrap gap-2">
                     {proximosDias.map((d) => {
@@ -1528,9 +1515,9 @@ export default function Dashboard() {
                         <button
                           key={d.fechaStr}
                           onClick={() => setFechaSeleccionada(d.fechaStr)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all cursor-pointer ${esActivo
-                            ? "bg-[#FFC20E] text-slate-950 font-bold shadow-xs"
-                            : "bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100"
+                          className={`px-3.5 py-2 rounded-xl text-xs font-semibold capitalize transition-all cursor-pointer ${esActivo
+                            ? "bg-[#FFC20E] text-slate-950 font-bold shadow-[0_6px_16px_-8px_rgba(255,194,14,0.9)] scale-[1.02]"
+                            : "bg-white border border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50"
                             }`}
                         >
                           {d.label}
@@ -1541,162 +1528,289 @@ export default function Dashboard() {
                 </div>
 
                 <div className="flex items-center gap-2 self-start lg:self-auto">
-                  <span className="text-xs font-medium text-slate-500">Otra fecha:</span>
+                  <span className="text-[11px] font-medium text-slate-500">Otra fecha</span>
                   <input
                     type="date"
                     value={fechaSeleccionada}
                     onChange={(e) => e.target.value && setFechaSeleccionada(e.target.value)}
-                    className="bg-white border border-slate-300 text-slate-800 rounded-lg px-3 py-1.5 text-xs font-medium outline-none focus:border-[#00629B] focus:ring-1 focus:ring-[#00629B] shadow-xs cursor-pointer"
+                    className="bg-white border border-slate-200 text-slate-800 rounded-xl px-3 py-2 text-xs font-medium outline-none focus:border-[#00629B] focus:ring-4 focus:ring-[#00629B]/10 shadow-xs cursor-pointer transition-all"
                   />
                 </div>
               </div>
             </div>
 
-            {/* Banner Informativo */}
-            <div className="bg-sky-50/70 border-l-4 border-[#00629B] rounded-r-xl p-4 mb-6 flex items-start gap-3 shadow-xs">
-              <div className="text-lg flex-shrink-0">💡</div>
-              <p className="text-xs text-slate-700 leading-relaxed">
-                <strong className="text-slate-900 font-semibold">Capacidad física de la sede:</strong> La sede seleccionada cuenta con <strong>{cubiculosActuales} cubículos de estudio</strong>. Haz clic en cualquier bloque horario con reservas para desplegar la lista de alumnos agendados.
-              </p>
+            <div className="relative overflow-hidden bg-white/90 border border-sky-100 rounded-2xl p-4 mb-6 flex items-center justify-between gap-4 shadow-xs backdrop-blur-sm">
+              <span className="absolute left-0 top-0 h-full w-1.5 bg-gradient-to-b from-[#00A3E0] to-[#00629B]" />
+              <div className="flex items-center gap-3 pl-2">
+                <div className="w-9 h-9 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center text-lg flex-shrink-0">
+                  💡
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  <strong className="text-slate-900 font-semibold">Capacidad de la sede activa:</strong> esta sede dispone de <strong className="text-[#00629B]">{cubiculosActuales} cubículos</strong> de estudio simultáneo. Selecciona cualquier bloque con reservas para auditar los alumnos agendados.
+                </p>
+              </div>
+              <span className="hidden sm:inline-flex text-[11px] font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full whitespace-nowrap">
+                {cubiculosActuales} unidades
+              </span>
             </div>
 
-            {/* Error */}
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-xs font-semibold mb-6 shadow-xs">
+              <div className="bg-rose-50/80 border border-rose-200 text-rose-700 rounded-2xl p-4 text-xs font-semibold mb-6 shadow-xs">
                 ⚠️ {error}
               </div>
             )}
 
-            {/* Métricas */}
             {loadingData ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                {[0, 1, 2, 3].map((i) => (
-                  <div key={i} className="h-28 bg-white border border-slate-200 rounded-xl animate-pulse" />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="h-44 bg-white border border-slate-200/80 rounded-3xl animate-pulse" />
                 ))}
               </div>
             ) : resumen && (
               <>
-                <div className="mb-4">
-                  <h2 className="text-base font-serif font-bold text-slate-800">
-                    Resumen para el {new Date(fechaSeleccionada + "T12:00:00").toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
-                  </h2>
+                <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 mb-5">
+                  <div>
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#00629B]">Reporte en tiempo real</span>
+                    <h2 className="text-xl font-serif font-bold text-slate-900 capitalize">
+                      {new Date(fechaSeleccionada + "T12:00:00").toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+                    </h2>
+                  </div>
+                  <span className="text-xs text-slate-500 font-medium">
+                    Actualizado para sede {campus.find(c => c.id === campusSeleccionado)?.nombre || "seleccionada"}
+                  </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs hover:shadow-sm transition-shadow">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Cubículos Físicos</span>
-                      <span className="text-xl">🏢</span>
-                    </div>
-                    <p className="mt-2 text-3xl font-extrabold text-slate-900">{resumen.cubiculas_fisicos}</p>
-                    <p className="mt-1 text-[11px] text-slate-500">Capacidad simultánea fija</p>
-                  </div>
-
-                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs hover:shadow-sm transition-shadow">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Reservas Agendadas</span>
-                      <span className="text-xl">📋</span>
-                    </div>
-                    <p className="mt-2 text-3xl font-extrabold text-[#00629B]">{resumen.total_reservas_dia}</p>
-                    <p className="mt-1 text-[11px] text-slate-500">Reservas registradas en la fecha</p>
-                  </div>
-
-                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs hover:shadow-sm transition-shadow">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Cupos Disponibles</span>
-                      <span className="text-xl">🟢</span>
-                    </div>
-                    <p className="mt-2 text-3xl font-extrabold text-emerald-600">{resumen.cupos_disponibles_dia}</p>
-                    <p className="mt-1 text-[11px] text-slate-500">De {resumen.cupos_totales_diarios} cupos diarios posibles</p>
-                  </div>
-
-                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs hover:shadow-sm transition-shadow">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">% Uso Diario</span>
-                      <span className="text-xl">📈</span>
-                    </div>
-                    <p className={`mt-2 text-3xl font-extrabold ${porcentaje > 80 ? 'text-red-500' : porcentaje > 50 ? 'text-amber-500' : 'text-emerald-600'}`}>
-                      {porcentaje}%
-                    </p>
-                    <p className="mt-1 text-[11px] text-slate-500">Ratio global de ocupación</p>
-                  </div>
-                </div>
-
-                {/* Barra de Ocupación */}
-                <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs mb-6">
-                  <div className="flex justify-between items-center mb-3">
-                    <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">Nivel de Ocupación de Cupos Horarios</span>
-                    <span className="text-xs font-bold text-[#00629B] bg-sky-50 px-3 py-1 rounded-full border border-sky-100">
-                      {resumen.total_reservas_dia} / {resumen.cupos_totales_diarios} cupos utilizados
-                    </span>
-                  </div>
-                  <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-[#00629B] via-[#00A3E0] to-[#FFC20E] rounded-full transition-all duration-700"
-                      style={{ width: `${porcentaje}%` }}
-                    />
-                  </div>
-                </div>
-
-                {/* Desglose por Bloque Horario */}
-                {resumen.bloques && resumen.bloques.length > 0 && (
-                  <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-5">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 mb-8">
+                  <div className={`lg:col-span-6 ${CARD} p-6 flex flex-col sm:flex-row items-center justify-between gap-6 overflow-hidden`}>
+                    <div className="flex-1 space-y-4 text-center sm:text-left">
+                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-[11px] font-bold tracking-wide">
+                        <span className="w-2 h-2 rounded-full bg-[#00629B] animate-pulse" />
+                        OCUPACIÓN TOTAL DEL DÍA
+                      </div>
                       <div>
-                        <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-                          Estado por Bloque Horario ({cubiculosActuales} Cubículos Físicos)
-                        </h3>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          Haz clic sobre un bloque con reservas para ver la lista de alumnos agendados
+                        <div className="flex items-baseline gap-2 justify-center sm:justify-start">
+                          <span className="text-4xl font-extrabold text-slate-900 tracking-tight">{porcentaje}%</span>
+                          <span className="text-xs font-semibold text-slate-500">del aforo diario</span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-1">
+                          {resumen.total_reservas_dia} reservas registradas sobre {resumen.cupos_totales_diarios} cupos totales posibles
                         </p>
                       </div>
-                      <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-3 py-1 rounded-full self-start sm:self-auto">
-                        Máximo {cubiculosActuales} por bloque
+                      <div className="space-y-2 pt-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-slate-600 font-medium">Cupos agendados</span>
+                          <span className="font-bold text-[#00629B]">{resumen.total_reservas_dia}</span>
+                        </div>
+                        <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-[#00629B] via-[#00A3E0] to-[#FFC20E] rounded-full transition-all duration-700"
+                            style={{ width: `${porcentaje}%` }}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-slate-600 font-medium">Cupos libres restantes</span>
+                          <span className="font-bold text-emerald-600">{resumen.cupos_disponibles_dia}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="relative flex-shrink-0 flex items-center justify-center">
+                      <svg className="w-36 h-36 transform -rotate-90" viewBox="0 0 120 120">
+                        <circle
+                          cx="60"
+                          cy="60"
+                          r="48"
+                          className="text-slate-100"
+                          strokeWidth="10"
+                          stroke="currentColor"
+                          fill="transparent"
+                        />
+                        <circle
+                          cx="60"
+                          cy="60"
+                          r="48"
+                          className="text-[#00629B] transition-all duration-1000 ease-out"
+                          strokeWidth="10"
+                          strokeDasharray={301.6}
+                          strokeDashoffset={301.6 - (301.6 * Math.min(porcentaje, 100)) / 100}
+                          strokeLinecap="round"
+                          stroke="currentColor"
+                          fill="transparent"
+                        />
+                      </svg>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                        <span className="text-2xl font-black text-slate-900">{porcentaje}%</span>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Demanda</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="lg:col-span-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className={`${CARD} p-5 flex flex-col justify-between group hover:border-[#00629B]/30 transition-all`}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Agendadas</span>
+                        <span className="w-8 h-8 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sm">📋</span>
+                      </div>
+                      <div className="my-3">
+                        <span className="text-3xl font-extrabold text-[#00629B] tracking-tight">{resumen.total_reservas_dia}</span>
+                        <p className="text-[11px] text-slate-500 mt-1">Reservas activas para hoy</p>
+                      </div>
+                      <span className="text-[10px] font-bold text-sky-800 bg-sky-50 border border-sky-100 px-2 py-1 rounded-lg w-fit">
+                        Confirmadas
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
+                    <div className={`${CARD} p-5 flex flex-col justify-between group hover:border-emerald-300 transition-all`}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Disponibles</span>
+                        <span className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-sm">🟢</span>
+                      </div>
+                      <div className="my-3">
+                        <span className="text-3xl font-extrabold text-emerald-600 tracking-tight">{resumen.cupos_disponibles_dia}</span>
+                        <p className="text-[11px] text-slate-500 mt-1">Cupos libres de reserva</p>
+                      </div>
+                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-100 px-2 py-1 rounded-lg w-fit">
+                        Para agendar
+                      </span>
+                    </div>
+
+                    <div className={`${CARD} p-5 flex flex-col justify-between group hover:border-slate-300 transition-all`}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Capacidad</span>
+                        <span className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-sm">🏢</span>
+                      </div>
+                      <div className="my-3">
+                        <span className="text-3xl font-extrabold text-slate-900 tracking-tight">{resumen.cubiculas_fisicos}</span>
+                        <p className="text-[11px] text-slate-500 mt-1">Cubículos en la sede</p>
+                      </div>
+                      <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-100 px-2 py-1 rounded-lg w-fit">
+                        Simultáneos
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {resumen.bloques && resumen.bloques.length > 0 && (
+                  <div className={`${CARD} p-6 md:p-8 space-y-6`}>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                      <div>
+                        <div className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[#00629B] mb-1">
+                          <span>⏱️ Cronograma de ocupación</span>
+                        </div>
+                        <h3 className="text-base font-bold text-slate-900">
+                          Bloques Horarios y Matriz de Cubículos
+                        </h3>
+                        <p className="text-xs text-slate-500">
+                          Cada tarjeta representa un turno horario con su carga de ocupación en tiempo real. Haz clic en bloques con uso para ver detalle de alumnos.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3 self-start sm:self-auto">
+                        <div className="flex items-center gap-1.5 text-[11px] text-slate-600">
+                          <span className="w-2.5 h-2.5 rounded-full bg-[#00629B]" />
+                          <span>Ocupado</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[11px] text-slate-600">
+                          <span className="w-2.5 h-2.5 rounded-full bg-slate-200" />
+                          <span>Libre</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                       {resumen.bloques.map((b) => {
                         const estaLleno = b.ocupados >= cubiculosActuales;
                         const tieneUso = b.ocupados > 0;
+                        const pctUso = Math.min(Math.round((b.ocupados / (cubiculosActuales || 1)) * 100), 100);
+                        const numSlots = Math.min(cubiculosActuales, 12);
 
                         return (
                           <div
                             key={b.hora}
-                            onClick={() => handleAbrirDetalleBloque(b)}
-                            className={`rounded-xl p-3.5 border transition-all shadow-xs flex flex-col justify-between gap-3 ${tieneUso ? "cursor-pointer hover:border-[#00629B] hover:shadow-sm" : "opacity-80"
+                            onClick={() => tieneUso && handleAbrirDetalleBloque(b)}
+                            className={`group relative rounded-3xl p-5 border transition-all flex flex-col justify-between gap-4 overflow-hidden ${tieneUso
+                              ? "cursor-pointer bg-white hover:border-[#00629B]/50 hover:shadow-[0_16px_36px_-16px_rgba(15,23,42,0.18)] hover:-translate-y-1"
+                              : "bg-slate-50/50 border-slate-200/80"
                               } ${estaLleno
-                                ? "bg-red-50/70 border-red-200"
+                                ? "border-rose-200/90 bg-rose-50/20"
                                 : tieneUso
-                                  ? "bg-sky-50/40 border-sky-200"
-                                  : "bg-white border-slate-200"
+                                  ? "border-sky-200/80"
+                                  : ""
                               }`}
                           >
-                            <div className="flex items-center justify-between">
-                              <span className="font-bold text-xs text-slate-900">{b.rango}</span>
-                              {estaLleno ? (
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700">Agotado</span>
+                            <span
+                              className="absolute left-0 top-0 h-1.5 w-full"
+                              style={{
+                                backgroundColor: estaLleno
+                                  ? "#E11D48"
+                                  : tieneUso
+                                    ? "#00629B"
+                                    : "#E2E8F0"
+                              }}
+                            />
+
+                            <div className="space-y-3 pt-1">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-black text-slate-900 tracking-tight">{b.rango}</span>
+                                </div>
+                                {estaLleno ? (
+                                  <span className="inline-flex items-center gap-1.5 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-600" />
+                                    Agotado
+                                  </span>
+                                ) : tieneUso ? (
+                                  <span className="inline-flex items-center gap-1.5 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-sky-100 text-[#00629B] border border-sky-200">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-[#00629B] animate-pulse" />
+                                    {pctUso}%
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1.5 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+                                    Disponible
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="bg-slate-100/70 p-2.5 rounded-2xl border border-slate-200/60">
+                                <div className="flex items-center justify-between text-[11px] mb-2">
+                                  <span className="text-slate-500 font-semibold">Carga de cubículos</span>
+                                  <span className="font-extrabold text-slate-800">
+                                    {b.ocupados} / {cubiculosActuales}
+                                  </span>
+                                </div>
+                                <div className="grid grid-cols-6 gap-1.5">
+                                  {Array.from({ length: numSlots }).map((_, idx) => {
+                                    const ocupadoSlot = idx < b.ocupados;
+                                    return (
+                                      <div
+                                        key={idx}
+                                        className={`h-2 rounded-full transition-all ${ocupadoSlot
+                                          ? estaLleno
+                                            ? "bg-rose-500"
+                                            : "bg-[#00629B]"
+                                          : "bg-white border border-slate-300"
+                                          }`}
+                                        title={`Cubículo ${idx + 1}: ${ocupadoSlot ? "Ocupado" : "Libre"}`}
+                                      />
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                              <span className="text-slate-500 text-[11px]">
+                                <strong className="text-emerald-600 font-bold">{b.disponibles}</strong> libres
+                              </span>
+                              {tieneUso ? (
+                                <span className="inline-flex items-center gap-1 font-bold text-[11px] text-[#00629B] group-hover:translate-x-0.5 transition-transform">
+                                  <span>Auditar reservas</span>
+                                  <span>→</span>
+                                </span>
                               ) : (
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">Disponible</span>
+                                <span className="text-[11px] text-slate-400 font-medium">Sin reservas</span>
                               )}
                             </div>
-
-                            <div className="space-y-1 text-xs">
-                              <div className="flex justify-between text-slate-600">
-                                <span>Reservados:</span>
-                                <strong className="text-slate-900 font-bold">{b.ocupados} / {cubiculosActuales}</strong>
-                              </div>
-                              <div className="flex justify-between text-slate-600">
-                                <span>Libres:</span>
-                                <strong className="text-emerald-700 font-bold">{b.disponibles}</strong>
-                              </div>
-                            </div>
-
-                            {tieneUso && (
-                              <div className="mt-1 pt-2 border-t border-slate-200/60 text-[11px] text-[#00629B] font-semibold text-center flex items-center justify-center gap-1">
-                                <span>👁️ Ver Reservas</span>
-                              </div>
-                            )}
                           </div>
                         );
                       })}
@@ -1709,141 +1823,147 @@ export default function Dashboard() {
         )}
 
         {(activeTab === "metricas") && (
-          <div className="bg-white border border-slate-200 rounded-xl p-6 md:p-8 shadow-sm mb-8 space-y-6 animate-fadeIn">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-              <div>
-                <span className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-0.5 text-xs font-semibold text-[#00629B] shadow-xs mb-1">
-                  📈 Análisis Estratégico de Biblioteca
-                </span>
-                <h2 className="text-xl md:text-2xl font-serif font-bold text-slate-900 tracking-tight flex items-center gap-2">
-                  <span>📊</span> Métricas de Uso y Horarios Pico
-                </h2>
-                <p className="text-xs text-slate-600 mt-0.5">
-                  Gráficos de ocupación histórica por sede, días de mayor demanda y tasa de cancelación.
+          <div className={`${CARD} p-6 md:p-8 mb-8 space-y-7 animate-fadeIn`}>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+              <div className="space-y-1.5">
+                <span className={EYEBROW}>📈 Análisis estratégico y métricas</span>
+                <h2 className={SECTION_TITLE}>Inteligencia de Ocupación y Comportamiento</h2>
+                <p className="text-xs text-slate-500 max-w-2xl leading-relaxed">
+                  Monitoreo de frecuencias históricas por sede, horarios de máxima afluencia y retención de reservas.
                 </p>
               </div>
               <button
                 onClick={() => setMostrarGraficoMetricas(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-[#00629B] hover:bg-[#005180] text-white text-xs font-semibold rounded-lg shadow-sm transition-all cursor-pointer self-start md:self-auto"
+                className={`${BTN_PRIMARY} self-start md:self-auto shadow-[0_6px_20px_-6px_rgba(0,98,155,0.8)]`}
               >
-                <span>📊</span> Ver Gráfico Interactivo
+                📊 Abrir gráfico interactivo
               </button>
             </div>
 
-            {/* Banner de Utilidad Administrativa */}
-            <div className="bg-sky-50/60 border-l-4 border-[#00629B] rounded-r-xl p-4 flex items-start gap-3 shadow-xs">
-              <div className="text-xl">💡</div>
-              <div>
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900 mb-0.5">
-                  Utilidad para la Administración
-                </h4>
-                <p className="text-xs text-slate-700 leading-relaxed font-medium">
-                  Ayuda a la administración de la biblioteca a optimizar la apertura de bloques o reacondicionar espacios según la demanda estudiantil.
-                </p>
-              </div>
-            </div>
-
-            {/* Grid de Tarjetas de Métricas */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-
-              {/* Tarjeta 1: Horarios Pico de Mayor Demanda */}
-              <div className="bg-[#F8FAFC] border border-slate-200 rounded-xl p-5 space-y-3">
+              <div className="bg-gradient-to-br from-white to-slate-50/90 border border-slate-200/80 rounded-3xl p-6 space-y-4 shadow-xs">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                    <span>🔥</span> Horarios Pico
-                  </h3>
-                  <span className="text-[10px] bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded-full">Top Bloques</span>
+                  <div className="flex items-center gap-2">
+                    <span className="w-8 h-8 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center text-sm">🔥</span>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Horarios Pico</h3>
+                  </div>
+                  <span className="text-[10px] bg-rose-50 text-rose-700 border border-rose-100 font-bold px-2 py-0.5 rounded-full">Top Demanda</span>
                 </div>
-                <p className="text-[11px] text-slate-500">Bloques con mayor concentración de reservas históricas:</p>
+                <p className="text-[11px] text-slate-500">Bloques con mayor volumen acumulado de reservas</p>
 
                 {metricas?.horarios_pico && metricas.horarios_pico.length > 0 ? (
-                  <div className="space-y-2 pt-1">
-                    {metricas.horarios_pico.map((p, idx) => {
+                  <div className="space-y-3 pt-2">
+                    {metricas.horarios_pico.slice(0, 5).map((p, idx) => {
                       const maxVal = metricas.horarios_pico[0]?.total || 1;
                       const pct = Math.round((p.total / maxVal) * 100);
+                      const medalColors = [
+                        "bg-[#FFC20E] text-slate-950",
+                        "bg-slate-300 text-slate-900",
+                        "bg-amber-700 text-white"
+                      ];
+
                       return (
-                        <div key={idx} className="space-y-1">
-                          <div className="flex justify-between text-xs font-bold text-slate-800">
-                            <span>⏰ {p.hora} hrs</span>
-                            <span className="text-[#00629B] font-extrabold">{p.total} reserva(s)</span>
+                        <div key={idx} className="space-y-1.5 p-2.5 rounded-2xl bg-white border border-slate-100 shadow-xs">
+                          <div className="flex justify-between items-center text-xs">
+                            <div className="flex items-center gap-2">
+                              <span className={`w-5 h-5 rounded-full text-[10px] font-black flex items-center justify-center ${idx < 3 ? medalColors[idx] : "bg-slate-100 text-slate-600"}`}>
+                                {idx + 1}
+                              </span>
+                              <span className="font-bold text-slate-800">{p.hora} hrs</span>
+                            </div>
+                            <span className="text-[11px] font-black text-[#00629B] bg-sky-50 px-2 py-0.5 rounded-lg border border-sky-100">
+                              {p.total} reservas
+                            </span>
                           </div>
-                          <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
-                            <div className="h-full bg-gradient-to-r from-[#00629B] via-[#00A3E0] to-[#FFC20E] rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
+                          <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-gradient-to-r from-[#00629B] via-[#00A3E0] to-[#FFC20E] rounded-full transition-all duration-500"
+                              style={{ width: `${pct}%` }}
+                            />
                           </div>
                         </div>
                       );
                     })}
                   </div>
                 ) : (
-                  <div className="space-y-2 pt-1 text-xs text-slate-600 font-medium">
-                    <div className="flex justify-between"><span>⏰ 10:00 - 12:00 hrs</span><strong className="text-slate-900">Alto Tráfico</strong></div>
-                    <div className="flex justify-between"><span>⏰ 14:00 - 16:00 hrs</span><strong className="text-slate-900">Demanda Media-Alta</strong></div>
+                  <div className="space-y-2 pt-1 text-xs text-slate-600">
+                    <div className="flex justify-between p-2.5 bg-white rounded-xl border border-slate-100"><span>10:00 - 12:00 hrs</span><strong className="text-slate-900">Alto flujo</strong></div>
+                    <div className="flex justify-between p-2.5 bg-white rounded-xl border border-slate-100"><span>14:00 - 16:00 hrs</span><strong className="text-slate-900">Demanda media</strong></div>
                   </div>
                 )}
               </div>
 
-              {/* Tarjeta 2: Días de Mayor Demanda Semanal */}
-              <div className="bg-[#F8FAFC] border border-slate-200 rounded-xl p-5 space-y-3">
+              <div className="bg-gradient-to-br from-white to-slate-50/90 border border-slate-200/80 rounded-3xl p-6 space-y-4 shadow-xs">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                    <span>📅</span> Días de Mayor Demanda
-                  </h3>
-                  <span className="text-[10px] bg-sky-100 text-[#00629B] font-bold px-2 py-0.5 rounded-full">Exámenes</span>
+                  <div className="flex items-center gap-2">
+                    <span className="w-8 h-8 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sm">📅</span>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Días Más Concurridos</h3>
+                  </div>
+                  <span className="text-[10px] bg-sky-50 text-[#00629B] border border-sky-100 font-bold px-2 py-0.5 rounded-full">Semanal</span>
                 </div>
-                <p className="text-[11px] text-slate-500">Distribución de reservas según el día de la semana:</p>
+                <p className="text-[11px] text-slate-500">Distribución de estudiantes según día de la semana</p>
 
                 {metricas?.dias_demanda && metricas.dias_demanda.length > 0 ? (
-                  <div className="space-y-2 pt-1">
+                  <div className="space-y-2.5 pt-2">
                     {metricas.dias_demanda.map((d, idx) => (
-                      <div key={idx} className="flex justify-between items-center text-xs p-2 bg-white rounded-lg border border-slate-200">
-                        <span className="font-semibold text-slate-800 capitalize">🗓️ {traducirDia(d.dia)}</span>
-                        <span className="font-extrabold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">{d.total} reservas</span>
+                      <div key={idx} className="flex justify-between items-center text-xs p-3 bg-white rounded-2xl border border-slate-100 shadow-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-[#00A3E0]" />
+                          <span className="font-bold text-slate-800 capitalize">{traducirDia(d.dia)}</span>
+                        </div>
+                        <span className="font-extrabold text-[#00629B] bg-sky-50 px-2.5 py-1 rounded-lg border border-sky-100">
+                          {d.total} reservas
+                        </span>
                       </div>
                     ))}
                   </div>
                 ) : (
                   <div className="space-y-2 text-xs text-slate-600">
-                    <div className="p-2 bg-white rounded-lg border border-slate-200 flex justify-between"><span>🗓️ Martes / Miércoles</span><strong className="text-amber-600">Días Pico</strong></div>
-                    <div className="p-2 bg-white rounded-lg border border-slate-200 flex justify-between"><span>📚 Semanas de Exámenes</span><strong className="text-rose-600">+180% Ocupación</strong></div>
+                    <div className="p-3 bg-white rounded-2xl border border-slate-100 flex justify-between"><span>Martes y Miércoles</span><strong className="text-amber-600">Días pico</strong></div>
+                    <div className="p-3 bg-white rounded-2xl border border-slate-100 flex justify-between"><span>Semana exámenes</span><strong className="text-rose-600">+180% uso</strong></div>
                   </div>
                 )}
               </div>
 
-              {/* Tarjeta 3: Cancelaciones y Eliminaciones */}
-              <div className="bg-[#F8FAFC] border border-slate-200 rounded-xl p-5 space-y-3">
+              <div className="bg-gradient-to-br from-white to-slate-50/90 border border-slate-200/80 rounded-3xl p-6 space-y-4 shadow-xs">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                    <span>📉</span> Cancelaciones
-                  </h3>
-                  <span className="text-[10px] bg-red-100 text-red-800 font-bold px-2 py-0.5 rounded-full">Histórico</span>
+                  <div className="flex items-center gap-2">
+                    <span className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-sm">📉</span>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Cancelaciones</h3>
+                  </div>
+                  <span className="text-[10px] bg-rose-50 text-rose-800 border border-rose-100 font-bold px-2 py-0.5 rounded-full">Histórico</span>
                 </div>
-                <p className="text-[11px] text-slate-500">Estimación basada en el historial de reservas:</p>
+                <p className="text-[11px] text-slate-500">Métricas de asistencias y cancelaciones de reservas</p>
 
-                <div className="space-y-2.5 pt-1">
-                  <div className="p-2.5 bg-white rounded-lg border border-slate-200 flex items-center justify-between">
+                <div className="space-y-3 pt-2">
+                  <div className="p-3.5 bg-white rounded-2xl border border-slate-100 shadow-xs flex items-center justify-between">
                     <div>
-                      <p className="text-[11px] text-slate-500 font-semibold">Eliminaciones por Día (Promed.):</p>
-                      <p className="text-base font-extrabold text-rose-600">{metricas?.promedio_cancelaciones_diarias || "0.0 elim/día"}</p>
+                      <p className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">Promedio de bajas</p>
+                      <p className="text-lg font-black text-rose-600 mt-0.5">{metricas?.promedio_cancelaciones_diarias || "0.0 elim/día"}</p>
                     </div>
-                    <span className="text-[11px] font-semibold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">Promedio</span>
+                    <span className="text-[10px] font-bold text-rose-700 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-100">
+                      Cancelaciones
+                    </span>
                   </div>
 
-                  <div className="p-2.5 bg-white rounded-lg border border-slate-200 flex items-center justify-between">
+                  <div className="p-3.5 bg-white rounded-2xl border border-slate-100 shadow-xs flex items-center justify-between">
                     <div>
-                      <p className="text-[11px] text-slate-500 font-semibold">Tasa de Cancelación Global:</p>
-                      <p className="text-sm font-bold text-slate-900">{metricas?.tasa_cancelacion_estimada || "0.0%"}</p>
+                      <p className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">Tasa de cancelación</p>
+                      <p className="text-lg font-black text-slate-900 mt-0.5">{metricas?.tasa_cancelacion_estimada || "0.0%"}</p>
                     </div>
-                    <span className="text-[11px] font-semibold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">Ratio</span>
+                    <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-100">
+                      Índice
+                    </span>
                   </div>
 
                   {metricas?.cancelaciones_por_dia && metricas.cancelaciones_por_dia.length > 0 && (
-                    <div className="pt-2 border-t border-slate-200">
-                      <p className="text-[11px] font-bold text-slate-700 mb-1.5">Eliminaciones por día de semana:</p>
-                      <div className="space-y-1">
+                    <div className="pt-2 border-t border-slate-100">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">Bajas por día de semana</p>
+                      <div className="space-y-1.5">
                         {metricas.cancelaciones_por_dia.map((c, idx) => (
-                          <div key={idx} className="flex justify-between text-xs text-slate-600">
-                            <span className="capitalize">🗓️ {traducirDia(c.dia)}</span>
-                            <span className="font-bold text-rose-600">{c.total} elim.</span>
+                          <div key={idx} className="flex justify-between text-xs text-slate-600 px-2 py-1 bg-slate-50 rounded-lg">
+                            <span className="capitalize">{traducirDia(c.dia)}</span>
+                            <span className="font-bold text-rose-600">{c.total} bajas</span>
                           </div>
                         ))}
                       </div>
@@ -1851,22 +1971,17 @@ export default function Dashboard() {
                   )}
                 </div>
               </div>
-
             </div>
           </div>
         )}
 
         {(activeTab === "historial") && (
-          <div className="bg-white border border-slate-200 rounded-xl p-6 md:p-8 shadow-sm mb-8 space-y-6 animate-fadeIn">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-              <div>
-                <span className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-0.5 text-xs font-semibold text-[#00629B] shadow-xs mb-1">
-                  🏛️ Registro Histórico
-                </span>
-                <h2 className="text-xl md:text-2xl font-serif font-bold text-slate-900 tracking-tight flex items-center gap-2">
-                  <span>📜</span> Historial de Reservas y Cancelaciones
-                </h2>
-                <p className="text-xs text-slate-600 mt-0.5">
+          <div className={`${CARD} p-6 md:p-8 mb-8 space-y-6 animate-fadeIn`}>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+              <div className="space-y-1.5">
+                <span className={EYEBROW}>🏛️ Registro histórico</span>
+                <h2 className={SECTION_TITLE}>Historial de Reservas y Cancelaciones</h2>
+                <p className="text-xs text-slate-500 max-w-2xl leading-relaxed">
                   Consulta el registro permanente de reservas pasadas, archivadas o canceladas por los estudiantes.
                 </p>
               </div>
@@ -1875,7 +1990,7 @@ export default function Dashboard() {
                   type="button"
                   onClick={handleDescargarExcelHistorial}
                   disabled={exportandoExcel || cargandoHistorial}
-                  className="inline-flex items-center gap-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg shadow-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl shadow-[0_6px_16px_-8px_rgba(5,150,105,0.9)] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   title="Exportar archivo Excel (.xlsx)"
                 >
                   <span>📊</span>
@@ -1886,11 +2001,11 @@ export default function Dashboard() {
                   type="button"
                   onClick={handleLimpiarHistorial}
                   disabled={limpiandoHistorial || cargandoHistorial || historial.length === 0}
-                  className="inline-flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-red-50 border border-red-200 text-red-600 text-xs font-semibold rounded-lg shadow-xs transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  className={BTN_DANGER}
                   title="Purgar y vaciar historial antiguo"
                 >
                   <span>🗑️</span>
-                  <span>{limpiandoHistorial ? "Limpiando..." : "Limpiar Historial"}</span>
+                  <span>{limpiandoHistorial ? "Limpiando..." : "Limpiar historial"}</span>
                 </button>
 
                 <button
@@ -1898,7 +2013,7 @@ export default function Dashboard() {
                     setMostrarHistorial(!mostrarHistorial);
                     if (!mostrarHistorial) fetchHistorial();
                   }}
-                  className="inline-flex items-center gap-2 px-3.5 py-2 bg-[#00629B] hover:bg-[#005180] text-white text-xs font-semibold rounded-lg shadow-sm transition-all cursor-pointer"
+                  className={`${BTN_PRIMARY} px-4 py-2.5`}
                 >
                   <span>{mostrarHistorial ? "🙈 Ocultar" : "👁️ Mostrar"}</span>
                 </button>
@@ -1914,72 +2029,69 @@ export default function Dashboard() {
                         type="text"
                         value={busquedaHistorial}
                         onChange={(e) => setBusquedaHistorial(e.target.value)}
-                        placeholder="🔍 Buscar por Alumno o RUT..."
-                        className="w-full text-xs bg-white border border-slate-300 rounded-lg px-3.5 py-2 font-medium text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#00629B] focus:border-[#00629B] shadow-xs"
+                        placeholder="🔍 Buscar por alumno o RUT..."
+                        className={INPUT}
                       />
                     </div>
                     <select
                       value={campusFiltroHistorial}
                       onChange={(e) => setCampusFiltroHistorial(e.target.value)}
-                      className="w-full sm:w-auto text-xs bg-white border border-slate-300 rounded-lg px-3.5 py-2 font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#00629B] shadow-xs"
+                      className={`${INPUT} sm:w-auto font-semibold cursor-pointer`}
                     >
-                      <option value="todos">🌐 Todas las Sedes</option>
+                      <option value="todos">🌐 Todas las sedes</option>
                       {campus.map((c) => (
                         <option key={c.id} value={c.id}>📍 {c.nombre}</option>
                       ))}
                     </select>
                   </div>
-                  <button
-                    onClick={fetchHistorial}
-                    className="px-3.5 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 font-semibold text-xs rounded-lg border border-slate-200 transition-all cursor-pointer"
-                  >
-                    🔄 Actualizar Registros
+                  <button onClick={fetchHistorial} className={BTN_GHOST}>
+                    🔄 Actualizar registros
                   </button>
                 </div>
 
                 {cargandoHistorial ? (
-                  <div className="py-12 text-center text-slate-500 space-y-2">
+                  <div className="py-14 text-center text-slate-500 space-y-3">
                     <div className="w-6 h-6 border-2 border-[#00629B] border-t-transparent rounded-full animate-spin mx-auto" />
                     <p className="text-xs font-medium">Cargando registros históricos...</p>
                   </div>
                 ) : historial.length === 0 ? (
-                  <div className="py-10 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200 text-xs text-slate-500">
+                  <div className="py-12 text-center bg-slate-50/70 rounded-2xl border border-dashed border-slate-200 text-xs text-slate-500">
                     No hay reservas registradas en el historial para esta búsqueda.
                   </div>
                 ) : (
-                  <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-xs">
+                  <div className="overflow-x-auto rounded-2xl border border-slate-200/80 shadow-xs">
                     <table className="w-full text-left border-collapse text-xs">
                       <thead>
-                        <tr className="bg-[#F8FAFC] text-slate-700 font-semibold border-b border-slate-200 text-[11px] uppercase tracking-wider">
-                          <th className="p-3">ID Original</th>
-                          <th className="p-3">Alumno Titular</th>
-                          <th className="p-3">RUT</th>
-                          <th className="p-3">Sede</th>
-                          <th className="p-3">Fecha Reserva</th>
-                          <th className="p-3">Hora Bloque</th>
-                          <th className="p-3">Estado</th>
+                        <tr className="bg-slate-50/80 text-slate-600 font-semibold border-b border-slate-200 text-[11px]">
+                          <th className="p-3.5">ID original</th>
+                          <th className="p-3.5">Alumno titular</th>
+                          <th className="p-3.5">RUT</th>
+                          <th className="p-3.5">Sede</th>
+                          <th className="p-3.5">Fecha reserva</th>
+                          <th className="p-3.5">Hora bloque</th>
+                          <th className="p-3.5">Estado</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 bg-white">
                         {historial.map((h) => (
-                          <tr key={h.id} className="hover:bg-slate-50 transition-colors">
-                            <td className="p-3 font-semibold text-slate-400">#{h.reserva_id || h.id}</td>
-                            <td className="p-3 font-bold text-slate-900">{h.nombre}</td>
-                            <td className="p-3 font-medium text-slate-700">{h.rut}</td>
-                            <td className="p-3 text-slate-600 font-medium">{h.campus_nombre || "Sede Principal"}</td>
-                            <td className="p-3 text-slate-800 font-semibold">{h.fecha}</td>
-                            <td className="p-3 font-bold text-[#00629B]">{h.hora} hrs</td>
-                            <td className="p-3">
+                          <tr key={h.id} className="hover:bg-slate-50/70 transition-colors">
+                            <td className="p-3.5 font-semibold text-slate-400">#{h.reserva_id || h.id}</td>
+                            <td className="p-3.5 font-bold text-slate-900">{h.nombre}</td>
+                            <td className="p-3.5 font-medium text-slate-700">{h.rut}</td>
+                            <td className="p-3.5 text-slate-600 font-medium">{h.campus_nombre || "Sede Principal"}</td>
+                            <td className="p-3.5 text-slate-800 font-semibold">{h.fecha}</td>
+                            <td className="p-3.5 font-bold text-[#00629B]">{h.hora} hrs</td>
+                            <td className="p-3.5">
                               <span
-                                className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${h.estado === "cancelada"
-                                  ? "bg-red-100 text-red-700 border border-red-200"
+                                className={`px-2.5 py-1 rounded-full text-[10px] font-bold capitalize ${h.estado === "cancelada"
+                                  ? "bg-rose-50 text-rose-700 border border-rose-200"
                                   : h.estado === "inasistencia"
                                     ? "bg-rose-100 text-rose-800 border border-rose-300"
                                     : h.estado === "activa"
-                                      ? "bg-sky-100 text-sky-800 border border-sky-200"
+                                      ? "bg-sky-50 text-sky-800 border border-sky-200"
                                       : h.estado === "expirada" || h.estado === "inactiva"
-                                        ? "bg-amber-100 text-amber-800 border border-amber-200"
-                                        : "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                                        ? "bg-amber-50 text-amber-800 border border-amber-200"
+                                        : "bg-emerald-50 text-emerald-800 border border-emerald-200"
                                   }`}
                               >
                                 {h.estado === "inasistencia" ? "⚠️ Inasistencia" : h.estado}
@@ -1998,20 +2110,20 @@ export default function Dashboard() {
 
         {/* MODAL DETALLE DE RESERVAS */}
         {bloqueSeleccionado && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-fadeIn">
-            <div className="w-full max-w-2xl bg-white rounded-xl p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[85vh] flex flex-col">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className={OVERLAY}>
+            <div className={`${MODAL} max-w-2xl p-6 space-y-4 max-h-[85vh] flex flex-col`}>
+              <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
                 <div>
                   <h3 className="text-lg font-serif font-bold text-slate-900">
-                    📋 Reservas en el Bloque {bloqueSeleccionado.rango}
+                    Reservas del bloque {bloqueSeleccionado.rango}
                   </h3>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Fecha: {fechaSeleccionada} • Total reservas: {reservasBloque.length} cubículo(s)
+                    {fechaSeleccionada} · {reservasBloque.length} cubículo(s) agendado(s)
                   </p>
                 </div>
                 <button
                   onClick={() => setBloqueSeleccionado(null)}
-                  className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center cursor-pointer transition-all text-xs"
+                  className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center cursor-pointer transition-colors text-xs"
                 >
                   ✕
                 </button>
@@ -2019,34 +2131,34 @@ export default function Dashboard() {
 
               <div className="flex-1 overflow-y-auto space-y-3 pr-1">
                 {cargandoBloque ? (
-                  <div className="py-12 text-center text-slate-500 space-y-3">
+                  <div className="py-14 text-center text-slate-500 space-y-3">
                     <div className="w-6 h-6 border-2 border-[#00629B] border-t-transparent rounded-full animate-spin mx-auto" />
                     <p className="text-xs font-medium">Cargando detalles de los alumnos...</p>
                   </div>
                 ) : reservasBloque.length === 0 ? (
-                  <p className="py-8 text-center text-xs text-slate-500">
+                  <p className="py-10 text-center text-xs text-slate-500">
                     No hay reservas activas para este bloque.
                   </p>
                 ) : (
                   reservasBloque.map((res, idx) => (
                     <div
                       key={res.id || idx}
-                      className="p-4 rounded-xl border border-slate-200 bg-[#F8FAFC] hover:bg-slate-50 transition-all space-y-2.5 shadow-xs"
+                      className="p-4 rounded-2xl border border-slate-200/80 bg-white hover:border-slate-300 transition-all space-y-3 shadow-xs"
                     >
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-[#00629B] bg-sky-50 px-2.5 py-0.5 rounded-md border border-sky-100">
-                          📍 Cubículo: {res.cubiculo_codigo || `CUB-${idx + 1}`}
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-xs font-semibold text-[#00629B] bg-sky-50 px-2.5 py-1 rounded-lg border border-sky-100">
+                          📍 Cubículo {res.cubiculo_codigo || `CUB-${idx + 1}`}
                         </span>
 
                         <div className="flex items-center gap-2">
-                          <span className="text-[11px] text-slate-400">ID: {res.id}</span>
+                          <span className="text-[11px] text-slate-400">ID {res.id}</span>
 
                           {haPasadoTolerancia10Min(res.fecha || fechaSeleccionada, res.hora || bloqueSeleccionado?.hora) ? (
                             <button
                               type="button"
                               onClick={() => handleMarcarInasistencia(res.id, res.rut, res.nombre)}
                               disabled={eliminandoReservaId === res.id}
-                              className="px-3 py-1 rounded-lg bg-[#FFC20E] hover:bg-[#e5ad08] text-slate-950 font-bold text-xs transition-all flex items-center gap-1 shadow-xs cursor-pointer disabled:opacity-50"
+                              className="px-3 py-1.5 rounded-xl bg-[#FFC20E] hover:bg-[#EDB100] text-slate-950 font-bold text-[11px] transition-all flex items-center gap-1 shadow-xs cursor-pointer disabled:opacity-50"
                               title="Pasaron 10 minutos. Eliminar y registrar como inasistencia."
                             >
                               {eliminandoReservaId === res.id ? (
@@ -2061,7 +2173,7 @@ export default function Dashboard() {
                             <button
                               type="button"
                               disabled
-                              className="px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-400 font-medium text-[11px] flex items-center gap-1 cursor-not-allowed opacity-80"
+                              className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-400 font-medium text-[11px] flex items-center gap-1 cursor-not-allowed"
                               title="Se activará tras 10 minutos del inicio del bloque"
                             >
                               <span>⏱️</span> Espera 10m
@@ -2072,7 +2184,7 @@ export default function Dashboard() {
                             type="button"
                             onClick={() => handleEliminarReserva(res.id)}
                             disabled={eliminandoReservaId === res.id}
-                            className="px-3 py-1 rounded-lg bg-white hover:bg-red-50 border border-red-200 text-red-600 font-semibold text-xs transition-all flex items-center gap-1 shadow-xs cursor-pointer disabled:opacity-50"
+                            className="px-3 py-1.5 rounded-xl bg-white hover:bg-rose-50 border border-rose-200 text-rose-600 font-semibold text-[11px] transition-all flex items-center gap-1 shadow-xs cursor-pointer disabled:opacity-50"
                             title="Eliminar esta reserva"
                           >
                             {eliminandoReservaId === res.id ? (
@@ -2086,27 +2198,27 @@ export default function Dashboard() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-slate-50/70 rounded-xl p-3 border border-slate-100">
                         <div>
-                          <p className="text-slate-500 font-medium">Alumno Titular:</p>
+                          <p className="text-[11px] text-slate-500 font-medium">Alumno titular</p>
                           <p className="font-bold text-slate-900">{res.nombre}</p>
                         </div>
                         <div>
-                          <p className="text-slate-500 font-medium">RUT:</p>
+                          <p className="text-[11px] text-slate-500 font-medium">RUT</p>
                           <p className="font-semibold text-slate-800">{res.rut}</p>
                         </div>
                       </div>
 
                       {/* Acompañantes */}
                       {res.acompanantes && res.acompanantes.length > 0 && (
-                        <div className="mt-2 pt-2 border-t border-slate-200 text-xs">
-                          <p className="text-[11px] font-bold text-slate-600 mb-1">
-                            👥 Acompañantes Registrados ({res.acompanantes.length}):
+                        <div className="pt-1 text-xs">
+                          <p className="text-[11px] font-semibold text-slate-600 mb-1.5">
+                            👥 Acompañantes registrados ({res.acompanantes.length})
                           </p>
-                          <ul className="space-y-1 pl-2 border-l-2 border-[#FFC20E]">
+                          <ul className="space-y-1 pl-3 border-l-2 border-[#FFC20E]">
                             {res.acompanantes.map((ac, i) => (
                               <li key={i} className="text-slate-700 text-[11px]">
-                                • <strong className="font-semibold">{ac.nombre}</strong> {ac.rut ? `(${ac.rut})` : ""}
+                                <strong className="font-semibold">{ac.nombre}</strong> {ac.rut ? `(${ac.rut})` : ""}
                               </li>
                             ))}
                           </ul>
@@ -2117,10 +2229,10 @@ export default function Dashboard() {
                 )}
               </div>
 
-              <div className="pt-2 border-t border-slate-100 flex justify-end">
+              <div className="pt-3 border-t border-slate-100 flex justify-end">
                 <button
                   onClick={() => setBloqueSeleccionado(null)}
-                  className="py-2 px-5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg shadow-sm transition-all cursor-pointer"
+                  className="py-2.5 px-5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl shadow-sm transition-all cursor-pointer"
                 >
                   Cerrar
                 </button>
@@ -2130,42 +2242,40 @@ export default function Dashboard() {
         )}
 
         {mostrarGraficoMetricas && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-md p-4 animate-fadeIn">
-            <div className="w-full max-w-4xl bg-white rounded-xl p-6 md:p-8 shadow-2xl border border-slate-200 space-y-6 max-h-[90vh] flex flex-col overflow-hidden">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#00629B] bg-sky-50 px-2.5 py-0.5 rounded-full border border-sky-100">
-                    Visualización Gráfica Interactiva
-                  </span>
-                  <h3 className="text-xl font-serif font-bold text-slate-900 mt-1 flex items-center gap-2">
-                    <span>📊</span> Análisis Gráfico de Demanda y Ocupación
+          <div className={OVERLAY}>
+            <div className={`${MODAL} max-w-4xl p-6 md:p-8 space-y-6 max-h-[90vh] flex flex-col overflow-hidden`}>
+              <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
+                <div className="space-y-1.5">
+                  <span className={EYEBROW}>Visualización interactiva</span>
+                  <h3 className="text-xl font-serif font-bold text-slate-900">
+                    Análisis de demanda y ocupación
                   </h3>
                 </div>
                 <button
                   onClick={() => setMostrarGraficoMetricas(false)}
-                  className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center cursor-pointer transition-all text-xs"
+                  className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center cursor-pointer transition-colors text-xs"
                 >
                   ✕
                 </button>
               </div>
 
               <div className="flex-1 overflow-y-auto space-y-6 pr-2">
-                <div className="bg-white rounded-xl p-6 space-y-5 border border-slate-200 shadow-xs">
+                <div className="bg-white rounded-2xl p-6 space-y-5 border border-slate-200/80 shadow-xs">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
                     <div>
-                      <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                        <span className="text-[#00629B]">📊</span> Horarios de Mayor Ocupación
+                      <h4 className="text-xs font-bold text-slate-900 flex items-center gap-2">
+                        <span className="text-[#00629B]">📊</span> Horarios de mayor ocupación
                       </h4>
-                      <p className="text-xs text-slate-500 mt-0.5">
+                      <p className="text-[11px] text-slate-500 mt-0.5">
                         Distribución del flujo de estudiantes agendados por bloque horario
                       </p>
                     </div>
-                    <span className="text-xs bg-sky-50 text-[#00629B] border border-sky-200 font-semibold px-3 py-0.5 rounded-full shadow-xs self-start sm:self-auto">
-                      Ocupación Institucional
+                    <span className="text-[11px] bg-sky-50 text-[#00629B] border border-sky-100 font-semibold px-3 py-1 rounded-full self-start sm:self-auto">
+                      Ocupación institucional
                     </span>
                   </div>
 
-                  <div className="h-56 flex items-end justify-between gap-4 pt-10 pb-4 px-4 bg-gradient-to-b from-sky-50/40 via-white to-slate-50/60 rounded-xl border border-slate-200 shadow-xs">
+                  <div className="h-60 flex items-end justify-between gap-4 pt-10 pb-4 px-4 bg-gradient-to-b from-sky-50/50 via-white to-slate-50/60 rounded-2xl border border-slate-200/80">
                     {(metricas?.horarios_pico && metricas.horarios_pico.length > 0
                       ? metricas.horarios_pico
                       : [
@@ -2190,16 +2300,16 @@ export default function Dashboard() {
                           key={idx}
                           className="flex-1 flex flex-col items-center gap-2.5 group cursor-pointer"
                         >
-                          <span className="text-xs font-bold text-[#00629B] group-hover:scale-125 group-hover:text-[#FFC20E] transition-all bg-white px-2 py-0.5 rounded-md border border-slate-200 shadow-xs">
+                          <span className="text-[11px] font-bold text-[#00629B] group-hover:text-[#FFC20E] transition-colors bg-white px-2 py-0.5 rounded-lg border border-slate-200 shadow-xs">
                             {item.total}
                           </span>
-                          <div className="h-36 w-4 sm:w-5 md:w-6 bg-slate-100 rounded-full flex items-end justify-center p-0.5 relative overflow-hidden shadow-inner border border-slate-200">
+                          <div className="h-36 w-5 sm:w-6 md:w-7 bg-slate-100 rounded-full flex items-end justify-center p-0.5 relative overflow-hidden border border-slate-200">
                             <div
-                              className="w-full rounded-full bg-gradient-to-t from-[#00629B] via-[#00A3E0] to-[#FFC20E] shadow-xs transition-all duration-500 group-hover:brightness-110"
+                              className="w-full rounded-full bg-gradient-to-t from-[#00629B] via-[#00A3E0] to-[#FFC20E] transition-all duration-500 group-hover:brightness-110"
                               style={{ height: `${heightPct}%` }}
                             />
                           </div>
-                          <span className="text-[10px] font-semibold text-slate-600 truncate max-w-[65px] text-center">
+                          <span className="text-[10px] font-semibold text-slate-500 truncate max-w-[65px] text-center">
                             {item.hora.split("-")[0]} hrs
                           </span>
                         </div>
@@ -2209,9 +2319,9 @@ export default function Dashboard() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div className="p-5 bg-[#F8FAFC] rounded-xl border border-slate-200 space-y-4">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
-                      <span>📅</span> Ocupación por Día de la Semana
+                  <div className="p-5 bg-white rounded-2xl border border-slate-200/80 space-y-4 shadow-xs">
+                    <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <span>📅</span> Ocupación por día de la semana
                     </h4>
                     <div className="space-y-3">
                       {(metricas?.dias_demanda && metricas.dias_demanda.length > 0
@@ -2230,14 +2340,14 @@ export default function Dashboard() {
                         );
                         const pctD = Math.round((d.total / maxD) * 100);
                         return (
-                          <div key={i} className="space-y-1">
-                            <div className="flex justify-between text-xs font-bold text-slate-700">
+                          <div key={i} className="space-y-1.5">
+                            <div className="flex justify-between text-xs font-semibold text-slate-700">
                               <span className="capitalize">{traducirDia(d.dia)}</span>
-                              <span className="text-[#00629B] font-extrabold bg-white px-2 py-0.5 rounded-md border border-slate-200">
+                              <span className="text-[#00629B] font-extrabold bg-sky-50 px-2 py-0.5 rounded-lg border border-sky-100">
                                 {d.total} reservas
                               </span>
                             </div>
-                            <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden p-0.5">
+                            <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
                               <div
                                 className="h-full bg-gradient-to-r from-[#00629B] via-[#00A3E0] to-[#FFC20E] rounded-full transition-all duration-500"
                                 style={{ width: `${pctD}%` }}
@@ -2249,56 +2359,56 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  <div className="p-5 bg-[#F8FAFC] rounded-xl border border-slate-200 space-y-4 flex flex-col justify-between">
+                  <div className="p-5 bg-white rounded-2xl border border-slate-200/80 space-y-4 flex flex-col justify-between shadow-xs">
                     <div>
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
-                        <span>🎯</span> Resumen de Eficiencia
+                      <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <span>🎯</span> Resumen de eficiencia
                       </h4>
-                      <p className="text-xs text-slate-600 mt-1">
+                      <p className="text-[11px] text-slate-500 mt-1">
                         Indicadores clave para decisiones de infraestructura.
                       </p>
                     </div>
 
                     <div className="space-y-2.5">
-                      <div className="p-2.5 bg-white rounded-lg border border-slate-200 flex items-center justify-between shadow-xs">
-                        <span className="text-xs font-medium text-slate-700">
-                          Eliminaciones/Día:
+                      <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-200/70 flex items-center justify-between">
+                        <span className="text-xs font-medium text-slate-600">
+                          Eliminaciones por día
                         </span>
                         <span className="text-sm font-extrabold text-rose-600">
                           {metricas?.promedio_cancelaciones_diarias || "0.0 elim/día"}
                         </span>
                       </div>
-                      <div className="p-2.5 bg-white rounded-lg border border-slate-200 flex items-center justify-between shadow-xs">
-                        <span className="text-xs font-medium text-slate-700">
-                          Tasa Cancelación:
+                      <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-200/70 flex items-center justify-between">
+                        <span className="text-xs font-medium text-slate-600">
+                          Tasa de cancelación
                         </span>
                         <span className="text-sm font-bold text-slate-900">
                           {metricas?.tasa_cancelacion_estimada || "0.0%"}
                         </span>
                       </div>
-                      <div className="p-2.5 bg-white rounded-lg border border-slate-200 flex items-center justify-between shadow-xs">
-                        <span className="text-xs font-medium text-slate-700">
-                          Pico en Exámenes:
+                      <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-200/70 flex items-center justify-between">
+                        <span className="text-xs font-medium text-slate-600">
+                          Pico en exámenes
                         </span>
-                        <span className="text-xs font-semibold text-[#00629B] bg-sky-50 px-2 py-0.5 rounded-md border border-sky-100">
+                        <span className="text-[11px] font-semibold text-[#00629B] bg-sky-50 px-2 py-1 rounded-lg border border-sky-100">
                           {metricas?.semana_pico_examenes || "Semana 16"}
                         </span>
                       </div>
                     </div>
 
-                    <div className="p-3 bg-sky-50 rounded-lg text-[11px] text-slate-700 border border-sky-100">
-                      💡 <strong>Recomendación:</strong> Optimizar cubículos en bloques de alta demanda durante los días pico.
+                    <div className="p-3.5 bg-sky-50/70 rounded-xl text-[11px] text-slate-700 border border-sky-100 leading-relaxed">
+                      💡 <strong>Recomendación:</strong> optimizar cubículos en bloques de alta demanda durante los días pico.
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-slate-100 flex justify-end">
+              <div className="pt-4 border-t border-slate-100 flex justify-end">
                 <button
                   onClick={() => setMostrarGraficoMetricas(false)}
-                  className="py-2.5 px-6 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg shadow-sm transition-all cursor-pointer"
+                  className="py-2.5 px-6 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl shadow-sm transition-all cursor-pointer"
                 >
-                  Cerrar Gráficos
+                  Cerrar gráficos
                 </button>
               </div>
             </div>
@@ -2306,52 +2416,45 @@ export default function Dashboard() {
         )}
 
         {(activeTab === "calendario") && (
-          <div className="bg-white border border-slate-200 rounded-xl p-6 md:p-8 shadow-sm mb-8 space-y-6 animate-fadeIn">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-              <div>
-                <span className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-0.5 text-xs font-semibold text-[#00629B] shadow-xs mb-1">
-                  📅 Control de Disponibilidad
-                </span>
-                <h2 className="text-xl font-serif font-bold text-slate-900 flex items-center gap-2">
-                  Bloqueo de Días en el Calendario
-                </h2>
-                <p className="text-xs text-slate-600 mt-0.5">
+          <div className={`${CARD} p-6 md:p-8 mb-8 space-y-7 animate-fadeIn`}>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+              <div className="space-y-1.5">
+                <span className={EYEBROW}>📅 Control de disponibilidad</span>
+                <h2 className={SECTION_TITLE}>Bloqueo de Días en el Calendario</h2>
+                <p className="text-xs text-slate-500 max-w-2xl leading-relaxed">
                   Inhabilita fechas específicas para impedir que los estudiantes agenden cubículos (por feriados, mantenimiento o recesos).
                 </p>
               </div>
-              <button
-                onClick={fetchDiasBloqueados}
-                className="px-3.5 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-semibold text-xs rounded-lg transition cursor-pointer flex items-center gap-1"
-              >
+              <button onClick={fetchDiasBloqueados} className={BTN_GHOST}>
                 🔄 Actualizar
               </button>
             </div>
 
-            <div className="bg-[#F8FAFC] border border-slate-200 rounded-xl p-5 shadow-xs space-y-4">
-              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                <span>🔒</span> Bloquear una Nueva Fecha
+            <div className="bg-slate-50/60 border border-slate-200/80 rounded-2xl p-5 space-y-4">
+              <h3 className="text-xs font-bold text-slate-800 flex items-center gap-2">
+                <span>🔒</span> Bloquear una nueva fecha
               </h3>
               <form onSubmit={handleCrearBloqueo} className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
                 <div className="sm:col-span-3">
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Fecha a Bloquear:</label>
+                  <label className={LABEL}>Fecha a bloquear</label>
                   <input
                     type="date"
                     required
                     value={formBloqueo.fecha}
                     min={hoyStr}
                     onChange={(e) => setFormBloqueo((prev) => ({ ...prev, fecha: e.target.value }))}
-                    className="w-full px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-medium text-slate-900 focus:outline-none focus:border-[#00629B] focus:ring-1 focus:ring-[#00629B] shadow-xs cursor-pointer"
+                    className={`${INPUT} cursor-pointer`}
                   />
                 </div>
 
                 <div className="sm:col-span-3">
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Sede / Campus:</label>
+                  <label className={LABEL}>Sede / campus</label>
                   <select
                     value={formBloqueo.campus_id}
                     onChange={(e) => setFormBloqueo((prev) => ({ ...prev, campus_id: e.target.value }))}
-                    className="w-full px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-900 focus:outline-none focus:border-[#00629B] shadow-xs cursor-pointer"
+                    className={`${INPUT} font-semibold cursor-pointer`}
                   >
-                    <option value="">🌐 Todas las Sedes (Bloqueo Global)</option>
+                    <option value="">🌐 Todas las sedes (bloqueo global)</option>
                     {campus.map((c) => (
                       <option key={c.id} value={c.id}>
                         🏛️ {c.nombre}
@@ -2361,14 +2464,14 @@ export default function Dashboard() {
                 </div>
 
                 <div className="sm:col-span-4">
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Motivo del Bloqueo:</label>
+                  <label className={LABEL}>Motivo del bloqueo</label>
                   <input
                     type="text"
                     required
-                    placeholder="ej: Receso académico, Feriado no programado..."
+                    placeholder="ej: Receso académico, feriado no programado..."
                     value={formBloqueo.motivo}
                     onChange={(e) => setFormBloqueo((prev) => ({ ...prev, motivo: e.target.value }))}
-                    className="w-full px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-medium text-slate-900 focus:outline-none focus:border-[#00629B] focus:ring-1 focus:ring-[#00629B] shadow-xs"
+                    className={INPUT}
                   />
                 </div>
 
@@ -2376,63 +2479,62 @@ export default function Dashboard() {
                   <button
                     type="submit"
                     disabled={guardandoBloqueo || !formBloqueo.fecha}
-                    className="w-full py-2 px-4 bg-[#00629B] hover:bg-[#005180] disabled:opacity-50 text-white text-xs font-semibold rounded-lg shadow-sm transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                    className={`${BTN_PRIMARY} w-full`}
                   >
-                    {guardandoBloqueo ? "Guardando..." : "🔒 Bloquear Día"}
+                    {guardandoBloqueo ? "Guardando..." : "🔒 Bloquear día"}
                   </button>
                 </div>
               </form>
             </div>
 
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">
-                  <span>📋</span> Días Inhabilitados ({diasBloqueados.length})
-                </h3>
-              </div>
+              <h3 className="text-xs font-bold text-slate-800 flex items-center gap-2">
+                <span>📋</span> Días inhabilitados
+                <span className="text-[11px] font-semibold text-[#00629B] bg-sky-50 border border-sky-100 px-2 py-0.5 rounded-full">{diasBloqueados.length}</span>
+              </h3>
 
               {cargandoBloqueos ? (
                 <div className="py-12 text-center text-xs text-[#00629B] font-medium animate-pulse">
                   Cargando días bloqueados...
                 </div>
               ) : diasBloqueados.length === 0 ? (
-                <div className="py-8 text-center border border-dashed border-slate-200 rounded-xl bg-slate-50 text-xs text-slate-500">
-                  No hay días bloqueados registrados actualmente. Todos los días laborales regulares están habilitados para reservas.
+                <div className="py-10 text-center border border-dashed border-slate-200 rounded-2xl bg-slate-50/60 text-xs text-slate-500">
+                  No hay días bloqueados. Todos los días laborales están habilitados para reservas.
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
                   {diasBloqueados.map((b) => (
                     <div
                       key={b.id}
-                      className="p-4 rounded-xl border border-slate-200 bg-[#F8FAFC] shadow-xs flex flex-col justify-between gap-3 hover:border-slate-300 transition-all"
+                      className="p-4 rounded-2xl border border-slate-200/80 bg-white shadow-xs flex flex-col justify-between gap-3 hover:border-slate-300 hover:shadow-[0_12px_32px_-20px_rgba(15,23,42,0.4)] transition-all"
                     >
-                      <div className="space-y-1.5">
+                      <div className="space-y-2">
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-xs font-bold text-slate-900">
                             📅 {b.fecha}
                           </span>
                           <span
-                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${b.campus_id
-                              ? "bg-amber-50 border-amber-200 text-amber-900"
-                              : "bg-red-50 border-red-200 text-red-900"
+                            className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${b.campus_id
+                              ? "bg-amber-50 border-amber-100 text-amber-900"
+                              : "bg-rose-50 border-rose-100 text-rose-900"
                               }`}
                           >
                             {b.campus_nombre ? `🏛️ ${b.campus_nombre}` : "🌐 Todas las sedes"}
                           </span>
                         </div>
-                        <p className="text-xs font-medium text-slate-700">
+                        <p className="text-xs font-medium text-slate-700 leading-relaxed">
                           {b.motivo}
                         </p>
                         <p className="text-[10px] text-slate-400">
-                          Bloqueado por: {b.creado_por || "Admin"}
+                          Bloqueado por {b.creado_por || "Admin"}
                         </p>
                       </div>
 
-                      <div className="pt-2 border-t border-slate-200/60 flex justify-end">
+                      <div className="pt-3 border-t border-slate-100 flex justify-end">
                         <button
                           type="button"
                           onClick={() => handleEliminarBloqueo(b.id, b.fecha, b.campus_nombre)}
-                          className="px-3 py-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold shadow-xs transition-all cursor-pointer flex items-center gap-1"
+                          className={BTN_GHOST}
                         >
                           🔓 Desbloquear
                         </button>
@@ -2446,70 +2548,70 @@ export default function Dashboard() {
         )}
 
         {modalAnuncioOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-fadeIn">
-            <div className="w-full max-w-lg bg-white rounded-xl p-6 shadow-2xl border border-slate-200 space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className={OVERLAY}>
+            <div className={`${MODAL} max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto`}>
+              <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-4">
                 <h3 className="text-lg font-serif font-bold text-slate-900">
-                  {anuncioEdit ? "✏️ Editar Diapositiva" : "➕ Crear Diapositiva de Anuncio"}
+                  {anuncioEdit ? "Editar diapositiva" : "Crear diapositiva de anuncio"}
                 </h3>
                 <button
                   onClick={() => setModalAnuncioOpen(false)}
-                  className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center text-xs cursor-pointer"
+                  className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center text-xs cursor-pointer transition-colors"
                 >
                   ✕
                 </button>
               </div>
 
-              <form onSubmit={handleGuardarAnuncio} className="space-y-3 text-xs">
+              <form onSubmit={handleGuardarAnuncio} className="space-y-3.5 text-xs">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Título del Anuncio:</label>
+                  <label className={LABEL}>Título del anuncio</label>
                   <input
                     type="text"
                     value={formAnuncio.titulo}
                     onChange={(e) => setFormAnuncio({ ...formAnuncio, titulo: e.target.value })}
-                    className="w-full px-3.5 py-2 border rounded-lg border-slate-300 bg-white text-slate-900 font-medium focus:outline-none focus:border-[#00629B] focus:ring-1 focus:ring-[#00629B]"
-                    placeholder="ej: RESERVA INTELIGENTE..."
+                    className={INPUT}
+                    placeholder="ej: Reserva inteligente..."
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Subtítulo / Descripción:</label>
+                  <label className={LABEL}>Subtítulo / descripción</label>
                   <textarea
                     value={formAnuncio.subtitulo}
                     onChange={(e) => setFormAnuncio({ ...formAnuncio, subtitulo: e.target.value })}
                     rows={2}
-                    className="w-full px-3.5 py-2 border rounded-lg border-slate-300 bg-white text-slate-900 font-medium focus:outline-none focus:border-[#00629B] focus:ring-1 focus:ring-[#00629B]"
+                    className={INPUT}
                     placeholder="Descripción explicativa..."
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">Etiqueta Badge:</label>
+                    <label className={LABEL}>Etiqueta badge</label>
                     <input
                       type="text"
                       value={formAnuncio.badge}
                       onChange={(e) => setFormAnuncio({ ...formAnuncio, badge: e.target.value })}
-                      className="w-full px-3.5 py-2 border rounded-lg border-slate-300 bg-white text-slate-900 font-medium focus:outline-none focus:border-[#00629B] focus:ring-1 focus:ring-[#00629B]"
+                      className={INPUT}
                       placeholder="ej: NUEVO SERVICIO"
                     />
                   </div>
 
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">Color de Fondo (HEX):</label>
+                    <label className={LABEL}>Color de fondo</label>
                     <div className="flex gap-2 items-center">
                       <input
                         type="color"
                         value={formAnuncio.color_fondo}
                         onChange={(e) => setFormAnuncio({ ...formAnuncio, color_fondo: e.target.value })}
-                        className="w-8 h-8 rounded cursor-pointer border-0"
+                        className="w-10 h-10 rounded-xl cursor-pointer border border-slate-200 bg-white p-1"
                       />
                       <input
                         type="text"
                         value={formAnuncio.color_fondo}
                         onChange={(e) => setFormAnuncio({ ...formAnuncio, color_fondo: e.target.value })}
-                        className="flex-1 px-3 py-1.5 border rounded-lg border-slate-300 bg-white text-slate-900 font-mono text-xs"
+                        className={`${INPUT} font-mono`}
                       />
                     </div>
                   </div>
@@ -2517,51 +2619,51 @@ export default function Dashboard() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">Texto del Botón:</label>
+                    <label className={LABEL}>Texto del botón</label>
                     <input
                       type="text"
                       value={formAnuncio.boton_texto}
                       onChange={(e) => setFormAnuncio({ ...formAnuncio, boton_texto: e.target.value })}
-                      className="w-full px-3.5 py-2 border rounded-lg border-slate-300 bg-white text-slate-900 font-medium focus:outline-none focus:border-[#00629B] focus:ring-1 focus:ring-[#00629B]"
-                      placeholder="ej: Abrir Chatbot Ahora"
+                      className={INPUT}
+                      placeholder="ej: Abrir chatbot"
                     />
                   </div>
 
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">Enlace / Acción del Botón:</label>
+                    <label className={LABEL}>Enlace / acción</label>
                     <input
                       type="text"
                       value={formAnuncio.boton_link}
                       onChange={(e) => setFormAnuncio({ ...formAnuncio, boton_link: e.target.value })}
-                      className="w-full px-3.5 py-2 border rounded-lg border-slate-300 bg-white text-slate-900 font-medium focus:outline-none focus:border-[#00629B] focus:ring-1 focus:ring-[#00629B]"
+                      className={INPUT}
                       placeholder="ej: open-chat o /reservar"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Orden de Presentación:</label>
+                  <label className={LABEL}>Orden de presentación</label>
                   <input
                     type="number"
                     value={formAnuncio.orden}
                     onChange={(e) => setFormAnuncio({ ...formAnuncio, orden: parseInt(e.target.value, 10) || 0 })}
-                    className="w-24 px-3.5 py-2 border rounded-lg border-slate-300 bg-white text-slate-900 font-medium focus:outline-none focus:border-[#00629B] focus:ring-1 focus:ring-[#00629B]"
+                    className={`${INPUT} w-24`}
                   />
                 </div>
 
-                <div className="flex gap-3 pt-3 border-t border-slate-100">
+                <div className="flex gap-3 pt-4 border-t border-slate-100">
                   <button
                     type="button"
                     onClick={() => setModalAnuncioOpen(false)}
-                    className="flex-1 py-2 rounded-lg border border-slate-300 text-slate-700 font-semibold hover:bg-slate-50 cursor-pointer"
+                    className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-semibold hover:bg-slate-50 cursor-pointer transition-colors"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-2 rounded-lg bg-[#00629B] hover:bg-[#005180] text-white font-semibold shadow-sm cursor-pointer"
+                    className={`${BTN_PRIMARY} flex-1`}
                   >
-                    Guardar Diapositiva
+                    Guardar diapositiva
                   </button>
                 </div>
               </form>
@@ -2570,105 +2672,105 @@ export default function Dashboard() {
         )}
 
         {modalTarjetaOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-fadeIn">
-            <div className="w-full max-w-lg bg-white rounded-xl p-6 shadow-2xl border border-slate-200 space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className={OVERLAY}>
+            <div className={`${MODAL} max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto`}>
+              <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-4">
                 <h3 className="text-lg font-serif font-bold text-slate-900">
-                  {tarjetaEdit ? "✏️ Editar Tarjeta Informativa" : "➕ Crear Tarjeta Informativa"}
+                  {tarjetaEdit ? "Editar tarjeta informativa" : "Crear tarjeta informativa"}
                 </h3>
                 <button
                   onClick={() => setModalTarjetaOpen(false)}
-                  className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center text-xs cursor-pointer"
+                  className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center text-xs cursor-pointer transition-colors"
                 >
                   ✕
                 </button>
               </div>
 
-              <form onSubmit={handleGuardarTarjeta} className="space-y-3 text-xs">
+              <form onSubmit={handleGuardarTarjeta} className="space-y-3.5 text-xs">
                 <div className="grid grid-cols-4 gap-3">
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">Ícono:</label>
+                    <label className={LABEL}>Ícono</label>
                     <input
                       type="text"
                       value={formTarjeta.icono}
                       onChange={(e) => setFormTarjeta({ ...formTarjeta, icono: e.target.value })}
-                      className="w-full px-3 py-2 border rounded-lg border-slate-300 bg-white text-slate-900 font-medium text-center focus:outline-none focus:border-[#00629B] text-base"
+                      className={`${INPUT} text-center text-base`}
                       placeholder="📚"
                       required
                     />
                   </div>
 
                   <div className="col-span-3">
-                    <label className="block font-bold text-slate-700 mb-1">Título de la Tarjeta:</label>
+                    <label className={LABEL}>Título de la tarjeta</label>
                     <input
                       type="text"
                       value={formTarjeta.titulo}
                       onChange={(e) => setFormTarjeta({ ...formTarjeta, titulo: e.target.value })}
-                      className="w-full px-3.5 py-2 border rounded-lg border-slate-300 bg-white text-slate-900 font-medium focus:outline-none focus:border-[#00629B]"
-                      placeholder="ej: Reserva de Cubículos"
+                      className={INPUT}
+                      placeholder="ej: Reserva de cubículos"
                       required
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Descripción:</label>
+                  <label className={LABEL}>Descripción</label>
                   <textarea
                     value={formTarjeta.descripcion}
                     onChange={(e) => setFormTarjeta({ ...formTarjeta, descripcion: e.target.value })}
                     rows={2}
-                    className="w-full px-3.5 py-2 border rounded-lg border-slate-300 bg-white text-slate-900 font-medium focus:outline-none focus:border-[#00629B]"
+                    className={INPUT}
                     placeholder="Detalle descriptivo..."
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">Texto del Enlace:</label>
+                    <label className={LABEL}>Texto del enlace</label>
                     <input
                       type="text"
                       value={formTarjeta.link_texto}
                       onChange={(e) => setFormTarjeta({ ...formTarjeta, link_texto: e.target.value })}
-                      className="w-full px-3.5 py-2 border rounded-lg border-slate-300 bg-white text-slate-900 font-medium focus:outline-none focus:border-[#00629B]"
-                      placeholder="ej: Ir al Formulario →"
+                      className={INPUT}
+                      placeholder="ej: Ir al formulario"
                     />
                   </div>
 
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">URL / Acción:</label>
+                    <label className={LABEL}>URL / acción</label>
                     <input
                       type="text"
                       value={formTarjeta.link_url}
                       onChange={(e) => setFormTarjeta({ ...formTarjeta, link_url: e.target.value })}
-                      className="w-full px-3.5 py-2 border rounded-lg border-slate-300 bg-white text-slate-900 font-medium focus:outline-none focus:border-[#00629B]"
+                      className={INPUT}
                       placeholder="ej: /reservar u open-chat"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Orden de Presentación:</label>
+                  <label className={LABEL}>Orden de presentación</label>
                   <input
                     type="number"
                     value={formTarjeta.orden}
                     onChange={(e) => setFormTarjeta({ ...formTarjeta, orden: parseInt(e.target.value, 10) || 0 })}
-                    className="w-24 px-3.5 py-2 border rounded-lg border-slate-300 bg-white text-slate-900 font-medium focus:outline-none focus:border-[#00629B]"
+                    className={`${INPUT} w-24`}
                   />
                 </div>
 
-                <div className="flex gap-3 pt-3 border-t border-slate-100">
+                <div className="flex gap-3 pt-4 border-t border-slate-100">
                   <button
                     type="button"
                     onClick={() => setModalTarjetaOpen(false)}
-                    className="flex-1 py-2 rounded-lg border border-slate-300 text-slate-700 font-semibold hover:bg-slate-50 cursor-pointer"
+                    className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-semibold hover:bg-slate-50 cursor-pointer transition-colors"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-2 rounded-lg bg-[#00629B] hover:bg-[#005180] text-white font-semibold shadow-sm cursor-pointer"
+                    className={`${BTN_PRIMARY} flex-1`}
                   >
-                    Guardar Tarjeta
+                    Guardar tarjeta
                   </button>
                 </div>
               </form>
@@ -2677,9 +2779,9 @@ export default function Dashboard() {
         )}
 
         {confirmModal.open && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-fadeIn">
-            <div className="w-full max-w-md bg-white rounded-xl p-6 shadow-2xl border border-slate-200 text-center space-y-4">
-              <div className="w-12 h-12 rounded-full bg-amber-50 text-amber-600 text-xl flex items-center justify-center mx-auto border border-amber-200">
+          <div className={OVERLAY}>
+            <div className={`${MODAL} max-w-md p-7 text-center space-y-4`}>
+              <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 text-2xl flex items-center justify-center mx-auto border border-amber-100">
                 ⚠️
               </div>
               <h3 className="text-lg font-serif font-bold text-slate-900">{confirmModal.titulo || "Confirmación"}</h3>
@@ -2687,7 +2789,7 @@ export default function Dashboard() {
               <div className="flex gap-3 pt-2">
                 <button
                   onClick={() => setConfirmModal({ open: false, titulo: "", mensaje: "", onConfirm: null })}
-                  className="flex-1 py-2.5 px-4 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-all cursor-pointer"
+                  className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-all cursor-pointer"
                 >
                   Cancelar
                 </button>
@@ -2696,7 +2798,7 @@ export default function Dashboard() {
                     if (confirmModal.onConfirm) confirmModal.onConfirm();
                     setConfirmModal({ open: false, titulo: "", mensaje: "", onConfirm: null });
                   }}
-                  className="flex-1 py-2.5 px-4 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-semibold shadow-sm transition-all cursor-pointer"
+                  className="flex-1 py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-[0_6px_16px_-8px_rgba(225,29,72,0.9)] transition-all cursor-pointer"
                 >
                   Confirmar
                 </button>
@@ -2706,12 +2808,14 @@ export default function Dashboard() {
         )}
 
         {toastNotificacion.texto && (
-          <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-900 text-white text-xs font-medium shadow-xl border border-slate-800 animate-slideUp">
-            <span>{toastNotificacion.tipo === "error" ? "❌" : "✅"}</span>
-            <p>{toastNotificacion.texto}</p>
+          <div className="fixed bottom-6 right-6 z-50 max-w-sm flex items-start gap-3 px-4 py-3.5 rounded-2xl bg-slate-900 text-white text-xs font-medium shadow-[0_24px_48px_-20px_rgba(15,23,42,0.8)] border border-white/10 animate-slideUp">
+            <span className={`w-7 h-7 shrink-0 rounded-xl flex items-center justify-center text-[11px] ${toastNotificacion.tipo === "error" ? "bg-rose-500/20" : "bg-emerald-500/20"}`}>
+              {toastNotificacion.tipo === "error" ? "❌" : "✅"}
+            </span>
+            <p className="leading-relaxed pt-1">{toastNotificacion.texto}</p>
             <button
               onClick={() => setToastNotificacion({ tipo: "", texto: "" })}
-              className="ml-2 text-slate-400 hover:text-white font-bold text-xs"
+              className="ml-1 text-slate-400 hover:text-white font-bold text-xs cursor-pointer"
             >
               ✕
             </button>
@@ -2719,12 +2823,12 @@ export default function Dashboard() {
         )}
 
         {/* Footer */}
-        <div className="mt-12 pt-6 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
+        <div className="mt-12 pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-slate-500">
           <Link
             to="/"
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3.5 py-1.5 text-slate-700 font-semibold shadow-xs hover:bg-slate-50 transition-all"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-slate-700 font-semibold shadow-xs hover:bg-slate-50 hover:border-slate-300 transition-all"
           >
-            ← Volver a la Página Inicio
+            ← Volver a la página de inicio
           </Link>
           <span>© {new Date().getFullYear()} Biblioteca Inteligente — Panel Admin</span>
         </div>
