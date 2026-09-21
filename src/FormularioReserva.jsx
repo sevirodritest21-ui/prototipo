@@ -437,6 +437,11 @@ export default function FormularioReserva() {
       return;
     }
 
+    if (!formData.campus_id) {
+      setToastNotificacion({ tipo: "error", texto: "Por favor selecciona una sede universitaria." });
+      return;
+    }
+
     if (!formData.fecha) {
       setToastNotificacion({ tipo: "error", texto: "Por favor selecciona una fecha válida." });
       return;
@@ -638,24 +643,67 @@ export default function FormularioReserva() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                    Sede Universitaria
-                  </label>
-                  <select
-                    name="campus_id"
-                    required
-                    disabled={isAdmin}
-                    value={formData.campus_id}
-                    onChange={handleChange}
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3.5 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100 bg-slate-50/40 text-slate-800 font-medium text-sm disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed transition-all"
-                  >
-                    <option value="">-- Selecciona una Sede Universitaria --</option>
-                    {campusList.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        📍 {c.nombre}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                      Sede Universitaria
+                    </label>
+                    <span className="text-[11px] font-semibold text-sky-700">
+                      {formData.campus_id ? "✓ Sede seleccionada" : "Selecciona una sede"}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {campusList.map((c) => {
+                      const isSelected = String(formData.campus_id) === String(c.id);
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          disabled={isAdmin}
+                          onClick={() => setFormData((prev) => ({ ...prev, campus_id: String(c.id) }))}
+                          className={`p-4 rounded-2xl border text-left transition-all duration-200 flex flex-col justify-between cursor-pointer ${
+                            isSelected
+                              ? "bg-sky-50/80 border-sky-500 ring-2 ring-sky-300 shadow-md shadow-sky-500/10"
+                              : "bg-white border-slate-200 hover:border-sky-300 hover:bg-sky-50/30 hover:shadow-sm"
+                          } ${isAdmin ? "opacity-60 cursor-not-allowed" : ""}`}
+                        >
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <span className="text-xl">📍</span>
+                            {c.cubiculas_fisicos ? (
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                isSelected
+                                  ? "bg-sky-600 text-white"
+                                  : "bg-slate-100 text-slate-600"
+                              }`}>
+                                {c.cubiculas_fisicos} cubículos
+                              </span>
+                            ) : null}
+                          </div>
+
+                          <div>
+                            <h4 className="font-bold text-sm text-slate-900 leading-snug">
+                              {c.nombre}
+                            </h4>
+                          </div>
+
+                          <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                            <span className="text-slate-400 font-medium">
+                              Sede #{c.id}
+                            </span>
+                            {isSelected ? (
+                              <span className="text-sky-600 font-bold">
+                                ✓ Activa
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 group-hover:text-sky-600 font-semibold">
+                                Elegir →
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
