@@ -451,6 +451,14 @@ export default function FormularioReserva() {
       return;
     }
 
+    if (reservaActivaUser) {
+      setToastNotificacion({
+        tipo: "error",
+        texto: "Ya tienes una reserva activa registrada. Solo se permite 1 reserva simultánea por estudiante."
+      });
+      return;
+    }
+
     if (sancionUsuario?.suspendido) {
       setToastNotificacion({
         tipo: "error",
@@ -523,6 +531,8 @@ export default function FormularioReserva() {
   /* Valores derivados solo para presentación */
   const campusSeleccionado = campusList.find((c) => String(c.id) === String(formData.campus_id));
   const listo = formData.campus_id && formData.fecha && formData.hora;
+  const tieneReservaActiva = Boolean(reservaActivaUser);
+  const formularioDeshabilitado = isAdmin || tieneReservaActiva || Boolean(sancionUsuario?.suspendido);
 
   return (
     <div className="min-h-screen bg-[#F4F6F9] pt-16 pb-20 font-sans text-slate-800">
@@ -565,9 +575,44 @@ export default function FormularioReserva() {
 
       <main className="mx-auto max-w-6xl px-5 mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_21rem] items-start">
 
-        <form onSubmit={handleSubmit} className="rounded-xl border border-slate-200 bg-white shadow-sm divide-y divide-slate-100 overflow-hidden">
+        <form
+          onSubmit={handleSubmit}
+          className={`relative rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden transition-all duration-300 ${
+            tieneReservaActiva ? "border-slate-300 ring-1 ring-slate-200/80 bg-slate-50/90" : ""
+          }`}
+        >
+          {tieneReservaActiva && (
+            <div className="border-b border-amber-200 bg-amber-50/95 p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-amber-100 border border-amber-200 flex items-center justify-center text-amber-800 shrink-0 mt-0.5">
+                  <IconLock className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-amber-900">
+                    Formulario bloqueado: Ya posees una reserva activa
+                  </h3>
+                  <p className="text-xs text-amber-800/90 mt-0.5 leading-relaxed">
+                    Solo se permite 1 reserva simultánea por estudiante ({reservaActivaUser.fecha} a las {reservaActivaUser.hora}:00 hrs en {reservaActivaUser.campus}). Para reservar otro bloque, primero debes cancelar o editar tu reserva actual.
+                  </p>
+                </div>
+              </div>
+              <Link
+                to="/mis-reservas"
+                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold shadow-xs transition-colors shrink-0 whitespace-nowrap self-stretch sm:self-auto"
+              >
+                <IconList className="w-3.5 h-3.5" />
+                Ir a Mis Reservas
+              </Link>
+            </div>
+          )}
 
-          <section className="p-6 sm:p-8">
+          <fieldset
+            disabled={formularioDeshabilitado}
+            className={`divide-y divide-slate-100 transition-all duration-300 ${
+              tieneReservaActiva ? "opacity-50 grayscale pointer-events-none select-none bg-slate-100/50" : ""
+            }`}
+          >
+            <section className="p-6 sm:p-8">
             <div className="flex items-baseline gap-3">
               <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#00629B] text-[13px] font-bold text-white shadow-sm">1</span>
               <div>
@@ -876,6 +921,7 @@ export default function FormularioReserva() {
               )}
             </div>
           </section>
+          </fieldset>
 
           <section className="bg-slate-50/90 p-6 sm:px-8 border-t border-slate-200">
             {listo && (
@@ -891,14 +937,16 @@ export default function FormularioReserva() {
 
             <button
               type="submit"
-              disabled={isAdmin || sancionUsuario?.suspendido}
-              className={`flex w-full items-center justify-center gap-2 rounded-lg py-3.5 text-[15px] font-semibold transition-all ${isAdmin || sancionUsuario?.suspendido
-                ? "cursor-not-allowed bg-slate-200 text-slate-500"
+              disabled={formularioDeshabilitado}
+              className={`flex w-full items-center justify-center gap-2 rounded-lg py-3.5 text-[15px] font-semibold transition-all ${formularioDeshabilitado
+                ? "cursor-not-allowed bg-slate-200 text-slate-500 shadow-none"
                 : "cursor-pointer bg-[#00629B] text-white hover:bg-[#004B75] shadow-md shadow-[#00629B]/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC20E] focus-visible:ring-offset-2 active:scale-[0.99]"
                 }`}
             >
               {isAdmin ? (
                 <><IconLock className="w-4 h-4" /> Formulario bloqueado para administradores</>
+              ) : tieneReservaActiva ? (
+                <><IconLock className="w-4 h-4" /> Ya tienes una reserva activa registrada</>
               ) : sancionUsuario?.suspendido ? (
                 <><IconLock className="w-4 h-4" /> Cuenta suspendida por inasistencias</>
               ) : (
