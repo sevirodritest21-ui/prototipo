@@ -824,44 +824,45 @@ export default function Dashboard() {
   const campusSeleccionadoObj = campus.find((c) => c.id === campusSeleccionado);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-sky-50 to-amber-50 pt-24 pb-16 px-4 relative overflow-hidden font-sans text-slate-900">
-      <div className="absolute top-10 left-0 h-96 w-96 rounded-full bg-sky-300/20 blur-3xl pointer-events-none" />
-      <div className="absolute bottom-0 right-0 h-96 w-96 rounded-full bg-amber-300/20 blur-3xl pointer-events-none" />
-
-      <main className="relative z-10 mx-auto max-w-7xl w-full">
-        <div className="bg-white/80 backdrop-blur-xl border border-sky-100/80 rounded-3xl p-6 shadow-xl shadow-sky-900/5 mb-8 space-y-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-3 py-0.5 text-xs font-bold text-sky-800">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                  Panel Administrador
-                </span>
-                <span className="text-xs font-semibold text-slate-400">| Sede Activa: <strong className="text-slate-700">{campusSeleccionadoObj?.nombre || "General"}</strong></span>
+    <div className="min-h-screen bg-[#F4F6F9] pt-20 pb-16 px-4 font-sans text-slate-800">
+      <main className="relative mx-auto max-w-7xl w-full">
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden mb-8">
+          <div className="bg-[#00629B] text-white p-6 sm:p-8">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-[#FFC20E] px-3 py-0.5 text-xs font-bold text-slate-950">
+                    <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span>
+                    Panel Administrador
+                  </span>
+                  <span className="text-xs font-medium text-sky-100">| Sede Activa: <strong className="text-white font-semibold">{campusSeleccionadoObj?.nombre || "General"}</strong></span>
+                </div>
+                <h1 className="text-2xl md:text-3xl font-serif font-bold text-white tracking-tight">
+                  Centro de Control Universitario
+                </h1>
+                <p className="text-xs md:text-sm text-sky-100">
+                  Bienvenido/a, <strong className="text-white font-bold">{user?.nombre}</strong> ({user?.email})
+                </p>
               </div>
-              <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
-                Centro de Control Universitario
-              </h1>
-              <p className="text-xs md:text-sm text-slate-600">
-                Bienvenido/a, <strong className="text-slate-900 font-bold">{user?.nombre}</strong> ({user?.email})
-              </p>
-            </div>
 
-            <div className="flex items-center gap-3">
-              <button
-                id="dashboard-logout"
-                onClick={logout}
-                className="inline-flex items-center gap-2 rounded-2xl border border-red-200 bg-white px-4 py-2.5 text-xs font-bold text-red-600 shadow-sm hover:bg-red-50 hover:border-red-300 transition-all cursor-pointer"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-                Cerrar Sesión
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  id="dashboard-logout"
+                  onClick={logout}
+                  className="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 backdrop-blur-sm px-4 py-2 text-xs font-semibold text-white hover:bg-white hover:text-red-700 transition-all cursor-pointer shadow-sm"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                  Cerrar Sesión
+                </button>
+              </div>
             </div>
           </div>
 
-          <div className="pt-2 border-t border-slate-100">
+          <div className="h-[2px] bg-gradient-to-r from-[#FFC20E] via-[#00A3E0] to-[#00629B]" />
+
+          <div className="p-3 bg-white border-t border-slate-100">
             <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
               {[
                 { id: "monitoreo", label: "Monitoreo y Bloques", icon: "📊" },
@@ -881,9 +882,9 @@ export default function Dashboard() {
                       if (tab.id === "calendario") fetchDiasBloqueados();
                       if (tab.id === "historial") fetchHistorial();
                     }}
-                    className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer border ${isSelected
-                      ? "bg-slate-900 text-white border-slate-900 shadow-md scale-[1.02]"
-                      : "bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200"
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${isSelected
+                      ? "bg-[#00629B] text-white shadow-sm font-bold"
+                      : "bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200"
                       }`}
                   >
                     <span>{tab.icon}</span>
@@ -914,13 +915,13 @@ export default function Dashboard() {
         )}
 
         {(activeTab === "cms") && (
-          <div className="bg-white/90 backdrop-blur-md border border-amber-200 rounded-3xl p-6 md:p-8 shadow-xl shadow-amber-900/10 mb-8 space-y-8 animate-fadeIn">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-amber-100 pb-4">
+          <div className="bg-white border border-slate-200 rounded-xl p-6 md:p-8 shadow-sm mb-8 space-y-6 animate-fadeIn">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
               <div>
-                <span className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-0.5 text-xs font-semibold text-amber-800 shadow-sm mb-1">
+                <span className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-0.5 text-xs font-semibold text-[#00629B] shadow-xs mb-1">
                   🖼️ Administrador de Contenidos (CMS)
                 </span>
-                <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                <h2 className="text-xl font-serif font-bold text-slate-900 flex items-center gap-2">
                   Gestión del Portal de Inicio
                 </h2>
                 <p className="text-xs text-slate-600">
@@ -929,7 +930,7 @@ export default function Dashboard() {
               </div>
               <button
                 onClick={fetchCMS}
-                className="px-4 py-2 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 font-bold text-xs rounded-xl transition cursor-pointer"
+                className="px-3.5 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-semibold text-xs rounded-lg transition cursor-pointer"
               >
                 🔄 Actualizar Vistas
               </button>
@@ -946,7 +947,7 @@ export default function Dashboard() {
                 <button
                   type="button"
                   onClick={handleAbrirCrearAnuncio}
-                  className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer flex items-center gap-1.5"
+                  className="px-3.5 py-2 bg-[#00629B] hover:bg-[#005180] text-white font-semibold text-xs rounded-lg shadow-sm transition-all cursor-pointer flex items-center gap-1.5"
                 >
                   ➕ Añadir Diapositiva
                 </button>
@@ -955,7 +956,7 @@ export default function Dashboard() {
               {cargandoCMS ? (
                 <div className="py-6 text-center text-xs text-slate-500">Cargando anuncios...</div>
               ) : cmsAnuncios.length === 0 ? (
-                <div className="p-6 bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-center text-xs text-slate-500">
+                <div className="p-6 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center text-xs text-slate-500">
                   No hay anuncios personalizados registrados.
                 </div>
               ) : (
@@ -963,12 +964,12 @@ export default function Dashboard() {
                   {cmsAnuncios.map((an) => (
                     <div
                       key={an.id}
-                      className="p-5 rounded-2xl border border-slate-200 bg-slate-50 flex flex-col justify-between gap-4 shadow-sm"
-                      style={{ borderLeftColor: an.color_fondo || "#00629B", borderLeftWidth: "6px" }}
+                      className="p-5 rounded-xl border border-slate-200 bg-[#F8FAFC] flex flex-col justify-between gap-4 shadow-xs"
+                      style={{ borderLeftColor: an.color_fondo || "#00629B", borderLeftWidth: "4px" }}
                     >
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-black px-2 py-0.5 rounded bg-sky-100 text-sky-800 border border-sky-200 uppercase">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-sky-100 text-sky-800 border border-sky-200 uppercase">
                             {an.badge || "ANUNCIO"}
                           </span>
                           <span className="text-[10px] font-bold text-slate-400">Orden: {an.orden}</span>
@@ -976,7 +977,7 @@ export default function Dashboard() {
                         <h4 className="font-bold text-sm text-slate-900 leading-snug">{an.titulo}</h4>
                         <p className="text-xs text-slate-600 line-clamp-2">{an.subtitulo}</p>
                         {an.boton_texto && (
-                          <span className="inline-block text-[11px] font-semibold text-sky-700 bg-white px-2.5 py-1 rounded-md border border-slate-200">
+                          <span className="inline-block text-[11px] font-semibold text-[#00629B] bg-white px-2.5 py-1 rounded-md border border-slate-200">
                             Boton: "{an.boton_texto}" ({an.boton_link})
                           </span>
                         )}
@@ -986,14 +987,14 @@ export default function Dashboard() {
                         <button
                           type="button"
                           onClick={() => handleAbrirEditarAnuncio(an)}
-                          className="px-3 py-1.5 rounded-xl border border-sky-200 bg-white text-sky-700 hover:bg-sky-50 text-xs font-bold transition shadow-sm cursor-pointer"
+                          className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-semibold transition shadow-xs cursor-pointer"
                         >
                           ✏️ Editar
                         </button>
                         <button
                           type="button"
                           onClick={() => handleEliminarAnuncio(an.id, an.titulo)}
-                          className="px-3 py-1.5 rounded-xl border border-red-200 bg-white text-red-600 hover:bg-red-50 text-xs font-bold transition shadow-sm cursor-pointer"
+                          className="px-3 py-1.5 rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 text-xs font-semibold transition shadow-xs cursor-pointer"
                         >
                           🗑️ Eliminar
                         </button>
@@ -1004,7 +1005,7 @@ export default function Dashboard() {
               )}
             </div>
 
-            <div className="space-y-4 pt-4 border-t border-amber-100">
+            <div className="space-y-4 pt-4 border-t border-slate-100">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
@@ -1015,7 +1016,7 @@ export default function Dashboard() {
                 <button
                   type="button"
                   onClick={handleAbrirCrearTarjeta}
-                  className="px-4 py-2 bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer flex items-center gap-1.5"
+                  className="px-3.5 py-2 bg-[#FFC20E] hover:bg-[#e5ad08] text-slate-950 font-bold text-xs rounded-lg shadow-sm transition-all cursor-pointer flex items-center gap-1.5"
                 >
                   ➕ Añadir Tarjeta
                 </button>
@@ -1024,7 +1025,7 @@ export default function Dashboard() {
               {cargandoCMS ? (
                 <div className="py-6 text-center text-xs text-slate-500">Cargando tarjetas...</div>
               ) : cmsTarjetas.length === 0 ? (
-                <div className="p-6 bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-center text-xs text-slate-500">
+                <div className="p-6 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center text-xs text-slate-500">
                   No hay tarjetas informativas registradas.
                 </div>
               ) : (
@@ -1032,17 +1033,17 @@ export default function Dashboard() {
                   {cmsTarjetas.map((tj) => (
                     <div
                       key={tj.id}
-                      className="p-5 rounded-2xl border border-slate-200 bg-white flex flex-col justify-between gap-4 shadow-sm"
+                      className="p-5 rounded-xl border border-slate-200 bg-white flex flex-col justify-between gap-4 shadow-xs"
                     >
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="text-xl p-2 bg-sky-50 rounded-xl border border-sky-100">{tj.icono || "📚"}</span>
+                          <span className="text-xl p-2 bg-sky-50 rounded-lg border border-sky-100">{tj.icono || "📚"}</span>
                           <span className="text-[10px] font-bold text-slate-400">Orden: {tj.orden}</span>
                         </div>
                         <h4 className="font-bold text-sm text-slate-900">{tj.titulo}</h4>
                         <p className="text-xs text-slate-600 leading-relaxed">{tj.descripcion}</p>
                         {tj.link_texto && (
-                          <p className="text-[11px] font-bold text-sky-600">{tj.link_texto}</p>
+                          <p className="text-[11px] font-semibold text-[#00629B]">{tj.link_texto}</p>
                         )}
                       </div>
 
@@ -1050,14 +1051,14 @@ export default function Dashboard() {
                         <button
                           type="button"
                           onClick={() => handleAbrirEditarTarjeta(tj)}
-                          className="px-3 py-1.5 rounded-xl border border-sky-200 bg-white text-sky-700 hover:bg-sky-50 text-xs font-bold transition shadow-sm cursor-pointer"
+                          className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-semibold transition shadow-xs cursor-pointer"
                         >
                           ✏️ Editar
                         </button>
                         <button
                           type="button"
                           onClick={() => handleEliminarTarjeta(tj.id, tj.titulo)}
-                          className="px-3 py-1.5 rounded-xl border border-red-200 bg-white text-red-600 hover:bg-red-50 text-xs font-bold transition shadow-sm cursor-pointer"
+                          className="px-3 py-1.5 rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 text-xs font-semibold transition shadow-xs cursor-pointer"
                         >
                           🗑️ Eliminar
                         </button>
@@ -1071,22 +1072,24 @@ export default function Dashboard() {
         )}
 
         {(activeTab === "sedes") && (
-          <div className="bg-white/90 backdrop-blur-md border border-sky-200 rounded-3xl p-6 shadow-xl shadow-sky-900/10 mb-8 space-y-6 animate-fadeIn">
-            <div className="flex items-center justify-between border-b border-sky-100 pb-4">
+          <div className="bg-white border border-slate-200 rounded-xl p-6 md:p-8 shadow-sm mb-8 space-y-6 animate-fadeIn">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div>
-                <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                  🏛️ Gestión de Sedes y Cubículos Universitarios
+                <span className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-0.5 text-xs font-semibold text-[#00629B] shadow-xs mb-1">
+                  🏛️ Infraestructura
+                </span>
+                <h2 className="text-xl font-serif font-bold text-slate-900 flex items-center gap-2">
+                  Gestión de Sedes y Cubículos Universitarios
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Añade sedes, edita sus datos de capacidad o crea cubículos individuales seleccionando manualmente el campus destino.
+                  Añade sedes, edita sus datos de capacidad o crea cubículos individuales seleccionando el campus destino.
                 </p>
               </div>
-              <span className="text-xs font-bold text-sky-700 bg-sky-50 px-3 py-1 rounded-full border border-sky-200">
-                Total registrado: {campus.length} campus
+              <span className="text-xs font-semibold text-[#00629B] bg-sky-50 px-3 py-1 rounded-full border border-sky-200">
+                Total: {campus.length} campus
               </span>
             </div>
 
-            {/* Formulario 1: Registrar Nueva Sede */}
             <div className="space-y-2">
               <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
                 1. Registrar Nueva Sede:
@@ -1098,21 +1101,20 @@ export default function Dashboard() {
                     value={nuevoCampusNombre}
                     onChange={(e) => setNuevoCampusNombre(e.target.value)}
                     placeholder="Nombre de la nueva sede (ej: Campus San Miguel)..."
-                    className="w-full px-4 py-2.5 rounded-2xl border border-sky-200 bg-white text-sm font-medium text-slate-900 outline-none focus:border-sky-500 focus:ring-4 focus:ring-sky-100 shadow-sm"
+                    className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 bg-white text-xs font-medium text-slate-900 outline-none focus:border-[#00629B] focus:ring-1 focus:ring-[#00629B] shadow-xs"
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={creandoCampus || !nuevoCampusNombre.trim()}
-                  className="px-6 py-2.5 bg-gradient-to-r from-sky-600 to-sky-700 hover:from-sky-700 hover:to-sky-800 text-white font-bold text-xs rounded-2xl shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="px-5 py-2.5 bg-[#00629B] hover:bg-[#005180] text-white font-semibold text-xs rounded-lg shadow-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {creandoCampus ? "Guardando..." : "➕ Añadir Sede"}
                 </button>
               </form>
             </div>
 
-            {/* Formulario 2: Crear Cubículo con Selección Manual de Campus */}
-            <div className="pt-4 border-t border-sky-100 space-y-2">
+            <div className="pt-4 border-t border-slate-100 space-y-2">
               <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
                 2. Crear Cubículo Individual y Asignar Sede Manualmente:
               </h3>
@@ -1121,7 +1123,7 @@ export default function Dashboard() {
                   <select
                     value={campusDestinoCubiculo}
                     onChange={(e) => setCampusDestinoCubiculo(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-2xl border border-amber-300 bg-amber-50 text-sm font-bold text-slate-800 outline-none focus:border-amber-500 shadow-sm cursor-pointer"
+                    className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 bg-[#F8FAFC] text-xs font-bold text-slate-800 outline-none focus:border-[#00629B] shadow-xs cursor-pointer"
                   >
                     {campus.map((c) => (
                       <option key={c.id} value={c.id}>
@@ -1137,14 +1139,14 @@ export default function Dashboard() {
                     value={nuevoCodigoCubiculo}
                     onChange={(e) => setNuevoCodigoCubiculo(e.target.value)}
                     placeholder="Código del Cubículo (ej: CUB01-SF, CUB02-JP)..."
-                    className="w-full px-4 py-2.5 rounded-2xl border border-amber-200 bg-amber-50/30 text-sm font-medium text-slate-900 outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-100 shadow-sm"
+                    className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 bg-white text-xs font-medium text-slate-900 outline-none focus:border-[#00629B] focus:ring-1 focus:ring-[#00629B] shadow-xs"
                   />
                 </div>
 
                 <button
                   type="submit"
                   disabled={creandoCubiculo || !nuevoCodigoCubiculo.trim() || !campusDestinoCubiculo}
-                  className="px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold text-xs rounded-2xl shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="px-5 py-2.5 bg-[#FFC20E] hover:bg-[#e5ad08] text-slate-950 font-bold text-xs rounded-lg shadow-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {creandoCubiculo ? "Añadiendo..." : "🚪 Crear Cubículo"}
                 </button>
@@ -1152,20 +1154,20 @@ export default function Dashboard() {
 
               <div className="pt-2">
                 {cargandoCubiculosCampus ? (
-                  <p className="text-[11px] font-bold text-sky-600 animate-pulse">
+                  <p className="text-[11px] font-semibold text-[#00629B] animate-pulse">
                     Cargando cubículos de la sede seleccionada...
                   </p>
                 ) : cubiculosCampus.length > 0 ? (
                   <div>
-                    <p className="text-[11px] font-bold text-slate-500 mb-2">
+                    <p className="text-[11px] font-semibold text-slate-500 mb-2">
                       Cubículos registrados en {campus.find((c) => String(c.id) === String(campusDestinoCubiculo))?.nombre || "la sede"} ({cubiculosCampus.length}):
                     </p>
-                    <div className="flex flex-wrap gap-2.5">
+                    <div className="flex flex-wrap gap-2">
                       {cubiculosCampus.map((cb) => (
                         editingCubiculoId === cb.id ? (
                           <div
                             key={cb.id}
-                            className="flex items-center gap-1.5 bg-white border border-sky-300 rounded-xl px-2 py-1 shadow-sm"
+                            className="flex items-center gap-1.5 bg-white border border-[#00629B] rounded-lg px-2 py-1 shadow-xs"
                           >
                             <input
                               type="text"
@@ -1175,13 +1177,13 @@ export default function Dashboard() {
                                 if (e.key === "Enter") handleGuardarEditCubiculo(cb.id);
                                 if (e.key === "Escape") setEditingCubiculoId(null);
                               }}
-                              className="w-24 px-2 py-0.5 bg-slate-50 border border-sky-300 rounded-lg text-xs font-bold text-slate-800 outline-none uppercase"
+                              className="w-24 px-2 py-0.5 bg-slate-50 border border-slate-300 rounded-md text-xs font-bold text-slate-800 outline-none uppercase"
                               autoFocus
                             />
                             <button
                               type="button"
                               onClick={() => handleGuardarEditCubiculo(cb.id)}
-                              className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold cursor-pointer transition-colors"
+                              className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-xs font-bold cursor-pointer transition-colors"
                               title="Guardar código"
                             >
                               ✓
@@ -1189,7 +1191,7 @@ export default function Dashboard() {
                             <button
                               type="button"
                               onClick={() => setEditingCubiculoId(null)}
-                              className="px-2 py-0.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-bold cursor-pointer transition-colors"
+                              className="px-2 py-0.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-md text-xs font-bold cursor-pointer transition-colors"
                               title="Cancelar"
                             >
                               ✕
@@ -1198,7 +1200,7 @@ export default function Dashboard() {
                         ) : (
                           <div
                             key={cb.id}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-sky-200 hover:border-sky-300 rounded-xl text-xs font-bold text-sky-900 shadow-sm transition-all"
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#F8FAFC] border border-slate-200 hover:border-slate-300 rounded-lg text-xs font-semibold text-slate-800 shadow-xs transition-all"
                           >
                             <span>🚪 {cb.codigo}</span>
                             <button
@@ -1207,7 +1209,7 @@ export default function Dashboard() {
                                 setEditingCubiculoId(cb.id);
                                 setEditCubiculoCodigoVal(cb.codigo);
                               }}
-                              className="text-sky-600 hover:text-sky-800 hover:bg-sky-50 p-1 rounded-md cursor-pointer transition-colors"
+                              className="text-slate-500 hover:text-[#00629B] hover:bg-white p-1 rounded cursor-pointer transition-colors"
                               title="Modificar código del cubículo"
                             >
                               ✏️
@@ -1215,7 +1217,7 @@ export default function Dashboard() {
                             <button
                               type="button"
                               onClick={() => handleEliminarCubiculoModal(cb.id, cb.codigo)}
-                              className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded-md cursor-pointer transition-colors"
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded cursor-pointer transition-colors"
                               title="Eliminar cubículo"
                             >
                               🗑️
@@ -1226,15 +1228,14 @@ export default function Dashboard() {
                     </div>
                   </div>
                 ) : (
-                  <p className="text-[11px] font-semibold text-slate-400 italic">
+                  <p className="text-[11px] font-medium text-slate-400 italic">
                     No hay cubículos individuales registrados en {campus.find((c) => String(c.id) === String(campusDestinoCubiculo))?.nombre || "esta sede"}.
                   </p>
                 )}
               </div>
             </div>
 
-            {/* Lista de Campus Registrados */}
-            <div className="pt-4 border-t border-sky-100 space-y-2">
+            <div className="pt-4 border-t border-slate-100 space-y-2">
               <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
                 Sedes Activas en la Base de Datos:
               </h3>
@@ -1242,7 +1243,7 @@ export default function Dashboard() {
                 {campus.map((c) => (
                   <div
                     key={c.id}
-                    className="flex items-center justify-between p-3.5 rounded-2xl border border-sky-100 bg-sky-50/50 hover:bg-sky-50 transition-all shadow-sm"
+                    className="flex items-center justify-between p-4 rounded-xl border border-slate-200 bg-[#F8FAFC] hover:bg-slate-50 transition-all shadow-xs"
                   >
                     <div>
                       <p className="font-bold text-sm text-slate-800">🏛️ {c.nombre}</p>
@@ -1254,7 +1255,7 @@ export default function Dashboard() {
                       <button
                         type="button"
                         onClick={() => handleIniciarEdicion(c)}
-                        className="px-2.5 py-1.5 rounded-xl border border-sky-200 bg-white text-sky-700 hover:bg-sky-50 text-xs font-bold transition-all shadow-sm cursor-pointer"
+                        className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-semibold transition-all shadow-xs cursor-pointer"
                         title="Editar sede"
                       >
                         ✏️
@@ -1262,7 +1263,7 @@ export default function Dashboard() {
                       <button
                         type="button"
                         onClick={() => setCampusAEliminar(c)}
-                        className="px-2.5 py-1.5 rounded-xl border border-red-200 bg-white text-red-600 hover:bg-red-50 text-xs font-bold transition-all shadow-sm cursor-pointer"
+                        className="px-2.5 py-1.5 rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 text-xs font-semibold transition-all shadow-xs cursor-pointer"
                         title="Eliminar sede"
                       >
                         🗑️
@@ -1277,24 +1278,24 @@ export default function Dashboard() {
 
         {campusAEditar && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-fadeIn">
-            <div className="w-full max-w-xl bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 space-y-5 max-h-[90vh] flex flex-col">
+            <div className="w-full max-w-xl bg-white rounded-xl p-6 shadow-2xl border border-slate-200 space-y-5 max-h-[90vh] flex flex-col">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <h3 className="text-lg font-serif font-bold text-slate-900 flex items-center gap-2">
                     ✏️ Editar Sede y Cubículos (ID: {campusAEditar.id})
                   </h3>
                   <p className="text-xs text-slate-500">Gestiona la información general y los cubículos de esta sede</p>
                 </div>
                 <button
                   onClick={() => setCampusAEditar(null)}
-                  className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center text-xs cursor-pointer"
+                  className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center text-xs cursor-pointer"
                 >
                   ✕
                 </button>
               </div>
 
               <div className="flex-1 overflow-y-auto space-y-5 pr-1">
-                <form onSubmit={handleGuardarEdicionCampus} className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                <form onSubmit={handleGuardarEdicionCampus} className="space-y-3 bg-[#F8FAFC] p-4 rounded-xl border border-slate-200">
                   <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Datos de la Sede</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
@@ -1305,7 +1306,7 @@ export default function Dashboard() {
                         type="text"
                         value={editNombre}
                         onChange={(e) => setEditNombre(e.target.value)}
-                        className="w-full px-3.5 py-2 rounded-xl border border-sky-200 bg-white text-xs font-medium text-slate-900 outline-none focus:border-sky-500 shadow-sm"
+                        className="w-full px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-medium text-slate-900 outline-none focus:border-[#00629B] shadow-xs"
                         required
                       />
                     </div>
@@ -1320,7 +1321,7 @@ export default function Dashboard() {
                         max="100"
                         value={editCubiculos}
                         onChange={(e) => setEditCubiculos(e.target.value)}
-                        className="w-full px-3.5 py-2 rounded-xl border border-sky-200 bg-white text-xs font-medium text-slate-900 outline-none focus:border-sky-500 shadow-sm"
+                        className="w-full px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-medium text-slate-900 outline-none focus:border-[#00629B] shadow-xs"
                         required
                       />
                     </div>
@@ -1330,7 +1331,7 @@ export default function Dashboard() {
                     <button
                       type="submit"
                       disabled={guardandoEdit || !editNombre.trim()}
-                      className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all cursor-pointer"
+                      className="px-4 py-2 bg-[#00629B] hover:bg-[#005180] text-white text-xs font-semibold rounded-lg shadow-sm transition-all cursor-pointer"
                     >
                       {guardandoEdit ? "Guardando..." : "💾 Actualizar Datos Sede"}
                     </button>
@@ -1350,12 +1351,12 @@ export default function Dashboard() {
                       placeholder="Código del nuevo cubículo (ej: CUB-05)..."
                       value={nuevoCubiculoModalCodigo}
                       onChange={(e) => setNuevoCubiculoModalCodigo(e.target.value)}
-                      className="flex-1 px-3.5 py-2 rounded-xl border border-amber-200 bg-amber-50/40 text-xs font-medium text-slate-900 outline-none focus:border-amber-500 shadow-sm"
+                      className="flex-1 px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-medium text-slate-900 outline-none focus:border-[#00629B] shadow-xs"
                     />
                     <button
                       type="submit"
                       disabled={!nuevoCubiculoModalCodigo.trim()}
-                      className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                      className="px-4 py-2 bg-[#FFC20E] hover:bg-[#e5ad08] text-slate-950 font-bold text-xs rounded-lg shadow-sm transition-all cursor-pointer disabled:opacity-50"
                     >
                       ➕ Añadir
                     </button>
@@ -1366,7 +1367,7 @@ export default function Dashboard() {
                       Cargando cubículos...
                     </div>
                   ) : cubiculosEditModal.length === 0 ? (
-                    <div className="p-4 bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-center text-xs text-slate-500">
+                    <div className="p-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center text-xs text-slate-500">
                       No hay cubículos individuales registrados en esta sede.
                     </div>
                   ) : (
@@ -1374,7 +1375,7 @@ export default function Dashboard() {
                       {cubiculosEditModal.map((cb) => (
                         <div
                           key={cb.id}
-                          className="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-white shadow-sm"
+                          className="flex items-center justify-between p-3 rounded-lg border border-slate-200 bg-white shadow-xs"
                         >
                           {editingCubiculoId === cb.id ? (
                             <div className="flex items-center gap-1.5 flex-1 mr-2">
@@ -1386,26 +1387,26 @@ export default function Dashboard() {
                                   if (e.key === "Enter") handleGuardarEditCubiculo(cb.id);
                                   if (e.key === "Escape") setEditingCubiculoId(null);
                                 }}
-                                className="w-full px-2 py-1 bg-slate-50 border border-sky-300 rounded-lg text-xs font-bold text-slate-800 uppercase"
+                                className="w-full px-2 py-1 bg-slate-50 border border-slate-300 rounded-md text-xs font-bold text-slate-800 outline-none uppercase"
                                 autoFocus
                               />
                               <button
                                 type="button"
                                 onClick={() => handleGuardarEditCubiculo(cb.id)}
-                                className="px-2 py-1 bg-emerald-600 text-white rounded-lg text-[11px] font-bold"
+                                className="px-2 py-1 bg-emerald-600 text-white rounded-md text-[11px] font-bold"
                               >
                                 ✓
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setEditingCubiculoId(null)}
-                                className="px-2 py-1 bg-slate-200 text-slate-700 rounded-lg text-[11px] font-bold"
+                                className="px-2 py-1 bg-slate-200 text-slate-700 rounded-md text-[11px] font-bold"
                               >
                                 ✕
                               </button>
                             </div>
                           ) : (
-                            <span className="font-bold text-xs text-sky-900 bg-sky-50 px-2.5 py-1 rounded-lg border border-sky-100">
+                            <span className="font-semibold text-xs text-slate-800 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
                               🚪 {cb.codigo}
                             </span>
                           )}
@@ -1418,7 +1419,7 @@ export default function Dashboard() {
                                   setEditingCubiculoId(cb.id);
                                   setEditCubiculoCodigoVal(cb.codigo);
                                 }}
-                                className="p-1.5 rounded-lg border border-sky-200 bg-white text-sky-700 hover:bg-sky-50 text-xs font-bold transition-all"
+                                className="p-1.5 rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-semibold transition-all"
                                 title="Editar código del cubículo"
                               >
                                 ✏️
@@ -1426,7 +1427,7 @@ export default function Dashboard() {
                               <button
                                 type="button"
                                 onClick={() => handleEliminarCubiculoModal(cb.id, cb.codigo)}
-                                className="p-1.5 rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 text-xs font-bold transition-all"
+                                className="p-1.5 rounded-md border border-red-200 bg-white text-red-600 hover:bg-red-50 text-xs font-semibold transition-all"
                                 title="Eliminar cubículo"
                               >
                                 🗑️
@@ -1444,7 +1445,7 @@ export default function Dashboard() {
                 <button
                   type="button"
                   onClick={() => setCampusAEditar(null)}
-                  className="py-2 px-5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer"
+                  className="py-2 px-5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg shadow-sm transition-all cursor-pointer"
                 >
                   Cerrar
                 </button>
@@ -1456,11 +1457,11 @@ export default function Dashboard() {
         {/* Modal Eliminar Campus */}
         {campusAEliminar && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-fadeIn">
-            <div className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 text-center space-y-4">
-              <div className="w-14 h-14 rounded-full bg-red-100 text-red-600 text-2xl flex items-center justify-center mx-auto shadow-inner">
+            <div className="w-full max-w-md bg-white rounded-xl p-6 shadow-2xl border border-slate-200 text-center space-y-4">
+              <div className="w-12 h-12 rounded-full bg-red-50 text-red-600 text-xl flex items-center justify-center mx-auto border border-red-100">
                 ⚠️
               </div>
-              <h3 className="text-lg font-bold text-slate-900">
+              <h3 className="text-lg font-serif font-bold text-slate-900">
                 ¿Eliminar el campus '{campusAEliminar.nombre}'?
               </h3>
               <p className="text-xs text-slate-600 leading-relaxed">
@@ -1470,14 +1471,14 @@ export default function Dashboard() {
                 <button
                   onClick={() => setCampusAEliminar(null)}
                   disabled={eliminandoCampus}
-                  className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-50 transition-all cursor-pointer"
+                  className="flex-1 py-2.5 px-4 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-all cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={handleConfirmarEliminarCampus}
                   disabled={eliminandoCampus}
-                  className="flex-1 py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
+                  className="flex-1 py-2.5 px-4 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-semibold shadow-sm transition-all cursor-pointer flex items-center justify-center gap-2"
                 >
                   {eliminandoCampus ? "Eliminando..." : "Confirmar Eliminación"}
                 </button>
@@ -1489,9 +1490,9 @@ export default function Dashboard() {
         {(activeTab === "monitoreo") && (
           <>
             {/* Panel de Filtros */}
-            <div className="bg-white/80 backdrop-blur-md border border-sky-100 rounded-3xl p-6 shadow-lg shadow-sky-900/5 mb-8 flex flex-col gap-5">
+            <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm mb-6 flex flex-col gap-4">
               <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                <span className="text-sm font-bold text-slate-800 min-w-[110px]">
+                <span className="text-xs font-bold text-slate-700 uppercase tracking-wider min-w-[110px]">
                   Sede / Campus:
                 </span>
                 <div className="flex flex-wrap gap-2">
@@ -1501,9 +1502,9 @@ export default function Dashboard() {
                       <button
                         key={c.id}
                         onClick={() => setCampusSeleccionado(c.id)}
-                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer ${esActivo
-                          ? "bg-gradient-to-r from-sky-600 to-sky-500 text-white shadow-sky-500/25"
-                          : "bg-white border border-sky-200 text-slate-700 hover:bg-sky-50 hover:border-sky-300"
+                        className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-xs cursor-pointer ${esActivo
+                          ? "bg-[#00629B] text-white shadow-sm font-bold"
+                          : "bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100"
                           }`}
                       >
                         🏛️ {c.nombre}
@@ -1513,11 +1514,11 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div className="h-px bg-sky-100 w-full" />
+              <div className="h-px bg-slate-100 w-full" />
 
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                  <span className="text-sm font-bold text-slate-800 min-w-[110px]">
+                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wider min-w-[110px]">
                     Fecha:
                   </span>
                   <div className="flex flex-wrap gap-2">
@@ -1527,9 +1528,9 @@ export default function Dashboard() {
                         <button
                           key={d.fechaStr}
                           onClick={() => setFechaSeleccionada(d.fechaStr)}
-                          className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold capitalize transition-all cursor-pointer ${esActivo
-                            ? "bg-amber-500 text-slate-900 font-bold shadow-md shadow-amber-500/20"
-                            : "bg-white border border-sky-200 text-slate-700 hover:bg-sky-50 hover:text-sky-800"
+                          className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all cursor-pointer ${esActivo
+                            ? "bg-[#FFC20E] text-slate-950 font-bold shadow-xs"
+                            : "bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100"
                             }`}
                         >
                           {d.label}
@@ -1545,93 +1546,93 @@ export default function Dashboard() {
                     type="date"
                     value={fechaSeleccionada}
                     onChange={(e) => e.target.value && setFechaSeleccionada(e.target.value)}
-                    className="bg-white border border-sky-200 text-slate-800 rounded-xl px-3 py-1.5 text-xs font-medium outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100 shadow-sm cursor-pointer"
+                    className="bg-white border border-slate-300 text-slate-800 rounded-lg px-3 py-1.5 text-xs font-medium outline-none focus:border-[#00629B] focus:ring-1 focus:ring-[#00629B] shadow-xs cursor-pointer"
                   />
                 </div>
               </div>
             </div>
 
             {/* Banner Informativo */}
-            <div className="bg-gradient-to-r from-sky-50 to-amber-50 border border-sky-200/80 rounded-2xl p-4 mb-8 flex items-start gap-3 shadow-sm">
-              <div className="text-xl flex-shrink-0">💡</div>
-              <p className="text-xs md:text-sm text-slate-700 leading-relaxed">
-                <strong className="text-slate-900">Capacidad física de la biblioteca:</strong> La sede seleccionada cuenta con <strong>{cubiculosActuales} cubículos de estudio</strong>. Haz clic en cualquier bloque horario con reservas para desplegar la lista de alumnos agendados.
+            <div className="bg-sky-50/70 border-l-4 border-[#00629B] rounded-r-xl p-4 mb-6 flex items-start gap-3 shadow-xs">
+              <div className="text-lg flex-shrink-0">💡</div>
+              <p className="text-xs text-slate-700 leading-relaxed">
+                <strong className="text-slate-900 font-semibold">Capacidad física de la sede:</strong> La sede seleccionada cuenta con <strong>{cubiculosActuales} cubículos de estudio</strong>. Haz clic en cualquier bloque horario con reservas para desplegar la lista de alumnos agendados.
               </p>
             </div>
 
             {/* Error */}
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl p-4 text-sm mb-8 shadow-sm">
+              <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-xs font-semibold mb-6 shadow-xs">
                 ⚠️ {error}
               </div>
             )}
 
             {/* Métricas */}
             {loadingData ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 {[0, 1, 2, 3].map((i) => (
-                  <div key={i} className="h-32 bg-white/60 border border-sky-100 rounded-3xl animate-pulse" />
+                  <div key={i} className="h-28 bg-white border border-slate-200 rounded-xl animate-pulse" />
                 ))}
               </div>
             ) : resumen && (
               <>
                 <div className="mb-4">
-                  <h2 className="text-lg font-bold text-slate-800">
+                  <h2 className="text-base font-serif font-bold text-slate-800">
                     Resumen para el {new Date(fechaSeleccionada + "T12:00:00").toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
                   </h2>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                  <div className="bg-white border border-sky-100 rounded-3xl p-6 shadow-md shadow-sky-900/5 hover:-translate-y-1 transition-all">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs hover:shadow-sm transition-shadow">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Cubículos Físicos</span>
-                      <span className="text-2xl">🏢</span>
+                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Cubículos Físicos</span>
+                      <span className="text-xl">🏢</span>
                     </div>
-                    <p className="mt-3 text-4xl font-black text-slate-900">{resumen.cubiculas_fisicos}</p>
-                    <p className="mt-1 text-xs font-medium text-slate-500">Capacidad simultánea fija</p>
+                    <p className="mt-2 text-3xl font-extrabold text-slate-900">{resumen.cubiculas_fisicos}</p>
+                    <p className="mt-1 text-[11px] text-slate-500">Capacidad simultánea fija</p>
                   </div>
 
-                  <div className="bg-white border border-sky-100 rounded-3xl p-6 shadow-md shadow-sky-900/5 hover:-translate-y-1 transition-all">
+                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs hover:shadow-sm transition-shadow">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Reservas Agendadas</span>
-                      <span className="text-2xl">📋</span>
+                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Reservas Agendadas</span>
+                      <span className="text-xl">📋</span>
                     </div>
-                    <p className="mt-3 text-4xl font-black text-sky-600">{resumen.total_reservas_dia}</p>
-                    <p className="mt-1 text-xs font-medium text-slate-500">Reservas registradas en la fecha</p>
+                    <p className="mt-2 text-3xl font-extrabold text-[#00629B]">{resumen.total_reservas_dia}</p>
+                    <p className="mt-1 text-[11px] text-slate-500">Reservas registradas en la fecha</p>
                   </div>
 
-                  <div className="bg-white border border-sky-100 rounded-3xl p-6 shadow-md shadow-sky-900/5 hover:-translate-y-1 transition-all">
+                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs hover:shadow-sm transition-shadow">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Cupos Disponibles</span>
-                      <span className="text-2xl">🟢</span>
+                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Cupos Disponibles</span>
+                      <span className="text-xl">🟢</span>
                     </div>
-                    <p className="mt-3 text-4xl font-black text-emerald-600">{resumen.cupos_disponibles_dia}</p>
-                    <p className="mt-1 text-xs font-medium text-slate-500">De {resumen.cupos_totales_diarios} cupos diarios posibles</p>
+                    <p className="mt-2 text-3xl font-extrabold text-emerald-600">{resumen.cupos_disponibles_dia}</p>
+                    <p className="mt-1 text-[11px] text-slate-500">De {resumen.cupos_totales_diarios} cupos diarios posibles</p>
                   </div>
 
-                  <div className="bg-white border border-sky-100 rounded-3xl p-6 shadow-md shadow-sky-900/5 hover:-translate-y-1 transition-all">
+                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs hover:shadow-sm transition-shadow">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">% Uso Diario</span>
-                      <span className="text-2xl">📈</span>
+                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">% Uso Diario</span>
+                      <span className="text-xl">📈</span>
                     </div>
-                    <p className={`mt-3 text-4xl font-black ${porcentaje > 80 ? 'text-red-500' : porcentaje > 50 ? 'text-amber-500' : 'text-emerald-600'}`}>
+                    <p className={`mt-2 text-3xl font-extrabold ${porcentaje > 80 ? 'text-red-500' : porcentaje > 50 ? 'text-amber-500' : 'text-emerald-600'}`}>
                       {porcentaje}%
                     </p>
-                    <p className="mt-1 text-xs font-medium text-slate-500">Ratio global de ocupación</p>
+                    <p className="mt-1 text-[11px] text-slate-500">Ratio global de ocupación</p>
                   </div>
                 </div>
 
                 {/* Barra de Ocupación */}
-                <div className="bg-white border border-sky-100 rounded-3xl p-6 shadow-md shadow-sky-900/5 mb-8">
+                <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs mb-6">
                   <div className="flex justify-between items-center mb-3">
-                    <span className="text-sm font-bold text-slate-800">Nivel de Ocupación de Cupos Horarios</span>
-                    <span className="text-xs font-bold text-sky-700 bg-sky-50 px-3 py-1 rounded-full border border-sky-100">
+                    <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">Nivel de Ocupación de Cupos Horarios</span>
+                    <span className="text-xs font-bold text-[#00629B] bg-sky-50 px-3 py-1 rounded-full border border-sky-100">
                       {resumen.total_reservas_dia} / {resumen.cupos_totales_diarios} cupos utilizados
                     </span>
                   </div>
-                  <div className="h-3.5 w-full bg-sky-100 rounded-full overflow-hidden">
+                  <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-gradient-to-r from-sky-500 via-sky-400 to-amber-400 rounded-full transition-all duration-700 shadow-sm"
+                      className="h-full bg-gradient-to-r from-[#00629B] via-[#00A3E0] to-[#FFC20E] rounded-full transition-all duration-700"
                       style={{ width: `${porcentaje}%` }}
                     />
                   </div>
@@ -1639,10 +1640,10 @@ export default function Dashboard() {
 
                 {/* Desglose por Bloque Horario */}
                 {resumen.bloques && resumen.bloques.length > 0 && (
-                  <div className="bg-white border border-sky-100 rounded-3xl p-6 shadow-md shadow-sky-900/5">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
+                  <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-5">
                       <div>
-                        <h3 className="text-base font-bold text-slate-900">
+                        <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
                           Estado por Bloque Horario ({cubiculosActuales} Cubículos Físicos)
                         </h3>
                         <p className="text-xs text-slate-500 mt-0.5">
@@ -1654,7 +1655,7 @@ export default function Dashboard() {
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
                       {resumen.bloques.map((b) => {
                         const estaLleno = b.ocupados >= cubiculosActuales;
                         const tieneUso = b.ocupados > 0;
@@ -1663,16 +1664,16 @@ export default function Dashboard() {
                           <div
                             key={b.hora}
                             onClick={() => handleAbrirDetalleBloque(b)}
-                            className={`rounded-2xl p-4 border transition-all shadow-sm flex flex-col justify-between gap-3 ${tieneUso ? "cursor-pointer hover:scale-105 hover:shadow-md" : "opacity-80"
+                            className={`rounded-xl p-3.5 border transition-all shadow-xs flex flex-col justify-between gap-3 ${tieneUso ? "cursor-pointer hover:border-[#00629B] hover:shadow-sm" : "opacity-80"
                               } ${estaLleno
                                 ? "bg-red-50/70 border-red-200"
                                 : tieneUso
-                                  ? "bg-amber-50/70 border-amber-200 hover:border-amber-400"
-                                  : "bg-sky-50/50 border-sky-100"
+                                  ? "bg-sky-50/40 border-sky-200"
+                                  : "bg-white border-slate-200"
                               }`}
                           >
                             <div className="flex items-center justify-between">
-                              <span className="font-bold text-sm text-slate-900">{b.rango}</span>
+                              <span className="font-bold text-xs text-slate-900">{b.rango}</span>
                               {estaLleno ? (
                                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700">Agotado</span>
                               ) : (
@@ -1692,7 +1693,7 @@ export default function Dashboard() {
                             </div>
 
                             {tieneUso && (
-                              <div className="mt-1 pt-2 border-t border-slate-200/50 text-[11px] text-sky-700 font-bold text-center flex items-center justify-center gap-1">
+                              <div className="mt-1 pt-2 border-t border-slate-200/60 text-[11px] text-[#00629B] font-semibold text-center flex items-center justify-center gap-1">
                                 <span>👁️ Ver Reservas</span>
                               </div>
                             )}
@@ -1708,32 +1709,32 @@ export default function Dashboard() {
         )}
 
         {(activeTab === "metricas") && (
-          <div className="mt-2 bg-white/90 backdrop-blur-md border border-sky-200 rounded-3xl p-6 md:p-8 shadow-xl shadow-sky-900/5 mb-8 space-y-6 animate-fadeIn">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-sky-100 pb-5">
+          <div className="bg-white border border-slate-200 rounded-xl p-6 md:p-8 shadow-sm mb-8 space-y-6 animate-fadeIn">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
               <div>
-                <span className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3.5 py-1 text-xs font-semibold text-sky-800 shadow-sm mb-2">
+                <span className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-0.5 text-xs font-semibold text-[#00629B] shadow-xs mb-1">
                   📈 Análisis Estratégico de Biblioteca
                 </span>
-                <h2 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                <h2 className="text-xl md:text-2xl font-serif font-bold text-slate-900 tracking-tight flex items-center gap-2">
                   <span>📊</span> Métricas de Uso y Horarios Pico
                 </h2>
-                <p className="text-xs md:text-sm text-slate-600 mt-1">
-                  Gráficos de ocupación histórica por sede, días de mayor demanda (ej: semanas de exámenes) y tasa de cancelación.
+                <p className="text-xs text-slate-600 mt-0.5">
+                  Gráficos de ocupación histórica por sede, días de mayor demanda y tasa de cancelación.
                 </p>
               </div>
               <button
                 onClick={() => setMostrarGraficoMetricas(true)}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white text-xs font-extrabold rounded-2xl shadow-lg shadow-sky-500/25 transition-all transform hover:scale-105 active:scale-95 cursor-pointer self-start md:self-auto"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-[#00629B] hover:bg-[#005180] text-white text-xs font-semibold rounded-lg shadow-sm transition-all cursor-pointer self-start md:self-auto"
               >
                 <span>📊</span> Ver Gráfico Interactivo
               </button>
             </div>
 
             {/* Banner de Utilidad Administrativa */}
-            <div className="bg-gradient-to-r from-amber-500/10 via-sky-500/10 to-emerald-500/10 border border-sky-200 rounded-2xl p-4 flex items-start gap-3 shadow-sm">
-              <div className="text-2xl">💡</div>
+            <div className="bg-sky-50/60 border-l-4 border-[#00629B] rounded-r-xl p-4 flex items-start gap-3 shadow-xs">
+              <div className="text-xl">💡</div>
               <div>
-                <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 mb-0.5">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900 mb-0.5">
                   Utilidad para la Administración
                 </h4>
                 <p className="text-xs text-slate-700 leading-relaxed font-medium">
@@ -1743,13 +1744,13 @@ export default function Dashboard() {
             </div>
 
             {/* Grid de Tarjetas de Métricas */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
 
               {/* Tarjeta 1: Horarios Pico de Mayor Demanda */}
-              <div className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-5 space-y-3">
+              <div className="bg-[#F8FAFC] border border-slate-200 rounded-xl p-5 space-y-3">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                    <span>🔥</span> Horarios Pico (Mayor Demanda)
+                    <span>🔥</span> Horarios Pico
                   </h3>
                   <span className="text-[10px] bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded-full">Top Bloques</span>
                 </div>
@@ -1764,7 +1765,7 @@ export default function Dashboard() {
                         <div key={idx} className="space-y-1">
                           <div className="flex justify-between text-xs font-bold text-slate-800">
                             <span>⏰ {p.hora} hrs</span>
-                            <span className="text-sky-700 font-extrabold">{p.total} reserva(s)</span>
+                            <span className="text-[#00629B] font-extrabold">{p.total} reserva(s)</span>
                           </div>
                           <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
                             <div className="h-full bg-gradient-to-r from-[#00629B] via-[#00A3E0] to-[#FFC20E] rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
@@ -1782,56 +1783,57 @@ export default function Dashboard() {
               </div>
 
               {/* Tarjeta 2: Días de Mayor Demanda Semanal */}
-              <div className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-5 space-y-3">
+              <div className="bg-[#F8FAFC] border border-slate-200 rounded-xl p-5 space-y-3">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                     <span>📅</span> Días de Mayor Demanda
                   </h3>
-                  <span className="text-[10px] bg-sky-100 text-sky-800 font-bold px-2 py-0.5 rounded-full">Exámenes</span>
+                  <span className="text-[10px] bg-sky-100 text-[#00629B] font-bold px-2 py-0.5 rounded-full">Exámenes</span>
                 </div>
                 <p className="text-[11px] text-slate-500">Distribución de reservas según el día de la semana:</p>
 
                 {metricas?.dias_demanda && metricas.dias_demanda.length > 0 ? (
                   <div className="space-y-2 pt-1">
                     {metricas.dias_demanda.map((d, idx) => (
-                      <div key={idx} className="flex justify-between items-center text-xs p-2 bg-white rounded-xl border border-slate-200">
-                        <span className="font-bold text-slate-800 capitalize">🗓️ {traducirDia(d.dia)}</span>
-                        <span className="font-extrabold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">{d.total} reservas</span>
+                      <div key={idx} className="flex justify-between items-center text-xs p-2 bg-white rounded-lg border border-slate-200">
+                        <span className="font-semibold text-slate-800 capitalize">🗓️ {traducirDia(d.dia)}</span>
+                        <span className="font-extrabold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">{d.total} reservas</span>
                       </div>
                     ))}
                   </div>
                 ) : (
                   <div className="space-y-2 text-xs text-slate-600">
-                    <div className="p-2 bg-white rounded-xl border border-slate-200 flex justify-between"><span>🗓️ Martes / Miércoles</span><strong className="text-amber-600">Días Pico</strong></div>
-                    <div className="p-2 bg-white rounded-xl border border-slate-200 flex justify-between"><span>📚 Semanas de Exámenes</span><strong className="text-rose-600">+180% Ocupación</strong></div>
+                    <div className="p-2 bg-white rounded-lg border border-slate-200 flex justify-between"><span>🗓️ Martes / Miércoles</span><strong className="text-amber-600">Días Pico</strong></div>
+                    <div className="p-2 bg-white rounded-lg border border-slate-200 flex justify-between"><span>📚 Semanas de Exámenes</span><strong className="text-rose-600">+180% Ocupación</strong></div>
                   </div>
                 )}
               </div>
 
-              <div className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-5 space-y-3">
+              {/* Tarjeta 3: Cancelaciones y Eliminaciones */}
+              <div className="bg-[#F8FAFC] border border-slate-200 rounded-xl p-5 space-y-3">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                    <span>📉</span> Cancelaciones y Eliminaciones
+                    <span>📉</span> Cancelaciones
                   </h3>
                   <span className="text-[10px] bg-red-100 text-red-800 font-bold px-2 py-0.5 rounded-full">Histórico</span>
                 </div>
                 <p className="text-[11px] text-slate-500">Estimación basada en el historial de reservas:</p>
 
-                <div className="space-y-3 pt-1">
-                  <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between">
+                <div className="space-y-2.5 pt-1">
+                  <div className="p-2.5 bg-white rounded-lg border border-slate-200 flex items-center justify-between">
                     <div>
                       <p className="text-[11px] text-slate-500 font-semibold">Eliminaciones por Día (Promed.):</p>
-                      <p className="text-lg font-black text-rose-600">{metricas?.promedio_cancelaciones_diarias || "0.0 elim/día"}</p>
+                      <p className="text-base font-extrabold text-rose-600">{metricas?.promedio_cancelaciones_diarias || "0.0 elim/día"}</p>
                     </div>
-                    <span className="text-xs font-bold text-rose-700 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200">Promedio Histórico</span>
+                    <span className="text-[11px] font-semibold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">Promedio</span>
                   </div>
 
-                  <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between">
+                  <div className="p-2.5 bg-white rounded-lg border border-slate-200 flex items-center justify-between">
                     <div>
                       <p className="text-[11px] text-slate-500 font-semibold">Tasa de Cancelación Global:</p>
                       <p className="text-sm font-bold text-slate-900">{metricas?.tasa_cancelacion_estimada || "0.0%"}</p>
                     </div>
-                    <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">Ratio Canceladas</span>
+                    <span className="text-[11px] font-semibold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">Ratio</span>
                   </div>
 
                   {metricas?.cancelaciones_por_dia && metricas.cancelaciones_por_dia.length > 0 && (
@@ -1855,25 +1857,25 @@ export default function Dashboard() {
         )}
 
         {(activeTab === "historial") && (
-          <div className="mt-2 bg-white/90 backdrop-blur-md border border-slate-200 rounded-3xl p-6 md:p-8 shadow-xl mb-8 space-y-6 animate-fadeIn">
+          <div className="bg-white border border-slate-200 rounded-xl p-6 md:p-8 shadow-sm mb-8 space-y-6 animate-fadeIn">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
               <div>
-                <span className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-3.5 py-1 text-xs font-semibold text-indigo-800 shadow-sm mb-2">
-                  🏛️ Registro Histórico de Administración
+                <span className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-0.5 text-xs font-semibold text-[#00629B] shadow-xs mb-1">
+                  🏛️ Registro Histórico
                 </span>
-                <h2 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-                  <span>📜</span> Historial de Reservas Antiguas y Canceladas
+                <h2 className="text-xl md:text-2xl font-serif font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                  <span>📜</span> Historial de Reservas y Cancelaciones
                 </h2>
-                <p className="text-xs md:text-sm text-slate-600 mt-1">
+                <p className="text-xs text-slate-600 mt-0.5">
                   Consulta el registro permanente de reservas pasadas, archivadas o canceladas por los estudiantes.
                 </p>
               </div>
-              <div className="flex flex-wrap items-center gap-2.5 self-start md:self-auto">
+              <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
                 <button
                   type="button"
                   onClick={handleDescargarExcelHistorial}
                   disabled={exportandoExcel || cargandoHistorial}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-2xl shadow-md transition-all transform hover:scale-105 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex items-center gap-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg shadow-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   title="Exportar archivo Excel (.xlsx)"
                 >
                   <span>📊</span>
@@ -1884,7 +1886,7 @@ export default function Dashboard() {
                   type="button"
                   onClick={handleLimpiarHistorial}
                   disabled={limpiandoHistorial || cargandoHistorial || historial.length === 0}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 text-xs font-bold rounded-2xl shadow-sm transition-all transform hover:scale-105 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="inline-flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-red-50 border border-red-200 text-red-600 text-xs font-semibold rounded-lg shadow-xs transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                   title="Purgar y vaciar historial antiguo"
                 >
                   <span>🗑️</span>
@@ -1896,7 +1898,7 @@ export default function Dashboard() {
                     setMostrarHistorial(!mostrarHistorial);
                     if (!mostrarHistorial) fetchHistorial();
                   }}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-extrabold rounded-2xl shadow-md transition-all transform hover:scale-105 cursor-pointer"
+                  className="inline-flex items-center gap-2 px-3.5 py-2 bg-[#00629B] hover:bg-[#005180] text-white text-xs font-semibold rounded-lg shadow-sm transition-all cursor-pointer"
                 >
                   <span>{mostrarHistorial ? "🙈 Ocultar" : "👁️ Mostrar"}</span>
                 </button>
@@ -1913,13 +1915,13 @@ export default function Dashboard() {
                         value={busquedaHistorial}
                         onChange={(e) => setBusquedaHistorial(e.target.value)}
                         placeholder="🔍 Buscar por Alumno o RUT..."
-                        className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-sm"
+                        className="w-full text-xs bg-white border border-slate-300 rounded-lg px-3.5 py-2 font-medium text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#00629B] focus:border-[#00629B] shadow-xs"
                       />
                     </div>
                     <select
                       value={campusFiltroHistorial}
                       onChange={(e) => setCampusFiltroHistorial(e.target.value)}
-                      className="w-full sm:w-auto text-xs bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-sm"
+                      className="w-full sm:w-auto text-xs bg-white border border-slate-300 rounded-lg px-3.5 py-2 font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#00629B] shadow-xs"
                     >
                       <option value="todos">🌐 Todas las Sedes</option>
                       {campus.map((c) => (
@@ -1929,7 +1931,7 @@ export default function Dashboard() {
                   </div>
                   <button
                     onClick={fetchHistorial}
-                    className="px-4 py-2 bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold text-xs rounded-xl border border-sky-200 transition-all cursor-pointer"
+                    className="px-3.5 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 font-semibold text-xs rounded-lg border border-slate-200 transition-all cursor-pointer"
                   >
                     🔄 Actualizar Registros
                   </button>
@@ -1937,18 +1939,18 @@ export default function Dashboard() {
 
                 {cargandoHistorial ? (
                   <div className="py-12 text-center text-slate-500 space-y-2">
-                    <div className="w-6 h-6 border-2 border-sky-500 border-t-transparent rounded-full animate-spin mx-auto" />
+                    <div className="w-6 h-6 border-2 border-[#00629B] border-t-transparent rounded-full animate-spin mx-auto" />
                     <p className="text-xs font-medium">Cargando registros históricos...</p>
                   </div>
                 ) : historial.length === 0 ? (
-                  <div className="py-10 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-xs text-slate-500">
+                  <div className="py-10 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200 text-xs text-slate-500">
                     No hay reservas registradas en el historial para esta búsqueda.
                   </div>
                 ) : (
-                  <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-sm">
+                  <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-xs">
                     <table className="w-full text-left border-collapse text-xs">
                       <thead>
-                        <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                        <tr className="bg-[#F8FAFC] text-slate-700 font-semibold border-b border-slate-200 text-[11px] uppercase tracking-wider">
                           <th className="p-3">ID Original</th>
                           <th className="p-3">Alumno Titular</th>
                           <th className="p-3">RUT</th>
@@ -1960,16 +1962,16 @@ export default function Dashboard() {
                       </thead>
                       <tbody className="divide-y divide-slate-100 bg-white">
                         {historial.map((h) => (
-                          <tr key={h.id} className="hover:bg-slate-50/80 transition-colors">
+                          <tr key={h.id} className="hover:bg-slate-50 transition-colors">
                             <td className="p-3 font-semibold text-slate-400">#{h.reserva_id || h.id}</td>
                             <td className="p-3 font-bold text-slate-900">{h.nombre}</td>
                             <td className="p-3 font-medium text-slate-700">{h.rut}</td>
                             <td className="p-3 text-slate-600 font-medium">{h.campus_nombre || "Sede Principal"}</td>
                             <td className="p-3 text-slate-800 font-semibold">{h.fecha}</td>
-                            <td className="p-3 font-bold text-sky-700">{h.hora} hrs</td>
+                            <td className="p-3 font-bold text-[#00629B]">{h.hora} hrs</td>
                             <td className="p-3">
                               <span
-                                className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${h.estado === "cancelada"
+                                className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${h.estado === "cancelada"
                                   ? "bg-red-100 text-red-700 border border-red-200"
                                   : h.estado === "inasistencia"
                                     ? "bg-rose-100 text-rose-800 border border-rose-300"
@@ -1997,10 +1999,10 @@ export default function Dashboard() {
         {/* MODAL DETALLE DE RESERVAS */}
         {bloqueSeleccionado && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-fadeIn">
-            <div className="w-full max-w-2xl bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 space-y-4 max-h-[85vh] flex flex-col">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div className="w-full max-w-2xl bg-white rounded-xl p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[85vh] flex flex-col">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900">
+                  <h3 className="text-lg font-serif font-bold text-slate-900">
                     📋 Reservas en el Bloque {bloqueSeleccionado.rango}
                   </h3>
                   <p className="text-xs text-slate-500 mt-0.5">
@@ -2009,7 +2011,7 @@ export default function Dashboard() {
                 </div>
                 <button
                   onClick={() => setBloqueSeleccionado(null)}
-                  className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center cursor-pointer transition-all text-sm"
+                  className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center cursor-pointer transition-all text-xs"
                 >
                   ✕
                 </button>
@@ -2018,7 +2020,7 @@ export default function Dashboard() {
               <div className="flex-1 overflow-y-auto space-y-3 pr-1">
                 {cargandoBloque ? (
                   <div className="py-12 text-center text-slate-500 space-y-3">
-                    <div className="w-6 h-6 border-2 border-sky-500 border-t-transparent rounded-full animate-spin mx-auto" />
+                    <div className="w-6 h-6 border-2 border-[#00629B] border-t-transparent rounded-full animate-spin mx-auto" />
                     <p className="text-xs font-medium">Cargando detalles de los alumnos...</p>
                   </div>
                 ) : reservasBloque.length === 0 ? (
@@ -2029,10 +2031,10 @@ export default function Dashboard() {
                   reservasBloque.map((res, idx) => (
                     <div
                       key={res.id || idx}
-                      className="p-4 rounded-2xl border border-sky-100 bg-sky-50/30 hover:bg-sky-50/80 transition-all space-y-2"
+                      className="p-4 rounded-xl border border-slate-200 bg-[#F8FAFC] hover:bg-slate-50 transition-all space-y-2.5 shadow-xs"
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-sky-800 bg-sky-100 px-2.5 py-0.5 rounded-full">
+                        <span className="text-xs font-semibold text-[#00629B] bg-sky-50 px-2.5 py-0.5 rounded-md border border-sky-100">
                           📍 Cubículo: {res.cubiculo_codigo || `CUB-${idx + 1}`}
                         </span>
 
@@ -2044,7 +2046,7 @@ export default function Dashboard() {
                               type="button"
                               onClick={() => handleMarcarInasistencia(res.id, res.rut, res.nombre)}
                               disabled={eliminandoReservaId === res.id}
-                              className="px-3 py-1 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs transition-all flex items-center gap-1 shadow-sm cursor-pointer disabled:opacity-50"
+                              className="px-3 py-1 rounded-lg bg-[#FFC20E] hover:bg-[#e5ad08] text-slate-950 font-bold text-xs transition-all flex items-center gap-1 shadow-xs cursor-pointer disabled:opacity-50"
                               title="Pasaron 10 minutos. Eliminar y registrar como inasistencia."
                             >
                               {eliminandoReservaId === res.id ? (
@@ -2059,7 +2061,7 @@ export default function Dashboard() {
                             <button
                               type="button"
                               disabled
-                              className="px-2.5 py-1 rounded-xl bg-slate-100 border border-slate-200 text-slate-400 font-semibold text-[11px] flex items-center gap-1 cursor-not-allowed opacity-80"
+                              className="px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-400 font-medium text-[11px] flex items-center gap-1 cursor-not-allowed opacity-80"
                               title="Se activará tras 10 minutos del inicio del bloque"
                             >
                               <span>⏱️</span> Espera 10m
@@ -2070,7 +2072,7 @@ export default function Dashboard() {
                             type="button"
                             onClick={() => handleEliminarReserva(res.id)}
                             disabled={eliminandoReservaId === res.id}
-                            className="px-3 py-1 rounded-xl bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 font-bold text-xs transition-all flex items-center gap-1 shadow-sm cursor-pointer disabled:opacity-50"
+                            className="px-3 py-1 rounded-lg bg-white hover:bg-red-50 border border-red-200 text-red-600 font-semibold text-xs transition-all flex items-center gap-1 shadow-xs cursor-pointer disabled:opacity-50"
                             title="Eliminar esta reserva"
                           >
                             {eliminandoReservaId === res.id ? (
@@ -2097,11 +2099,11 @@ export default function Dashboard() {
 
                       {/* Acompañantes */}
                       {res.acompanantes && res.acompanantes.length > 0 && (
-                        <div className="mt-2 pt-2 border-t border-sky-100 text-xs">
+                        <div className="mt-2 pt-2 border-t border-slate-200 text-xs">
                           <p className="text-[11px] font-bold text-slate-600 mb-1">
                             👥 Acompañantes Registrados ({res.acompanantes.length}):
                           </p>
-                          <ul className="space-y-1 pl-2 border-l-2 border-amber-300">
+                          <ul className="space-y-1 pl-2 border-l-2 border-[#FFC20E]">
                             {res.acompanantes.map((ac, i) => (
                               <li key={i} className="text-slate-700 text-[11px]">
                                 • <strong className="font-semibold">{ac.nombre}</strong> {ac.rut ? `(${ac.rut})` : ""}
@@ -2118,7 +2120,7 @@ export default function Dashboard() {
               <div className="pt-2 border-t border-slate-100 flex justify-end">
                 <button
                   onClick={() => setBloqueSeleccionado(null)}
-                  className="py-2 px-5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer"
+                  className="py-2 px-5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg shadow-sm transition-all cursor-pointer"
                 >
                   Cerrar
                 </button>
@@ -2129,41 +2131,41 @@ export default function Dashboard() {
 
         {mostrarGraficoMetricas && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-md p-4 animate-fadeIn">
-            <div className="w-full max-w-4xl bg-white rounded-3xl p-6 md:p-8 shadow-2xl border border-slate-100 space-y-6 max-h-[90vh] flex flex-col overflow-hidden">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div className="w-full max-w-4xl bg-white rounded-xl p-6 md:p-8 shadow-2xl border border-slate-200 space-y-6 max-h-[90vh] flex flex-col overflow-hidden">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-sky-600 bg-sky-50 px-2.5 py-0.5 rounded-full border border-sky-100">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#00629B] bg-sky-50 px-2.5 py-0.5 rounded-full border border-sky-100">
                     Visualización Gráfica Interactiva
                   </span>
-                  <h3 className="text-xl font-black text-slate-900 mt-1 flex items-center gap-2">
+                  <h3 className="text-xl font-serif font-bold text-slate-900 mt-1 flex items-center gap-2">
                     <span>📊</span> Análisis Gráfico de Demanda y Ocupación
                   </h3>
                 </div>
                 <button
                   onClick={() => setMostrarGraficoMetricas(false)}
-                  className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center cursor-pointer transition-all text-base"
+                  className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center cursor-pointer transition-all text-xs"
                 >
                   ✕
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto space-y-8 pr-2">
-                <div className="bg-white rounded-3xl p-6 md:p-8 space-y-5 border border-sky-100 shadow-xl shadow-sky-900/5">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-sky-100">
+              <div className="flex-1 overflow-y-auto space-y-6 pr-2">
+                <div className="bg-white rounded-xl p-6 space-y-5 border border-slate-200 shadow-xs">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
                     <div>
-                      <h4 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                      <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
                         <span className="text-[#00629B]">📊</span> Horarios de Mayor Ocupación
                       </h4>
                       <p className="text-xs text-slate-500 mt-0.5">
                         Distribución del flujo de estudiantes agendados por bloque horario
                       </p>
                     </div>
-                    <span className="text-xs bg-sky-50 text-[#00629B] border border-sky-200 font-extrabold px-3.5 py-1 rounded-full shadow-xs self-start sm:self-auto">
+                    <span className="text-xs bg-sky-50 text-[#00629B] border border-sky-200 font-semibold px-3 py-0.5 rounded-full shadow-xs self-start sm:self-auto">
                       Ocupación Institucional
                     </span>
                   </div>
 
-                  <div className="h-56 flex items-end justify-between gap-4 pt-10 pb-4 px-4 bg-gradient-to-b from-sky-50/50 via-white to-slate-50/70 rounded-2xl border border-sky-100/80 shadow-xs">
+                  <div className="h-56 flex items-end justify-between gap-4 pt-10 pb-4 px-4 bg-gradient-to-b from-sky-50/40 via-white to-slate-50/60 rounded-xl border border-slate-200 shadow-xs">
                     {(metricas?.horarios_pico && metricas.horarios_pico.length > 0
                       ? metricas.horarios_pico
                       : [
@@ -2188,16 +2190,16 @@ export default function Dashboard() {
                           key={idx}
                           className="flex-1 flex flex-col items-center gap-2.5 group cursor-pointer"
                         >
-                          <span className="text-xs font-black text-[#00629B] group-hover:scale-125 group-hover:text-[#FFC20E] transition-all bg-white px-2 py-0.5 rounded-lg border border-sky-100 shadow-xs">
+                          <span className="text-xs font-bold text-[#00629B] group-hover:scale-125 group-hover:text-[#FFC20E] transition-all bg-white px-2 py-0.5 rounded-md border border-slate-200 shadow-xs">
                             {item.total}
                           </span>
-                          <div className="h-36 w-4 sm:w-5 md:w-6 bg-slate-100 rounded-full flex items-end justify-center p-0.5 relative overflow-hidden shadow-inner border border-slate-200/70">
+                          <div className="h-36 w-4 sm:w-5 md:w-6 bg-slate-100 rounded-full flex items-end justify-center p-0.5 relative overflow-hidden shadow-inner border border-slate-200">
                             <div
-                              className="w-full rounded-full bg-gradient-to-t from-[#00629B] via-[#00A3E0] to-[#FFC20E] shadow-sm shadow-[#00A3E0]/30 transition-all duration-500 group-hover:brightness-110"
+                              className="w-full rounded-full bg-gradient-to-t from-[#00629B] via-[#00A3E0] to-[#FFC20E] shadow-xs transition-all duration-500 group-hover:brightness-110"
                               style={{ height: `${heightPct}%` }}
                             />
                           </div>
-                          <span className="text-[10px] font-bold text-slate-600 truncate max-w-[65px] text-center">
+                          <span className="text-[10px] font-semibold text-slate-600 truncate max-w-[65px] text-center">
                             {item.hora.split("-")[0]} hrs
                           </span>
                         </div>
@@ -2206,9 +2208,9 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
-                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="p-5 bg-[#F8FAFC] rounded-xl border border-slate-200 space-y-4">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
                       <span>📅</span> Ocupación por Día de la Semana
                     </h4>
                     <div className="space-y-3">
@@ -2231,7 +2233,7 @@ export default function Dashboard() {
                           <div key={i} className="space-y-1">
                             <div className="flex justify-between text-xs font-bold text-slate-700">
                               <span className="capitalize">{traducirDia(d.dia)}</span>
-                              <span className="text-[#00629B] font-black bg-sky-50 px-2 py-0.5 rounded-md border border-sky-100">
+                              <span className="text-[#00629B] font-extrabold bg-white px-2 py-0.5 rounded-md border border-slate-200">
                                 {d.total} reservas
                               </span>
                             </div>
@@ -2247,9 +2249,9 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  <div className="p-5 bg-gradient-to-br from-emerald-500/10 via-sky-500/10 to-indigo-500/10 rounded-2xl border border-sky-200 space-y-4 flex flex-col justify-between">
+                  <div className="p-5 bg-[#F8FAFC] rounded-xl border border-slate-200 space-y-4 flex flex-col justify-between">
                     <div>
-                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
                         <span>🎯</span> Resumen de Eficiencia
                       </h4>
                       <p className="text-xs text-slate-600 mt-1">
@@ -2257,35 +2259,35 @@ export default function Dashboard() {
                       </p>
                     </div>
 
-                    <div className="space-y-3">
-                      <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between shadow-sm">
-                        <span className="text-xs font-bold text-slate-700">
+                    <div className="space-y-2.5">
+                      <div className="p-2.5 bg-white rounded-lg border border-slate-200 flex items-center justify-between shadow-xs">
+                        <span className="text-xs font-medium text-slate-700">
                           Eliminaciones/Día:
                         </span>
-                        <span className="text-sm font-black text-rose-600">
+                        <span className="text-sm font-extrabold text-rose-600">
                           {metricas?.promedio_cancelaciones_diarias || "0.0 elim/día"}
                         </span>
                       </div>
-                      <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between shadow-sm">
-                        <span className="text-xs font-bold text-slate-700">
+                      <div className="p-2.5 bg-white rounded-lg border border-slate-200 flex items-center justify-between shadow-xs">
+                        <span className="text-xs font-medium text-slate-700">
                           Tasa Cancelación:
                         </span>
                         <span className="text-sm font-bold text-slate-900">
                           {metricas?.tasa_cancelacion_estimada || "0.0%"}
                         </span>
                       </div>
-                      <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between shadow-sm">
-                        <span className="text-xs font-bold text-slate-700">
+                      <div className="p-2.5 bg-white rounded-lg border border-slate-200 flex items-center justify-between shadow-xs">
+                        <span className="text-xs font-medium text-slate-700">
                           Pico en Exámenes:
                         </span>
-                        <span className="text-xs font-black text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md">
+                        <span className="text-xs font-semibold text-[#00629B] bg-sky-50 px-2 py-0.5 rounded-md border border-sky-100">
                           {metricas?.semana_pico_examenes || "Semana 16"}
                         </span>
                       </div>
                     </div>
 
-                    <div className="p-3 bg-sky-100/60 rounded-xl text-[11px] text-sky-900 font-medium">
-                      💡 <strong>Recomendación:</strong> Ampliar cubículos en bloques de 11:30 a 13:00 hrs durante los días Martes y Miércoles.
+                    <div className="p-3 bg-sky-50 rounded-lg text-[11px] text-slate-700 border border-sky-100">
+                      💡 <strong>Recomendación:</strong> Optimizar cubículos en bloques de alta demanda durante los días pico.
                     </div>
                   </div>
                 </div>
@@ -2294,7 +2296,7 @@ export default function Dashboard() {
               <div className="pt-3 border-t border-slate-100 flex justify-end">
                 <button
                   onClick={() => setMostrarGraficoMetricas(false)}
-                  className="py-2.5 px-6 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer"
+                  className="py-2.5 px-6 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg shadow-sm transition-all cursor-pointer"
                 >
                   Cerrar Gráficos
                 </button>
@@ -2304,50 +2306,50 @@ export default function Dashboard() {
         )}
 
         {(activeTab === "calendario") && (
-          <div className="bg-white/90 backdrop-blur-md border border-sky-200 rounded-3xl p-6 md:p-8 shadow-xl shadow-sky-900/10 mb-8 space-y-8 animate-fadeIn">
+          <div className="bg-white border border-slate-200 rounded-xl p-6 md:p-8 shadow-sm mb-8 space-y-6 animate-fadeIn">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
               <div>
-                <span className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-0.5 text-xs font-semibold text-sky-800 shadow-sm mb-1">
-                  📅 Control de Disponibilidad y Fechas
+                <span className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-0.5 text-xs font-semibold text-[#00629B] shadow-xs mb-1">
+                  📅 Control de Disponibilidad
                 </span>
-                <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                <h2 className="text-xl font-serif font-bold text-slate-900 flex items-center gap-2">
                   Bloqueo de Días en el Calendario
                 </h2>
-                <p className="text-xs text-slate-600">
+                <p className="text-xs text-slate-600 mt-0.5">
                   Inhabilita fechas específicas para impedir que los estudiantes agenden cubículos (por feriados, mantenimiento o recesos).
                 </p>
               </div>
               <button
                 onClick={fetchDiasBloqueados}
-                className="px-4 py-2 bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-900 font-bold text-xs rounded-xl transition cursor-pointer flex items-center gap-1"
+                className="px-3.5 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-semibold text-xs rounded-lg transition cursor-pointer flex items-center gap-1"
               >
                 🔄 Actualizar
               </button>
             </div>
 
-            <div className="bg-gradient-to-r from-sky-50/70 to-amber-50/70 border border-sky-200/80 rounded-2xl p-5 shadow-sm space-y-4">
-              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+            <div className="bg-[#F8FAFC] border border-slate-200 rounded-xl p-5 shadow-xs space-y-4">
+              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
                 <span>🔒</span> Bloquear una Nueva Fecha
               </h3>
               <form onSubmit={handleCrearBloqueo} className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
                 <div className="sm:col-span-3">
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Fecha a Bloquear:</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Fecha a Bloquear:</label>
                   <input
                     type="date"
                     required
                     value={formBloqueo.fecha}
                     min={hoyStr}
                     onChange={(e) => setFormBloqueo((prev) => ({ ...prev, fecha: e.target.value }))}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-sky-200 bg-white text-xs font-semibold text-slate-900 focus:outline-none focus:border-sky-500 shadow-sm cursor-pointer"
+                    className="w-full px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-medium text-slate-900 focus:outline-none focus:border-[#00629B] focus:ring-1 focus:ring-[#00629B] shadow-xs cursor-pointer"
                   />
                 </div>
 
                 <div className="sm:col-span-3">
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Sede / Campus:</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Sede / Campus:</label>
                   <select
                     value={formBloqueo.campus_id}
                     onChange={(e) => setFormBloqueo((prev) => ({ ...prev, campus_id: e.target.value }))}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-sky-200 bg-white text-xs font-semibold text-slate-900 focus:outline-none focus:border-sky-500 shadow-sm cursor-pointer"
+                    className="w-full px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-900 focus:outline-none focus:border-[#00629B] shadow-xs cursor-pointer"
                   >
                     <option value="">🌐 Todas las Sedes (Bloqueo Global)</option>
                     {campus.map((c) => (
@@ -2359,14 +2361,14 @@ export default function Dashboard() {
                 </div>
 
                 <div className="sm:col-span-4">
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Motivo del Bloqueo:</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Motivo del Bloqueo:</label>
                   <input
                     type="text"
                     required
                     placeholder="ej: Receso académico, Feriado no programado..."
                     value={formBloqueo.motivo}
                     onChange={(e) => setFormBloqueo((prev) => ({ ...prev, motivo: e.target.value }))}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-sky-200 bg-white text-xs font-medium text-slate-900 focus:outline-none focus:border-sky-500 shadow-sm"
+                    className="w-full px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-medium text-slate-900 focus:outline-none focus:border-[#00629B] focus:ring-1 focus:ring-[#00629B] shadow-xs"
                   />
                 </div>
 
@@ -2374,7 +2376,7 @@ export default function Dashboard() {
                   <button
                     type="submit"
                     disabled={guardandoBloqueo || !formBloqueo.fecha}
-                    className="w-full py-2.5 px-4 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                    className="w-full py-2 px-4 bg-[#00629B] hover:bg-[#005180] disabled:opacity-50 text-white text-xs font-semibold rounded-lg shadow-sm transition-all cursor-pointer flex items-center justify-center gap-1.5"
                   >
                     {guardandoBloqueo ? "Guardando..." : "🔒 Bloquear Día"}
                   </button>
@@ -2384,17 +2386,17 @@ export default function Dashboard() {
 
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">
                   <span>📋</span> Días Inhabilitados ({diasBloqueados.length})
                 </h3>
               </div>
 
               {cargandoBloqueos ? (
-                <div className="py-12 text-center text-xs text-sky-700 font-medium animate-pulse">
+                <div className="py-12 text-center text-xs text-[#00629B] font-medium animate-pulse">
                   Cargando días bloqueados...
                 </div>
               ) : diasBloqueados.length === 0 ? (
-                <div className="py-10 text-center border border-dashed border-slate-200 rounded-2xl bg-slate-50 text-xs text-slate-500">
+                <div className="py-8 text-center border border-dashed border-slate-200 rounded-xl bg-slate-50 text-xs text-slate-500">
                   No hay días bloqueados registrados actualmente. Todos los días laborales regulares están habilitados para reservas.
                 </div>
               ) : (
@@ -2402,23 +2404,23 @@ export default function Dashboard() {
                   {diasBloqueados.map((b) => (
                     <div
                       key={b.id}
-                      className="p-4 rounded-2xl border border-red-200/80 bg-red-50/40 shadow-sm flex flex-col justify-between gap-3 hover:border-red-300 transition-all"
+                      className="p-4 rounded-xl border border-slate-200 bg-[#F8FAFC] shadow-xs flex flex-col justify-between gap-3 hover:border-slate-300 transition-all"
                     >
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-sm font-black text-slate-900">
+                          <span className="text-xs font-bold text-slate-900">
                             📅 {b.fecha}
                           </span>
                           <span
-                            className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${b.campus_id
-                                ? "bg-amber-100 border-amber-300 text-amber-900"
-                                : "bg-red-100 border-red-300 text-red-900"
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${b.campus_id
+                              ? "bg-amber-50 border-amber-200 text-amber-900"
+                              : "bg-red-50 border-red-200 text-red-900"
                               }`}
                           >
                             {b.campus_nombre ? `🏛️ ${b.campus_nombre}` : "🌐 Todas las sedes"}
                           </span>
                         </div>
-                        <p className="text-xs font-semibold text-slate-700">
+                        <p className="text-xs font-medium text-slate-700">
                           {b.motivo}
                         </p>
                         <p className="text-[10px] text-slate-400">
@@ -2426,11 +2428,11 @@ export default function Dashboard() {
                         </p>
                       </div>
 
-                      <div className="pt-2 border-t border-red-200/50 flex justify-end">
+                      <div className="pt-2 border-t border-slate-200/60 flex justify-end">
                         <button
                           type="button"
                           onClick={() => handleEliminarBloqueo(b.id, b.fecha, b.campus_nombre)}
-                          className="px-3 py-1.5 bg-white hover:bg-emerald-50 text-emerald-700 hover:text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer flex items-center gap-1"
+                          className="px-3 py-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold shadow-xs transition-all cursor-pointer flex items-center gap-1"
                         >
                           🔓 Desbloquear
                         </button>
@@ -2445,14 +2447,14 @@ export default function Dashboard() {
 
         {modalAnuncioOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-fadeIn">
-            <div className="w-full max-w-lg bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 space-y-4">
+            <div className="w-full max-w-lg bg-white rounded-xl p-6 shadow-2xl border border-slate-200 space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <h3 className="text-lg font-bold text-slate-900">
+                <h3 className="text-lg font-serif font-bold text-slate-900">
                   {anuncioEdit ? "✏️ Editar Diapositiva" : "➕ Crear Diapositiva de Anuncio"}
                 </h3>
                 <button
                   onClick={() => setModalAnuncioOpen(false)}
-                  className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center text-xs cursor-pointer"
+                  className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center text-xs cursor-pointer"
                 >
                   ✕
                 </button>
@@ -2465,7 +2467,7 @@ export default function Dashboard() {
                     type="text"
                     value={formAnuncio.titulo}
                     onChange={(e) => setFormAnuncio({ ...formAnuncio, titulo: e.target.value })}
-                    className="w-full px-3.5 py-2 border rounded-xl bg-slate-50 focus:bg-white text-slate-900 font-medium focus:outline-none focus:border-amber-500"
+                    className="w-full px-3.5 py-2 border rounded-lg border-slate-300 bg-white text-slate-900 font-medium focus:outline-none focus:border-[#00629B] focus:ring-1 focus:ring-[#00629B]"
                     placeholder="ej: RESERVA INTELIGENTE..."
                     required
                   />
@@ -2477,7 +2479,7 @@ export default function Dashboard() {
                     value={formAnuncio.subtitulo}
                     onChange={(e) => setFormAnuncio({ ...formAnuncio, subtitulo: e.target.value })}
                     rows={2}
-                    className="w-full px-3.5 py-2 border rounded-xl bg-slate-50 focus:bg-white text-slate-900 font-medium focus:outline-none focus:border-amber-500"
+                    className="w-full px-3.5 py-2 border rounded-lg border-slate-300 bg-white text-slate-900 font-medium focus:outline-none focus:border-[#00629B] focus:ring-1 focus:ring-[#00629B]"
                     placeholder="Descripción explicativa..."
                   />
                 </div>
@@ -2489,7 +2491,7 @@ export default function Dashboard() {
                       type="text"
                       value={formAnuncio.badge}
                       onChange={(e) => setFormAnuncio({ ...formAnuncio, badge: e.target.value })}
-                      className="w-full px-3.5 py-2 border rounded-xl bg-slate-50 focus:bg-white text-slate-900 font-medium focus:outline-none focus:border-amber-500"
+                      className="w-full px-3.5 py-2 border rounded-lg border-slate-300 bg-white text-slate-900 font-medium focus:outline-none focus:border-[#00629B] focus:ring-1 focus:ring-[#00629B]"
                       placeholder="ej: NUEVO SERVICIO"
                     />
                   </div>
@@ -2501,13 +2503,13 @@ export default function Dashboard() {
                         type="color"
                         value={formAnuncio.color_fondo}
                         onChange={(e) => setFormAnuncio({ ...formAnuncio, color_fondo: e.target.value })}
-                        className="w-9 h-9 rounded-lg cursor-pointer border-0"
+                        className="w-8 h-8 rounded cursor-pointer border-0"
                       />
                       <input
                         type="text"
                         value={formAnuncio.color_fondo}
                         onChange={(e) => setFormAnuncio({ ...formAnuncio, color_fondo: e.target.value })}
-                        className="flex-1 px-3 py-1.5 border rounded-xl bg-slate-50 text-slate-900 font-mono"
+                        className="flex-1 px-3 py-1.5 border rounded-lg border-slate-300 bg-white text-slate-900 font-mono text-xs"
                       />
                     </div>
                   </div>
@@ -2520,7 +2522,7 @@ export default function Dashboard() {
                       type="text"
                       value={formAnuncio.boton_texto}
                       onChange={(e) => setFormAnuncio({ ...formAnuncio, boton_texto: e.target.value })}
-                      className="w-full px-3.5 py-2 border rounded-xl bg-slate-50 focus:bg-white text-slate-900 font-medium focus:outline-none focus:border-amber-500"
+                      className="w-full px-3.5 py-2 border rounded-lg border-slate-300 bg-white text-slate-900 font-medium focus:outline-none focus:border-[#00629B] focus:ring-1 focus:ring-[#00629B]"
                       placeholder="ej: Abrir Chatbot Ahora"
                     />
                   </div>
@@ -2531,7 +2533,7 @@ export default function Dashboard() {
                       type="text"
                       value={formAnuncio.boton_link}
                       onChange={(e) => setFormAnuncio({ ...formAnuncio, boton_link: e.target.value })}
-                      className="w-full px-3.5 py-2 border rounded-xl bg-slate-50 focus:bg-white text-slate-900 font-medium focus:outline-none focus:border-amber-500"
+                      className="w-full px-3.5 py-2 border rounded-lg border-slate-300 bg-white text-slate-900 font-medium focus:outline-none focus:border-[#00629B] focus:ring-1 focus:ring-[#00629B]"
                       placeholder="ej: open-chat o /reservar"
                     />
                   </div>
@@ -2543,7 +2545,7 @@ export default function Dashboard() {
                     type="number"
                     value={formAnuncio.orden}
                     onChange={(e) => setFormAnuncio({ ...formAnuncio, orden: parseInt(e.target.value, 10) || 0 })}
-                    className="w-24 px-3.5 py-2 border rounded-xl bg-slate-50 focus:bg-white text-slate-900 font-medium focus:outline-none focus:border-amber-500"
+                    className="w-24 px-3.5 py-2 border rounded-lg border-slate-300 bg-white text-slate-900 font-medium focus:outline-none focus:border-[#00629B] focus:ring-1 focus:ring-[#00629B]"
                   />
                 </div>
 
@@ -2551,13 +2553,13 @@ export default function Dashboard() {
                   <button
                     type="button"
                     onClick={() => setModalAnuncioOpen(false)}
-                    className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 cursor-pointer"
+                    className="flex-1 py-2 rounded-lg border border-slate-300 text-slate-700 font-semibold hover:bg-slate-50 cursor-pointer"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold shadow-md cursor-pointer"
+                    className="flex-1 py-2 rounded-lg bg-[#00629B] hover:bg-[#005180] text-white font-semibold shadow-sm cursor-pointer"
                   >
                     Guardar Diapositiva
                   </button>
@@ -2569,14 +2571,14 @@ export default function Dashboard() {
 
         {modalTarjetaOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-fadeIn">
-            <div className="w-full max-w-lg bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 space-y-4">
+            <div className="w-full max-w-lg bg-white rounded-xl p-6 shadow-2xl border border-slate-200 space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <h3 className="text-lg font-bold text-slate-900">
+                <h3 className="text-lg font-serif font-bold text-slate-900">
                   {tarjetaEdit ? "✏️ Editar Tarjeta Informativa" : "➕ Crear Tarjeta Informativa"}
                 </h3>
                 <button
                   onClick={() => setModalTarjetaOpen(false)}
-                  className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center text-xs cursor-pointer"
+                  className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center text-xs cursor-pointer"
                 >
                   ✕
                 </button>
@@ -2590,7 +2592,7 @@ export default function Dashboard() {
                       type="text"
                       value={formTarjeta.icono}
                       onChange={(e) => setFormTarjeta({ ...formTarjeta, icono: e.target.value })}
-                      className="w-full px-3 py-2 border rounded-xl bg-slate-50 focus:bg-white text-slate-900 font-medium text-center focus:outline-none focus:border-sky-500 text-base"
+                      className="w-full px-3 py-2 border rounded-lg border-slate-300 bg-white text-slate-900 font-medium text-center focus:outline-none focus:border-[#00629B] text-base"
                       placeholder="📚"
                       required
                     />
@@ -2602,7 +2604,7 @@ export default function Dashboard() {
                       type="text"
                       value={formTarjeta.titulo}
                       onChange={(e) => setFormTarjeta({ ...formTarjeta, titulo: e.target.value })}
-                      className="w-full px-3.5 py-2 border rounded-xl bg-slate-50 focus:bg-white text-slate-900 font-medium focus:outline-none focus:border-sky-500"
+                      className="w-full px-3.5 py-2 border rounded-lg border-slate-300 bg-white text-slate-900 font-medium focus:outline-none focus:border-[#00629B]"
                       placeholder="ej: Reserva de Cubículos"
                       required
                     />
@@ -2615,7 +2617,7 @@ export default function Dashboard() {
                     value={formTarjeta.descripcion}
                     onChange={(e) => setFormTarjeta({ ...formTarjeta, descripcion: e.target.value })}
                     rows={2}
-                    className="w-full px-3.5 py-2 border rounded-xl bg-slate-50 focus:bg-white text-slate-900 font-medium focus:outline-none focus:border-sky-500"
+                    className="w-full px-3.5 py-2 border rounded-lg border-slate-300 bg-white text-slate-900 font-medium focus:outline-none focus:border-[#00629B]"
                     placeholder="Detalle descriptivo..."
                   />
                 </div>
@@ -2627,7 +2629,7 @@ export default function Dashboard() {
                       type="text"
                       value={formTarjeta.link_texto}
                       onChange={(e) => setFormTarjeta({ ...formTarjeta, link_texto: e.target.value })}
-                      className="w-full px-3.5 py-2 border rounded-xl bg-slate-50 focus:bg-white text-slate-900 font-medium focus:outline-none focus:border-sky-500"
+                      className="w-full px-3.5 py-2 border rounded-lg border-slate-300 bg-white text-slate-900 font-medium focus:outline-none focus:border-[#00629B]"
                       placeholder="ej: Ir al Formulario →"
                     />
                   </div>
@@ -2638,7 +2640,7 @@ export default function Dashboard() {
                       type="text"
                       value={formTarjeta.link_url}
                       onChange={(e) => setFormTarjeta({ ...formTarjeta, link_url: e.target.value })}
-                      className="w-full px-3.5 py-2 border rounded-xl bg-slate-50 focus:bg-white text-slate-900 font-medium focus:outline-none focus:border-sky-500"
+                      className="w-full px-3.5 py-2 border rounded-lg border-slate-300 bg-white text-slate-900 font-medium focus:outline-none focus:border-[#00629B]"
                       placeholder="ej: /reservar u open-chat"
                     />
                   </div>
@@ -2650,7 +2652,7 @@ export default function Dashboard() {
                     type="number"
                     value={formTarjeta.orden}
                     onChange={(e) => setFormTarjeta({ ...formTarjeta, orden: parseInt(e.target.value, 10) || 0 })}
-                    className="w-24 px-3.5 py-2 border rounded-xl bg-slate-50 focus:bg-white text-slate-900 font-medium focus:outline-none focus:border-sky-500"
+                    className="w-24 px-3.5 py-2 border rounded-lg border-slate-300 bg-white text-slate-900 font-medium focus:outline-none focus:border-[#00629B]"
                   />
                 </div>
 
@@ -2658,13 +2660,13 @@ export default function Dashboard() {
                   <button
                     type="button"
                     onClick={() => setModalTarjetaOpen(false)}
-                    className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 cursor-pointer"
+                    className="flex-1 py-2 rounded-lg border border-slate-300 text-slate-700 font-semibold hover:bg-slate-50 cursor-pointer"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold shadow-md cursor-pointer"
+                    className="flex-1 py-2 rounded-lg bg-[#00629B] hover:bg-[#005180] text-white font-semibold shadow-sm cursor-pointer"
                   >
                     Guardar Tarjeta
                   </button>
@@ -2676,16 +2678,16 @@ export default function Dashboard() {
 
         {confirmModal.open && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-fadeIn">
-            <div className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 text-center space-y-4">
-              <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-600 text-xl flex items-center justify-center mx-auto shadow-inner">
+            <div className="w-full max-w-md bg-white rounded-xl p-6 shadow-2xl border border-slate-200 text-center space-y-4">
+              <div className="w-12 h-12 rounded-full bg-amber-50 text-amber-600 text-xl flex items-center justify-center mx-auto border border-amber-200">
                 ⚠️
               </div>
-              <h3 className="text-lg font-bold text-slate-900">{confirmModal.titulo || "Confirmación"}</h3>
+              <h3 className="text-lg font-serif font-bold text-slate-900">{confirmModal.titulo || "Confirmación"}</h3>
               <p className="text-xs text-slate-600 leading-relaxed">{confirmModal.mensaje}</p>
               <div className="flex gap-3 pt-2">
                 <button
                   onClick={() => setConfirmModal({ open: false, titulo: "", mensaje: "", onConfirm: null })}
-                  className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-50 transition-all cursor-pointer"
+                  className="flex-1 py-2.5 px-4 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-all cursor-pointer"
                 >
                   Cancelar
                 </button>
@@ -2694,7 +2696,7 @@ export default function Dashboard() {
                     if (confirmModal.onConfirm) confirmModal.onConfirm();
                     setConfirmModal({ open: false, titulo: "", mensaje: "", onConfirm: null });
                   }}
-                  className="flex-1 py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-md transition-all cursor-pointer"
+                  className="flex-1 py-2.5 px-4 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-semibold shadow-sm transition-all cursor-pointer"
                 >
                   Confirmar
                 </button>
@@ -2704,7 +2706,7 @@ export default function Dashboard() {
         )}
 
         {toastNotificacion.texto && (
-          <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl bg-slate-900 text-white text-xs font-semibold shadow-2xl border border-slate-800 animate-slideUp">
+          <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-900 text-white text-xs font-medium shadow-xl border border-slate-800 animate-slideUp">
             <span>{toastNotificacion.tipo === "error" ? "❌" : "✅"}</span>
             <p>{toastNotificacion.texto}</p>
             <button
@@ -2717,10 +2719,10 @@ export default function Dashboard() {
         )}
 
         {/* Footer */}
-        <div className="mt-12 pt-6 border-t border-sky-100 flex items-center justify-between text-xs text-slate-500">
+        <div className="mt-12 pt-6 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
           <Link
             to="/"
-            className="inline-flex items-center gap-2 rounded-xl border border-sky-200 bg-white px-4 py-2 text-sky-700 font-semibold shadow-sm hover:bg-sky-50 transition-all"
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3.5 py-1.5 text-slate-700 font-semibold shadow-xs hover:bg-slate-50 transition-all"
           >
             ← Volver a la Página Inicio
           </Link>

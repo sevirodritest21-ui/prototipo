@@ -16,12 +16,28 @@ const Reglamento = lazy(() => import("./pages/Reglamento"));
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 
+/* ── Iconografía (solo presentación) ─────────────────────────────── */
+const Icon = ({ path, className = "w-4 h-4" }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"
+    strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+    {path}
+  </svg>
+);
+
+const IconChevron = (p) => <Icon {...p} path={<path d="M6 9l6 6 6-6" />} />;
+const IconDashboard = (p) => <Icon {...p} path={<><rect x="3" y="3" width="7" height="9" rx="1" /><rect x="14" y="3" width="7" height="5" rx="1" /><rect x="14" y="12" width="7" height="9" rx="1" /><rect x="3" y="16" width="7" height="5" rx="1" /></>} />;
+const IconList = (p) => <Icon {...p} path={<><path d="M8 6h13M8 12h13M8 18h13" /><path d="M3 6h.01M3 12h.01M3 18h.01" /></>} />;
+const IconCalendar = (p) => <Icon {...p} path={<><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 11h18" /></>} />;
+const IconDoc = (p) => <Icon {...p} path={<><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z" /><path d="M14 3v5h5M9 13h6M9 17h4" /></>} />;
+const IconLogout = (p) => <Icon {...p} path={<><path d="M15 17l5-5-5-5" /><path d="M20 12H9" /><path d="M11 3H6a2 2 0 00-2 2v14a2 2 0 002 2h5" /></>} />;
+const IconLogin = (p) => <Icon {...p} path={<><path d="M10 17l5-5-5-5" /><path d="M15 12H3" /><path d="M13 3h5a2 2 0 012 2v14a2 2 0 01-2 2h-5" /></>} />;
+
 function LoadingFallback() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 pt-20">
+    <div className="min-h-screen flex items-center justify-center bg-slate-100/70 pt-20">
       <div className="flex flex-col items-center gap-3">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-sky-500 border-t-transparent" />
-        <span className="text-xs font-semibold text-slate-500">Cargando contenido...</span>
+        <div className="h-9 w-9 animate-spin rounded-full border-2 border-[#00629B] border-t-transparent" />
+        <span className="text-[13px] text-slate-500">Cargando contenido</span>
       </div>
     </div>
   );
@@ -50,40 +66,41 @@ function NavBar() {
 
   const getLinkStyle = (path) => {
     const isActive = location.pathname === path;
-    return `px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${
-      isActive
-        ? "bg-white/20 text-white font-bold border border-white/25 shadow-inner"
-        : "text-sky-100 hover:bg-white/10 hover:text-white"
-    }`;
+    return `relative px-1 py-5 text-[14px] transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC20E] focus-visible:ring-offset-2 focus-visible:ring-offset-[#00629B] ${isActive
+        ? "font-semibold text-white after:absolute after:inset-x-0 after:bottom-0 after:h-[3px] after:bg-[#FFC20E] after:content-['']"
+        : "text-sky-100/80 hover:text-white"
+      }`;
   };
 
   const userInitial = user?.nombre ? user.nombre.charAt(0).toUpperCase() : "U";
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 border-b border-sky-400/30 bg-[#00629B]/95 backdrop-blur-md text-white shadow-lg">
+    <nav className="fixed top-0 left-0 right-0 z-50 bg-[#00629B] text-white shadow-[0_1px_0_rgba(255,255,255,0.08)]">
       <div className="mx-auto max-w-7xl px-6">
         <div className="flex h-16 items-center justify-between">
 
           {/* LOGO E IDENTIDAD INSTITUCIONAL */}
-          <Link to="/" className="flex items-center gap-3 group">
+          <Link to="/" className="group flex items-center gap-3">
             <img
               src={logoUCT}
               alt="Logo Universidad Católica de Temuco"
-              className="h-10 w-auto object-contain transition-transform group-hover:scale-105"
+              className="h-9 w-auto object-contain"
             />
-            <div className="flex flex-col">
-              <span className="font-extrabold text-white text-base leading-none tracking-tight">
+            <span className="hidden sm:block h-7 w-px bg-white/20" />
+            <span className="hidden sm:flex flex-col leading-tight">
+              <span className="font-serif text-[17px] tracking-tight text-white">
                 Biblioteca
                 <span className="text-[#00A3E0]">U</span>
                 <span className="text-white">C</span>
                 <span className="text-[#FFC20E]">T</span>
               </span>
-            </div>
+              <span className="text-[11px] text-sky-200/80">Reserva de cubículos</span>
+            </span>
           </Link>
 
-          {/* MENÚ DE NAVEGACIÓN Y PERFIL - LADO DERECHO ELEGANTE */}
-          <div className="flex items-center gap-3">
-            <div className="hidden md:flex items-center gap-1 bg-black/20 p-1 rounded-full border border-white/10 backdrop-blur-md">
+          {/* MENÚ DE NAVEGACIÓN Y PERFIL */}
+          <div className="flex items-center gap-6">
+            <div className="hidden md:flex items-center gap-7">
               <Link to="/" className={getLinkStyle("/")}>
                 Inicio
               </Link>
@@ -100,31 +117,29 @@ function NavBar() {
                 <button
                   type="button"
                   onClick={() => setDropdownOpen((prev) => !prev)}
-                  className="flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-md transition-all shadow-sm cursor-pointer group select-none"
+                  className="flex cursor-pointer select-none items-center gap-2.5 rounded-md border border-white/15 bg-white/5 py-1.5 pl-1.5 pr-2.5 transition-colors hover:bg-white/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC20E]"
                 >
-                  <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-amber-400 to-amber-200 text-slate-950 font-black text-xs flex items-center justify-center shadow-md border border-white/40">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-md bg-[#FFC20E] text-[13px] font-semibold text-slate-900">
                     {userInitial}
-                  </div>
-                  <div className="flex flex-col text-left hidden sm:flex">
-                    <span className="text-xs font-bold text-white leading-tight max-w-[120px] truncate">
+                  </span>
+                  <span className="hidden sm:flex flex-col text-left">
+                    <span className="max-w-[130px] truncate text-[13px] font-medium leading-tight text-white">
                       {user.nombre}
                     </span>
-                    <span className="text-[10px] font-semibold text-sky-200 leading-tight capitalize">
-                      {user.rol === "admin" ? "🛡️ Administrador" : "🎓 Estudiante"}
+                    <span className="text-[11px] leading-tight text-sky-200/90">
+                      {user.rol === "admin" ? "Administrador" : "Estudiante"}
                     </span>
-                  </div>
-                  <span className={`text-[10px] text-sky-200 transition-transform duration-200 ${dropdownOpen ? "rotate-180" : ""}`}>
-                    ▼
                   </span>
+                  <IconChevron className={`w-3.5 h-3.5 text-sky-200 transition-transform duration-200 ${dropdownOpen ? "rotate-180" : ""}`} />
                 </button>
 
                 {dropdownOpen && (
-                  <div className="absolute right-0 mt-2.5 w-56 rounded-2xl bg-white text-slate-800 shadow-2xl border border-sky-100 py-2 z-50 animate-fadeIn">
-                    <div className="px-4 py-2.5 border-b border-slate-100 bg-sky-50/50 rounded-t-2xl">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Usuario Conectado</p>
-                      <p className="text-xs font-bold text-slate-900 truncate mt-0.5">{user.nombre}</p>
-                      <span className="inline-block mt-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 border border-sky-200">
-                        {user.rol === "admin" ? "🛡️ Administrador" : "🎓 Estudiante UCT"}
+                  <div className="absolute right-0 z-50 mt-2 w-60 overflow-hidden rounded-lg border border-slate-200 bg-white text-slate-800 shadow-xl animate-fadeIn">
+                    <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+                      <p className="truncate text-[14px] font-semibold text-slate-900">{user.nombre}</p>
+                      <span className="mt-1 inline-flex items-center gap-1.5 text-[12px] text-slate-500">
+                        <span className={`h-1.5 w-1.5 rounded-full ${user.rol === "admin" ? "bg-[#FFC20E]" : "bg-emerald-600"}`} />
+                        {user.rol === "admin" ? "Administrador" : "Estudiante UCT"}
                       </span>
                     </div>
 
@@ -133,48 +148,48 @@ function NavBar() {
                         <Link
                           to="/dashboard"
                           onClick={() => setDropdownOpen(false)}
-                          className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-amber-700 hover:bg-amber-50 transition"
+                          className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-slate-700 transition-colors hover:bg-slate-50 hover:text-[#00629B]"
                         >
-                          <span>📊</span> Panel de Administración
+                          <IconDashboard className="w-4 h-4 text-slate-400" /> Panel de administración
                         </Link>
                       )}
-                      
+
                       <Link
                         to="/mis-reservas"
                         onClick={() => setDropdownOpen(false)}
-                        className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-sky-50 hover:text-sky-700 transition"
+                        className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-slate-700 transition-colors hover:bg-slate-50 hover:text-[#00629B]"
                       >
-                        <span>📋</span> Mis Reservas
+                        <IconList className="w-4 h-4 text-slate-400" /> Mis reservas
                       </Link>
 
                       <Link
                         to="/reservar"
                         onClick={() => setDropdownOpen(false)}
-                        className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-sky-50 hover:text-sky-700 transition md:hidden"
+                        className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-slate-700 transition-colors hover:bg-slate-50 hover:text-[#00629B] md:hidden"
                       >
-                        <span>📅</span> Reservar Cubículo
+                        <IconCalendar className="w-4 h-4 text-slate-400" /> Reservar cubículo
                       </Link>
 
                       <Link
                         to="/reglamento"
                         onClick={() => setDropdownOpen(false)}
-                        className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-sky-50 hover:text-sky-700 transition md:hidden"
+                        className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-slate-700 transition-colors hover:bg-slate-50 hover:text-[#00629B] md:hidden"
                       >
-                        <span>📜</span> Reglamento y Horarios
+                        <IconDoc className="w-4 h-4 text-slate-400" /> Reglamento y horarios
                       </Link>
 
                     </div>
 
-                    <div className="border-t border-slate-100 pt-1 mt-1">
+                    <div className="border-t border-slate-200 py-1">
                       <button
                         id="nav-logout"
                         onClick={() => {
                           setDropdownOpen(false);
                           logout();
                         }}
-                        className="w-full text-left flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                        className="flex w-full cursor-pointer items-center gap-2.5 px-4 py-2.5 text-left text-[13px] text-rose-700 transition-colors hover:bg-rose-50"
                       >
-                        <span>🚪</span> Cerrar Sesión
+                        <IconLogout className="w-4 h-4" /> Cerrar sesión
                       </button>
                     </div>
                   </div>
@@ -183,15 +198,16 @@ function NavBar() {
             ) : (
               <Link
                 to="/login"
-                className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-950 text-xs font-extrabold shadow-md shadow-amber-500/20 transition-all transform hover:scale-105 active:scale-95 cursor-pointer"
+                className="flex cursor-pointer items-center gap-2 rounded-md bg-[#FFC20E] px-4 py-2 text-[13px] font-semibold text-slate-900 transition-colors hover:bg-[#FFCA28] focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
-                <span>🔑</span> Iniciar Sesión
+                <IconLogin className="w-4 h-4" /> Iniciar sesión
               </Link>
             )}
           </div>
 
         </div>
       </div>
+      <div className="h-[2px] bg-gradient-to-r from-[#FFC20E] via-[#00A3E0] to-[#00629B]" />
     </nav>
   );
 }
@@ -225,4 +241,4 @@ export default function App() {
       </AuthProvider>
     </Router>
   );
-} 
+}

@@ -54,7 +54,7 @@ export default function PaginaInicio() {
             <span className="inline-block bg-[#00A3E0] text-white text-xs font-bold px-3 py-1 rounded-sm uppercase tracking-wider mb-3">
               Portal del Estudiante — Biblioteca UCT
             </span>
-            <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight">
+            <h1 className="font-serif text-3xl md:text-5xl font-extrabold tracking-tight">
               ¡Bienvenido/a, {user?.nombre || "Estudiante"}!
             </h1>
             <p className="mt-3 text-sky-100 text-sm md:text-base max-w-2xl">
@@ -98,7 +98,7 @@ export default function PaginaInicio() {
                       {slide.badge || "ANUNCIO"}
                     </span>
                   </div>
-                  <h2 className="text-xl md:text-3xl font-black text-white tracking-tight leading-snug">
+                  <h2 className="font-serif text-xl md:text-3xl font-black text-white tracking-tight leading-snug">
                     {slide.titulo}
                   </h2>
                   <p className="text-xs md:text-sm text-slate-200 leading-relaxed">
@@ -157,7 +157,7 @@ export default function PaginaInicio() {
         </div>
 
         <div className="mb-8">
-          <h2 className="text-xl font-bold text-[#00629B] border-b-2 border-[#00629B] pb-2 inline-block mb-6">
+          <h2 className="font-serif text-xl font-bold text-[#00629B] border-b-2 border-[#00629B] pb-2 inline-block mb-6">
             Servicios <span className="text-[#00A3E0]">Disponibles</span>
           </h2>
 
@@ -190,7 +190,7 @@ export default function PaginaInicio() {
                   <div className="w-11 h-11 bg-[#00629B]/10 text-[#00629B] font-bold text-xl flex items-center justify-center rounded-xl mb-4">
                     {tj.icono || "📚"}
                   </div>
-                  <h3 className="font-bold text-[#00629B] text-base mb-2">
+                  <h3 className="font-serif font-bold text-[#00629B] text-base mb-2">
                     {tj.titulo}
                   </h3>
                   <p className="text-xs text-slate-600 leading-relaxed mb-4">

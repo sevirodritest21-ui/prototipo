@@ -525,54 +525,51 @@ export default function FormularioReserva() {
   const listo = formData.campus_id && formData.fecha && formData.hora;
 
   return (
-    <div className="min-h-screen bg-slate-100/70 pt-24 pb-20 font-sans text-slate-800">
+    <div className="min-h-screen bg-[#F4F6F9] pt-16 pb-20 font-sans text-slate-800">
 
-      {/* ENCABEZADO INSTITUCIONAL */}
-      <header className="bg-white border-y border-slate-200">
-        <div className="mx-auto max-w-6xl px-5 py-10 sm:py-12">
+      <header className="bg-[#00629B] text-white shadow-md">
+        <div className="mx-auto max-w-6xl px-5 py-9 sm:py-11">
           <div className="flex flex-wrap items-start justify-between gap-6">
             <div className="max-w-2xl">
-              <div className="flex items-center gap-2.5 text-slate-500">
-                <span className="flex h-9 w-9 items-center justify-center rounded-md bg-slate-900 text-amber-400">
+              <div className="flex items-center gap-2 text-sky-200">
+                <span className="flex h-7 w-7 items-center justify-center rounded-md bg-white/10 border border-white/15 text-[#FFC20E]">
                   <IconBook className="w-4 h-4" />
                 </span>
-                <span className="text-sm font-medium tracking-wide text-slate-600">
+                <span className="text-xs font-semibold uppercase tracking-wider text-sky-200">
                   Biblioteca Central Universitaria
                 </span>
               </div>
 
-              <h1 className="mt-5 font-serif text-3xl sm:text-[2.6rem] leading-[1.1] tracking-tight text-slate-900">
+              <h1 className="mt-4 font-serif text-3xl sm:text-[2.5rem] leading-tight tracking-tight text-white">
                 Reserva de cubículos de estudio
               </h1>
 
-              <p className="mt-3 text-[15px] leading-relaxed text-slate-600">
+              <p className="mt-2.5 text-[14px] leading-relaxed text-sky-100/90">
                 {isEstudiante
-                  ? `Hola, ${user.nombre}. Tus datos ya están cargados; elige sede, día y bloque horario para confirmar.`
+                  ? `Hola, ${user.nombre}. Selecciona sede, fecha y bloque horario para confirmar tu espacio.`
                   : "Elige sede, día y bloque horario. La disponibilidad se actualiza con cada reserva registrada."}
               </p>
             </div>
 
-            <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[13px] text-slate-600">
+            <div className="flex items-center gap-2 rounded-md border border-white/20 bg-white/10 backdrop-blur-sm px-3.5 py-2 text-[13px] text-white shadow-inner">
               <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-600" />
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
               </span>
-              Disponibilidad en tiempo real
+              <span className="font-medium">Disponibilidad en tiempo real</span>
             </div>
           </div>
         </div>
-        <div className="h-[3px] bg-gradient-to-r from-[#FFC20E] via-[#FFA000] to-sky-700" />
+        <div className="h-[2px] bg-gradient-to-r from-[#FFC20E] via-[#00A3E0] to-[#00629B]" />
       </header>
 
       <main className="mx-auto max-w-6xl px-5 mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_21rem] items-start">
 
-        {/* ── COLUMNA PRINCIPAL: FORMULARIO ───────────────────────── */}
-        <form onSubmit={handleSubmit} className="rounded-lg border border-slate-200 bg-white shadow-sm divide-y divide-slate-200">
+        <form onSubmit={handleSubmit} className="rounded-xl border border-slate-200 bg-white shadow-sm divide-y divide-slate-100 overflow-hidden">
 
-          {/* Paso 1 */}
           <section className="p-6 sm:p-8">
             <div className="flex items-baseline gap-3">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-amber-400 text-[12px] font-semibold text-amber-700">1</span>
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#00629B] text-[13px] font-bold text-white shadow-sm">1</span>
               <div>
                 <h2 className="font-serif text-xl text-slate-900">Sede y titular</h2>
                 <p className="text-[13px] text-slate-500 mt-0.5">La reserva queda a nombre de quien figura aquí.</p>
@@ -588,16 +585,16 @@ export default function FormularioReserva() {
                     type="button"
                     disabled={isAdmin}
                     onClick={() => setFormData((prev) => ({ ...prev, campus_id: String(c.id) }))}
-                    className={`group relative rounded-md border p-4 text-left transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 ${isSelected
-                        ? "border-sky-700 bg-sky-50/60"
-                        : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                    className={`group relative rounded-lg border p-4 text-left transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC20E] focus-visible:ring-offset-2 ${isSelected
+                      ? "border-[#00629B] bg-sky-50/70 shadow-sm ring-1 ring-[#00629B]"
+                      : "border-slate-200 bg-white hover:border-[#00629B]/40 hover:bg-slate-50/80"
                       } ${isAdmin ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
                   >
-                    <span className={`absolute left-0 top-4 bottom-4 w-[3px] rounded-r ${isSelected ? "bg-sky-700" : "bg-transparent"}`} />
+                    <span className={`absolute left-0 top-3.5 bottom-3.5 w-[3px] rounded-r ${isSelected ? "bg-[#FFC20E]" : "bg-transparent"}`} />
                     <div className="flex items-start justify-between gap-2">
-                      <IconPin className={`w-4 h-4 mt-0.5 ${isSelected ? "text-sky-700" : "text-slate-400"}`} />
+                      <IconPin className={`w-4 h-4 mt-0.5 ${isSelected ? "text-[#00629B]" : "text-slate-400"}`} />
                       {c.cubiculas_fisicos ? (
-                        <span className="rounded-sm bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-600">
+                        <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${isSelected ? "bg-[#00629B]/10 text-[#00629B]" : "bg-slate-100 text-slate-600"}`}>
                           {c.cubiculas_fisicos} cubículos
                         </span>
                       ) : null}
@@ -610,7 +607,7 @@ export default function FormularioReserva() {
                     <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2 text-[12px]">
                       <span className="text-slate-400">Sede {c.id}</span>
                       {isSelected ? (
-                        <span className="inline-flex items-center gap-1 font-medium text-sky-700">
+                        <span className="inline-flex items-center gap-1 font-semibold text-[#00629B]">
                           <IconCheck className="w-3.5 h-3.5" /> Seleccionada
                         </span>
                       ) : (
@@ -627,7 +624,7 @@ export default function FormularioReserva() {
                 <label className="flex items-center justify-between text-[13px] font-medium text-slate-700 mb-1.5">
                   <span>Nombre del titular</span>
                   {isEstudiante && (
-                    <span className="inline-flex items-center gap-1 text-[12px] font-normal text-emerald-700">
+                    <span className="inline-flex items-center gap-1 text-[12px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/60">
                       <IconCheck className="w-3.5 h-3.5" /> Verificado
                     </span>
                   )}
@@ -640,7 +637,7 @@ export default function FormularioReserva() {
                   value={formData.nombre}
                   onChange={handleChange}
                   placeholder="Juan Pérez"
-                  className="w-full rounded-md border border-slate-300 bg-white px-3.5 py-2.5 text-[15px] text-slate-900 placeholder:text-slate-400 transition-colors focus:border-sky-700 focus:outline-none focus:ring-1 focus:ring-sky-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-600"
+                  className="w-full rounded-md border border-slate-300 bg-white px-3.5 py-2.5 text-[15px] text-slate-900 placeholder:text-slate-400 transition-colors focus:border-[#00629B] focus:outline-none focus:ring-2 focus:ring-[#00629B]/20 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-600"
                 />
               </div>
 
@@ -648,7 +645,7 @@ export default function FormularioReserva() {
                 <label className="flex items-center justify-between text-[13px] font-medium text-slate-700 mb-1.5">
                   <span>RUT del titular</span>
                   {isEstudiante && (
-                    <span className="inline-flex items-center gap-1 text-[12px] font-normal text-emerald-700">
+                    <span className="inline-flex items-center gap-1 text-[12px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/60">
                       <IconCheck className="w-3.5 h-3.5" /> Verificado
                     </span>
                   )}
@@ -661,16 +658,15 @@ export default function FormularioReserva() {
                   value={formData.rut}
                   onChange={handleChange}
                   placeholder="12.345.678-9"
-                  className="w-full rounded-md border border-slate-300 bg-white px-3.5 py-2.5 text-[15px] tabular-nums text-slate-900 placeholder:text-slate-400 transition-colors focus:border-sky-700 focus:outline-none focus:ring-1 focus:ring-sky-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-600"
+                  className="w-full rounded-md border border-slate-300 bg-white px-3.5 py-2.5 text-[15px] tabular-nums text-slate-900 placeholder:text-slate-400 transition-colors focus:border-[#00629B] focus:outline-none focus:ring-2 focus:ring-[#00629B]/20 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-600"
                 />
               </div>
             </div>
           </section>
 
-          {/* Paso 2 */}
           <section className="p-6 sm:p-8">
             <div className="flex items-baseline gap-3">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-amber-400 text-[12px] font-semibold text-amber-700">2</span>
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#00629B] text-[13px] font-bold text-white shadow-sm">2</span>
               <div>
                 <h2 className="font-serif text-xl text-slate-900">Modalidad de uso</h2>
                 <p className="text-[13px] text-slate-500 mt-0.5">Si estudias en grupo, registra a quienes te acompañan.</p>
@@ -688,12 +684,12 @@ export default function FormularioReserva() {
                     setFormData((prev) => ({ ...prev, acompanantes: [] }));
                   }
                 }}
-                className={`flex items-center gap-3 rounded-md border p-4 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 ${!tieneAcompanantes
-                    ? "border-sky-700 bg-sky-50/60"
-                    : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                className={`flex items-center gap-3.5 rounded-lg border p-4 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC20E] focus-visible:ring-offset-2 ${!tieneAcompanantes
+                  ? "border-[#00629B] bg-sky-50/70 shadow-sm ring-1 ring-[#00629B]"
+                  : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80"
                   } ${isAdmin ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
               >
-                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${!tieneAcompanantes ? "bg-sky-700 text-white" : "bg-slate-100 text-slate-500"
+                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${!tieneAcompanantes ? "bg-[#00629B] text-white shadow-sm" : "bg-slate-100 text-slate-500"
                   }`}>
                   <IconUser />
                 </span>
@@ -712,12 +708,12 @@ export default function FormularioReserva() {
                     setListAcompanantes([{ nombre: "", rut: "" }]);
                   }
                 }}
-                className={`flex items-center gap-3 rounded-md border p-4 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 ${tieneAcompanantes
-                    ? "border-sky-700 bg-sky-50/60"
-                    : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                className={`flex items-center gap-3.5 rounded-lg border p-4 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC20E] focus-visible:ring-offset-2 ${tieneAcompanantes
+                  ? "border-[#00629B] bg-sky-50/70 shadow-sm ring-1 ring-[#00629B]"
+                  : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80"
                   } ${isAdmin ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
               >
-                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${tieneAcompanantes ? "bg-sky-700 text-white" : "bg-slate-100 text-slate-500"
+                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${tieneAcompanantes ? "bg-[#00629B] text-white shadow-sm" : "bg-slate-100 text-slate-500"
                   }`}>
                   <IconUsers />
                 </span>
@@ -729,7 +725,7 @@ export default function FormularioReserva() {
             </div>
 
             {tieneAcompanantes && (
-              <div className="mt-4 rounded-md border border-slate-200 bg-slate-50/70 p-4">
+              <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50/70 p-4">
                 <p className="text-[13px] text-slate-600">
                   El registro de acompañantes permite controlar el aforo del cubículo.
                 </p>
@@ -747,7 +743,7 @@ export default function FormularioReserva() {
                         placeholder={`Nombre acompañante ${index + 1}`}
                         value={ac.nombre}
                         onChange={(e) => handleAcompananteChange(index, "nombre", e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-[14px] focus:border-sky-700 focus:outline-none focus:ring-1 focus:ring-sky-700 disabled:cursor-not-allowed disabled:bg-slate-50 sm:flex-1"
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-[14px] focus:border-[#00629B] focus:outline-none focus:ring-2 focus:ring-[#00629B]/20 disabled:cursor-not-allowed disabled:bg-slate-50 sm:flex-1"
                       />
                       <input
                         type="text"
@@ -755,7 +751,7 @@ export default function FormularioReserva() {
                         placeholder="RUT (opcional)"
                         value={ac.rut}
                         onChange={(e) => handleAcompananteChange(index, "rut", e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-[14px] tabular-nums focus:border-sky-700 focus:outline-none focus:ring-1 focus:ring-sky-700 disabled:cursor-not-allowed disabled:bg-slate-50 sm:w-40"
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-[14px] tabular-nums focus:border-[#00629B] focus:outline-none focus:ring-2 focus:ring-[#00629B]/20 disabled:cursor-not-allowed disabled:bg-slate-50 sm:w-40"
                       />
                       <button
                         type="button"
@@ -775,7 +771,7 @@ export default function FormularioReserva() {
                   type="button"
                   disabled={isAdmin}
                   onClick={handleAgregarAcompanante}
-                  className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-2 text-[13px] font-medium text-slate-700 transition-colors hover:border-sky-700 hover:text-sky-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-2 text-[13px] font-medium text-slate-700 transition-colors hover:border-[#00629B] hover:text-[#00629B] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <IconPlus className="w-4 h-4" /> Agregar acompañante
                 </button>
@@ -783,10 +779,9 @@ export default function FormularioReserva() {
             )}
           </section>
 
-          {/* Paso 3 */}
           <section className="p-6 sm:p-8">
             <div className="flex items-baseline gap-3">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-amber-400 text-[12px] font-semibold text-amber-700">3</span>
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#00629B] text-[13px] font-bold text-white shadow-sm">3</span>
               <div>
                 <h2 className="font-serif text-xl text-slate-900">Día y bloque horario</h2>
                 <p className="text-[13px] text-slate-500 mt-0.5">Atención de lunes a viernes, sin feriados.</p>
@@ -807,7 +802,7 @@ export default function FormularioReserva() {
                 dateFormat="dd/MM/yyyy"
                 placeholderText="Selecciona una fecha"
                 required
-                className="w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3.5 py-2.5 text-[15px] text-slate-900 transition-colors focus:border-sky-700 focus:outline-none focus:ring-1 focus:ring-sky-700 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500"
+                className="w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3.5 py-2.5 text-[15px] text-slate-900 transition-colors focus:border-[#00629B] focus:outline-none focus:ring-2 focus:ring-[#00629B]/20 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500"
               />
             </div>
 
@@ -817,14 +812,14 @@ export default function FormularioReserva() {
                   Bloque horario
                 </label>
                 {formData.campus_id && formData.fecha && !cargandoHorarios && bloquesHorarios.length > 0 && (
-                  <span className="text-[12px] text-slate-500">
+                  <span className="text-[12px] font-medium text-slate-500">
                     {bloquesHorarios.filter((b) => !b.agotado).length} de {bloquesHorarios.length} bloques con cupo
                   </span>
                 )}
               </div>
 
               {!formData.campus_id || !formData.fecha ? (
-                <div className="rounded-md border border-dashed border-slate-300 bg-slate-50/60 px-5 py-8 text-center">
+                <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50/60 px-5 py-8 text-center">
                   <IconCalendar className="w-5 h-5 mx-auto text-slate-400" />
                   <p className="mt-2 text-[14px] font-medium text-slate-700">Elige una sede y un día</p>
                   <p className="mt-0.5 text-[13px] text-slate-500">Con esos datos calculamos los cupos reales de cada bloque.</p>
@@ -853,19 +848,19 @@ export default function FormularioReserva() {
                         disabled={b.agotado || isAdmin}
                         onClick={() => setFormData((prev) => ({ ...prev, hora: b.hora }))}
                         className={`
-                          flex flex-col justify-between rounded-md border p-3 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2
+                          flex flex-col justify-between rounded-lg border p-3 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC20E] focus-visible:ring-offset-2
                           ${b.agotado || isAdmin
-                            ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
+                            ? "cursor-not-allowed border-slate-200 bg-slate-50/80 text-slate-400 opacity-60"
                             : esSeleccionado
-                              ? "cursor-pointer border-sky-700 bg-sky-700 text-white"
-                              : "cursor-pointer border-slate-200 bg-white text-slate-700 hover:border-sky-700 hover:bg-sky-50/50"
+                              ? "cursor-pointer border-[#00629B] bg-[#00629B] text-white shadow-md shadow-[#00629B]/25 ring-1 ring-[#00629B]"
+                              : "cursor-pointer border-slate-200 bg-white text-slate-700 hover:border-[#00629B]/50 hover:bg-sky-50/30"
                           }
                         `}
                       >
                         <span className="flex items-center justify-between">
                           <span className="text-[14px] font-semibold tabular-nums tracking-tight">{b.rango}</span>
                           {esSeleccionado ? (
-                            <IconCheck className="w-4 h-4 text-white" />
+                            <IconCheck className="w-4 h-4 text-[#FFC20E]" />
                           ) : (
                             <span className={`h-1.5 w-1.5 rounded-full ${b.agotado ? "bg-rose-400" : "bg-emerald-600"}`} />
                           )}
@@ -882,25 +877,24 @@ export default function FormularioReserva() {
             </div>
           </section>
 
-          {/* Confirmación */}
-          <section className="bg-slate-50/80 p-6 sm:px-8">
+          <section className="bg-slate-50/90 p-6 sm:px-8 border-t border-slate-200">
             {listo && (
-              <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-slate-200 bg-white px-4 py-3 text-[13px]">
+              <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-sky-200 bg-sky-50/90 px-4 py-3 text-[13px]">
                 <IconCheck className="w-4 h-4 text-emerald-600" />
                 <span className="font-medium text-slate-900">{campusSeleccionado?.nombre || "Sede"}</span>
                 <span className="text-slate-300">|</span>
                 <span className="tabular-nums text-slate-700">{formData.fecha}</span>
                 <span className="text-slate-300">|</span>
-                <span className="tabular-nums font-medium text-sky-800">{formData.hora}:00 hrs</span>
+                <span className="tabular-nums font-bold text-[#00629B]">{formData.hora}:00 hrs</span>
               </div>
             )}
 
             <button
               type="submit"
               disabled={isAdmin || sancionUsuario?.suspendido}
-              className={`flex w-full items-center justify-center gap-2 rounded-md py-3.5 text-[15px] font-semibold transition-colors ${isAdmin || sancionUsuario?.suspendido
-                  ? "cursor-not-allowed bg-slate-200 text-slate-500"
-                  : "cursor-pointer bg-sky-800 text-white hover:bg-sky-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2"
+              className={`flex w-full items-center justify-center gap-2 rounded-lg py-3.5 text-[15px] font-semibold transition-all ${isAdmin || sancionUsuario?.suspendido
+                ? "cursor-not-allowed bg-slate-200 text-slate-500"
+                : "cursor-pointer bg-[#00629B] text-white hover:bg-[#004B75] shadow-md shadow-[#00629B]/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC20E] focus-visible:ring-offset-2 active:scale-[0.99]"
                 }`}
             >
               {isAdmin ? (
@@ -950,18 +944,19 @@ export default function FormularioReserva() {
           )}
 
           {reservaActivaUser && (
-            <div className="rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden">
-              <div className="border-b border-slate-200 bg-slate-50 px-4 py-2.5">
-                <h3 className="text-[13px] font-semibold text-slate-800">Tu reserva activa</h3>
+            <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+              <div className="border-b border-sky-900 bg-[#00629B] px-4 py-3 flex items-center justify-between text-white">
+                <h3 className="text-[13px] font-semibold text-white">Tu reserva activa</h3>
+                <span className="rounded bg-[#FFC20E] px-2 py-0.5 text-[11px] font-bold text-slate-900">Confirmada</span>
               </div>
               <dl className="divide-y divide-slate-100 px-4 text-[13px]">
                 <div className="flex items-center justify-between py-2.5">
                   <dt className="text-slate-500">Sede</dt>
-                  <dd className="font-medium text-slate-900">{reservaActivaUser.campus}</dd>
+                  <dd className="font-semibold text-slate-900">{reservaActivaUser.campus}</dd>
                 </div>
                 <div className="flex items-center justify-between py-2.5">
                   <dt className="text-slate-500">Cubículo</dt>
-                  <dd className="font-medium tabular-nums text-slate-900">{reservaActivaUser.cubiculo_codigo}</dd>
+                  <dd className="font-semibold tabular-nums text-slate-900">{reservaActivaUser.cubiculo_codigo}</dd>
                 </div>
                 <div className="flex items-center justify-between py-2.5">
                   <dt className="text-slate-500">Fecha</dt>
@@ -969,10 +964,10 @@ export default function FormularioReserva() {
                 </div>
                 <div className="flex items-center justify-between py-2.5">
                   <dt className="text-slate-500">Hora</dt>
-                  <dd className="font-medium tabular-nums text-slate-900">{reservaActivaUser.hora} hrs</dd>
+                  <dd className="font-bold tabular-nums text-[#00629B]">{reservaActivaUser.hora} hrs</dd>
                 </div>
               </dl>
-              <div className="flex gap-2 border-t border-slate-100 p-3">
+              <div className="flex gap-2 border-t border-slate-100 p-3 bg-slate-50/50">
                 <Link
                   to="/mis-reservas"
                   className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-2 text-[13px] font-medium text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50"
@@ -982,7 +977,7 @@ export default function FormularioReserva() {
                 <button
                   type="button"
                   onClick={() => abrirModalEdicion(reservaActivaUser)}
-                  className="inline-flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-md bg-sky-800 px-3 py-2 text-[13px] font-medium text-white transition-colors hover:bg-sky-900"
+                  className="inline-flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-md bg-[#00629B] px-3 py-2 text-[13px] font-medium text-white transition-colors hover:bg-[#004B75]"
                 >
                   <IconEdit className="w-3.5 h-3.5" /> Editar
                 </button>
@@ -993,33 +988,32 @@ export default function FormularioReserva() {
             </div>
           )}
 
-          {/* Resumen en construcción */}
-          <div className="rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden">
-            <div className="border-b border-slate-200 bg-slate-50 px-4 py-2.5">
-              <h3 className="text-[13px] font-semibold text-slate-800">Resumen de la solicitud</h3>
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+              <h3 className="text-[13px] font-semibold text-slate-900">Resumen de la solicitud</h3>
             </div>
             <dl className="divide-y divide-slate-100 px-4 text-[13px]">
               <div className="flex items-start justify-between gap-3 py-2.5">
-                <dt className="flex items-center gap-2 text-slate-500"><IconPin className="w-3.5 h-3.5" /> Sede</dt>
-                <dd className={`text-right ${campusSeleccionado ? "font-medium text-slate-900" : "text-slate-400"}`}>
+                <dt className="flex items-center gap-2 text-slate-500"><IconPin className="w-3.5 h-3.5 text-[#00629B]" /> Sede</dt>
+                <dd className={`text-right ${campusSeleccionado ? "font-semibold text-slate-900" : "text-slate-400"}`}>
                   {campusSeleccionado ? campusSeleccionado.nombre : "Por elegir"}
                 </dd>
               </div>
               <div className="flex items-start justify-between gap-3 py-2.5">
-                <dt className="flex items-center gap-2 text-slate-500"><IconCalendar className="w-3.5 h-3.5" /> Fecha</dt>
-                <dd className={`text-right tabular-nums ${formData.fecha ? "font-medium text-slate-900" : "text-slate-400"}`}>
+                <dt className="flex items-center gap-2 text-slate-500"><IconCalendar className="w-3.5 h-3.5 text-[#00629B]" /> Fecha</dt>
+                <dd className={`text-right tabular-nums ${formData.fecha ? "font-semibold text-slate-900" : "text-slate-400"}`}>
                   {formData.fecha || "Por elegir"}
                 </dd>
               </div>
               <div className="flex items-start justify-between gap-3 py-2.5">
-                <dt className="flex items-center gap-2 text-slate-500"><IconClock className="w-3.5 h-3.5" /> Bloque</dt>
-                <dd className={`text-right tabular-nums ${formData.hora ? "font-medium text-slate-900" : "text-slate-400"}`}>
+                <dt className="flex items-center gap-2 text-slate-500"><IconClock className="w-3.5 h-3.5 text-[#00629B]" /> Bloque</dt>
+                <dd className={`text-right tabular-nums ${formData.hora ? "font-bold text-[#00629B]" : "text-slate-400"}`}>
                   {formData.hora ? `${formData.hora}:00 hrs` : "Por elegir"}
                 </dd>
               </div>
               <div className="flex items-start justify-between gap-3 py-2.5">
                 <dt className="flex items-center gap-2 text-slate-500">
-                  {tieneAcompanantes ? <IconUsers className="w-3.5 h-3.5" /> : <IconUser className="w-3.5 h-3.5" />} Modalidad
+                  {tieneAcompanantes ? <IconUsers className="w-3.5 h-3.5 text-[#00629B]" /> : <IconUser className="w-3.5 h-3.5 text-[#00629B]" />} Modalidad
                 </dt>
                 <dd className="text-right font-medium text-slate-900">
                   {tieneAcompanantes ? `Grupo (${listAcompanantes.length + 1})` : "Individual"}
@@ -1029,7 +1023,7 @@ export default function FormularioReserva() {
           </div>
 
           {isEstudiante && (
-            <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex items-center gap-2 text-emerald-700">
                 <IconCheck className="w-4 h-4" />
                 <h3 className="text-[14px] font-semibold">Sesión verificada</h3>
@@ -1041,7 +1035,7 @@ export default function FormularioReserva() {
           )}
 
           {isAdmin && (
-            <div className="rounded-lg border-l-[3px] border-l-amber-500 border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-xl border-l-[3px] border-l-amber-500 border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex items-center gap-2 text-amber-700">
                 <IconLock className="w-4 h-4" />
                 <h3 className="text-[14px] font-semibold">Vista de administrador</h3>
@@ -1053,14 +1047,14 @@ export default function FormularioReserva() {
           )}
 
           {!user && (
-            <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <h3 className="text-[14px] font-semibold text-slate-900">¿Eres estudiante?</h3>
               <p className="mt-1.5 text-[13px] leading-relaxed text-slate-600">
                 Inicia sesión y completaremos tu nombre y RUT automáticamente.
               </p>
               <Link
                 to="/login"
-                className="mt-3 inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-2 text-[13px] font-medium text-sky-800 transition-colors hover:border-sky-700 hover:bg-sky-50"
+                className="mt-3 inline-flex items-center justify-center rounded-md bg-[#FFC20E] px-4 py-2 text-[13px] font-semibold text-slate-900 transition-colors hover:bg-[#FFCA28]"
               >
                 Iniciar sesión
               </Link>
@@ -1069,30 +1063,29 @@ export default function FormularioReserva() {
         </aside>
       </main>
 
-      {/* MODAL DE EDICIÓN DE RESERVA */}
       {modalEdicionOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/50 p-4 backdrop-blur-[2px]">
-          <div className="my-8 w-full max-w-lg rounded-lg border border-slate-200 bg-white shadow-xl">
-            <div className="flex items-start justify-between border-b border-slate-200 px-6 py-4">
+          <div className="my-8 w-full max-w-lg overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl">
+            <div className="bg-[#00629B] px-6 py-4 text-white flex items-start justify-between">
               <div>
-                <h3 className="font-serif text-xl text-slate-900">Editar reserva</h3>
-                <p className="mt-0.5 text-[13px] text-slate-500">
+                <h3 className="font-serif text-xl text-white">Editar reserva</h3>
+                <p className="mt-0.5 text-[13px] text-sky-200/90">
                   Cambia la sede, el día o el bloque horario.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setModalEdicionOpen(false)}
-                className="cursor-pointer rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                className="cursor-pointer rounded-md p-1.5 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
                 title="Cerrar"
               >
                 <IconClose />
               </button>
             </div>
+            <div className="h-[2px] bg-gradient-to-r from-[#FFC20E] via-[#00A3E0] to-[#00629B]" />
 
             <form onSubmit={handleGuardarEdicion} className="space-y-5 px-6 py-5">
-              {/* Datos del Titular (Inmutables) */}
-              <div className="rounded-md border border-slate-200 bg-slate-50 px-3.5 py-3 text-[13px]">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-3 text-[13px]">
                 <div className="flex items-center justify-between">
                   <span className="flex items-center gap-1.5 text-slate-500"><IconLock className="w-3.5 h-3.5" /> Titular</span>
                   <strong className="font-medium text-slate-900">{isEstudiante ? user.nombre : formData.nombre || "Estudiante"}</strong>
@@ -1106,7 +1099,6 @@ export default function FormularioReserva() {
                 </p>
               </div>
 
-              {/* Sede / Campus */}
               <div>
                 <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
                   Sede
@@ -1115,7 +1107,7 @@ export default function FormularioReserva() {
                   required
                   value={editFormData.campus_id}
                   onChange={(e) => setEditFormData((prev) => ({ ...prev, campus_id: e.target.value, hora: "" }))}
-                  className="w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-2.5 text-[14px] text-slate-900 focus:border-sky-700 focus:outline-none focus:ring-1 focus:ring-sky-700"
+                  className="w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-2.5 text-[14px] text-slate-900 focus:border-[#00629B] focus:outline-none focus:ring-2 focus:ring-[#00629B]/20"
                 >
                   <option value="">Selecciona una sede</option>
                   {campusList.map((c) => (
@@ -1124,7 +1116,6 @@ export default function FormularioReserva() {
                 </select>
               </div>
 
-              {/* Fecha */}
               <div>
                 <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
                   Nueva fecha
@@ -1147,11 +1138,10 @@ export default function FormularioReserva() {
                   minDate={new Date()}
                   dateFormat="yyyy-MM-dd"
                   locale="es"
-                  className="w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-2.5 text-[14px] tabular-nums text-slate-900 focus:border-sky-700 focus:outline-none focus:ring-1 focus:ring-sky-700"
+                  className="w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-2.5 text-[14px] tabular-nums text-slate-900 focus:border-[#00629B] focus:outline-none focus:ring-2 focus:ring-[#00629B]/20"
                 />
               </div>
 
-              {/* Bloque Horario */}
               <div>
                 <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
                   Nuevo bloque horario
@@ -1183,11 +1173,11 @@ export default function FormularioReserva() {
                           type="button"
                           disabled={b.disponibles === 0 && !esSeleccionado}
                           onClick={() => setEditFormData((prev) => ({ ...prev, hora: b.hora }))}
-                          className={`flex flex-col justify-between rounded-md border p-2.5 text-left text-[13px] transition-colors ${b.disponibles === 0 && !esSeleccionado
-                              ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
-                              : esSeleccionado
-                                ? "cursor-pointer border-sky-700 bg-sky-700 text-white"
-                                : "cursor-pointer border-slate-200 bg-white text-slate-700 hover:border-sky-700 hover:bg-sky-50/50"
+                          className={`flex flex-col justify-between rounded-lg border p-2.5 text-left text-[13px] transition-all ${b.disponibles === 0 && !esSeleccionado
+                            ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
+                            : esSeleccionado
+                              ? "cursor-pointer border-[#00629B] bg-[#00629B] text-white shadow-sm"
+                              : "cursor-pointer border-slate-200 bg-white text-slate-700 hover:border-[#00629B] hover:bg-sky-50/50"
                             }`}
                         >
                           <span className="font-medium tabular-nums">{b.rango}</span>
@@ -1201,7 +1191,6 @@ export default function FormularioReserva() {
                 )}
               </div>
 
-              {/* Botones Modal */}
               <div className="flex items-center justify-end gap-2 border-t border-slate-200 pt-4">
                 <button
                   type="button"
@@ -1212,7 +1201,7 @@ export default function FormularioReserva() {
                 </button>
                 <button
                   type="submit"
-                  className="cursor-pointer rounded-md bg-sky-800 px-5 py-2.5 text-[13px] font-medium text-white transition-colors hover:bg-sky-900"
+                  className="cursor-pointer rounded-md bg-[#00629B] px-5 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-[#004B75]"
                 >
                   Guardar cambios
                 </button>
@@ -1257,8 +1246,8 @@ export default function FormularioReserva() {
 
       {toastNotificacion.texto && (
         <div className={`fixed bottom-6 right-6 z-50 flex max-w-sm items-start gap-3 rounded-md border-l-[3px] bg-white px-4 py-3.5 text-[13px] shadow-xl animate-slideUp ${toastNotificacion.tipo === "error"
-            ? "border-l-rose-600 border border-slate-200"
-            : "border-l-emerald-600 border border-slate-200"
+          ? "border-l-rose-600 border border-slate-200"
+          : "border-l-emerald-600 border border-slate-200"
           }`}>
           <span className={toastNotificacion.tipo === "error" ? "text-rose-600" : "text-emerald-600"}>
             {toastNotificacion.tipo === "error" ? <IconAlert /> : <IconCheck />}

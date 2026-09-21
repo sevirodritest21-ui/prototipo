@@ -1,6 +1,21 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 
+const Icon = ({ path, className = "w-4 h-4" }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"
+    strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+    {path}
+  </svg>
+);
+
+const IconClock = (p) => <Icon {...p} path={<><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>} />;
+const IconDoc = (p) => <Icon {...p} path={<><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z" /><path d="M14 3v5h5M9 13h6M9 17h4" /></>} />;
+const IconCalendar = (p) => <Icon {...p} path={<><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 11h18" /></>} />;
+const IconChat = (p) => <Icon {...p} path={<path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />} />;
+const IconAlert = (p) => <Icon {...p} path={<><path d="M12 9v4M12 17h.01" /><path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L14.7 3.9a2 2 0 00-3.4 0z" /></>} />;
+const IconChevron = (p) => <Icon {...p} path={<path d="M6 9l6 6 6-6" />} />;
+const IconBuilding = (p) => <Icon {...p} path={<><rect x="4" y="2" width="16" height="20" rx="2" /><path d="M9 22v-4h6v4M8 6h.01M16 6h.01M8 10h.01M16 10h.01M8 14h.01M16 14h.01" /></>} />;
+
 export default function Reglamento() {
   const [categoriaAbierta, setCategoriaAbierta] = useState(0);
 
@@ -129,87 +144,99 @@ export default function Reglamento() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-sky-50/40 to-amber-50/30 pt-16 font-sans text-slate-800">
-      <section className="bg-gradient-to-r from-[#004B75] via-[#00629B] to-[#007AB8] text-white py-12 px-6 shadow-md border-b-4 border-[#FFC20E]">
-        <div className="mx-auto max-w-7xl flex flex-col md:flex-row items-center justify-between gap-8">
-          <div>
-            <div className="inline-flex items-center gap-2 bg-white/15 backdrop-blur-md text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider mb-3 border border-white/20">
-              <span>🏛️</span> Normativa Universitaria • Biblioteca UCT
-            </div>
-            <h1 className="text-3xl md:text-5xl font-black tracking-tight">
-              Reglamento y Horarios de Cubículos
-            </h1>
-            <p className="mt-3 text-sky-100 text-sm md:text-base max-w-2xl leading-relaxed">
-              Conoce las pautas vigentes sobre tolerancia de asistencia, sanciones por inasistencias y normas de convivencia para garantizar un uso equitativo de los espacios de estudio.
-            </p>
-          </div>
+    <div className="min-h-screen bg-[#F4F6F9] pt-16 pb-20 font-sans text-slate-800">
+      
+      <header className="bg-[#00629B] text-white shadow-md">
+        <div className="mx-auto max-w-6xl px-5 py-9 sm:py-11">
+          <div className="flex flex-wrap items-start justify-between gap-6">
+            <div className="max-w-2xl">
+              <div className="flex items-center gap-2 text-sky-200">
+                <span className="flex h-7 w-7 items-center justify-center rounded-md bg-white/10 border border-white/15 text-[#FFC20E]">
+                  <IconDoc className="w-4 h-4" />
+                </span>
+                <span className="text-xs font-semibold uppercase tracking-wider text-sky-200">
+                  Normativa Universitaria • Biblioteca UCT
+                </span>
+              </div>
 
-          <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-            <Link
-              to="/reservar"
-              className="px-6 py-3.5 bg-gradient-to-r from-[#FFC20E] to-[#FFA000] hover:from-[#FFA000] hover:to-[#FF8F00] text-slate-950 font-black text-sm rounded-2xl shadow-lg transition-all text-center"
-            >
-              📅 Reservar Cubículo
-            </Link>
-            <button
-              onClick={() => window.dispatchEvent(new CustomEvent("open-chat"))}
-              className="px-6 py-3.5 bg-white/10 hover:bg-white/20 border border-white/25 text-white font-bold text-sm rounded-2xl shadow transition-all cursor-pointer text-center backdrop-blur-md"
-            >
-              💬 Consultar con IA
-            </button>
+              <h1 className="mt-4 font-serif text-3xl sm:text-[2.5rem] leading-tight tracking-tight text-white">
+                Reglamento y horarios de cubículos
+              </h1>
+
+              <p className="mt-2.5 text-[14px] leading-relaxed text-sky-100/90">
+                Conoce las pautas vigentes sobre tolerancia de asistencia, sanciones por inasistencias y normas de convivencia para garantizar un uso equitativo de los espacios de estudio.
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+              <Link
+                to="/reservar"
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-[#FFC20E] px-4 py-2.5 text-[13px] font-semibold text-slate-900 transition-colors hover:bg-[#FFCA28] shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              >
+                <IconCalendar className="w-4 h-4" /> Reservar cubículo
+              </Link>
+              <button
+                onClick={() => window.dispatchEvent(new CustomEvent("open-chat"))}
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-white/10 hover:bg-white/15 border border-white/20 text-white text-[13px] font-semibold transition-colors cursor-pointer"
+              >
+                <IconChat className="w-4 h-4" /> Consultar con IA
+              </button>
+            </div>
           </div>
         </div>
-      </section>
+        <div className="h-[2px] bg-gradient-to-r from-[#FFC20E] via-[#00A3E0] to-[#00629B]" />
+      </header>
 
-      <main className="mx-auto max-w-7xl px-6 py-10 space-y-12">
-        <section className="space-y-6">
-          <div className="flex items-center gap-3">
-            <span className="w-10 h-10 bg-[#00629B] text-white rounded-2xl flex items-center justify-center text-lg shadow-sm">
-              🕒
+      <main className="mx-auto max-w-6xl px-5 mt-8 space-y-10">
+        
+        <section className="space-y-4">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-[#00629B] text-white shadow-sm">
+              <IconClock className="w-4 h-4" />
             </span>
             <div>
-              <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
-                Horario de Atención por Sede
+              <h2 className="font-serif text-xl sm:text-2xl font-bold text-slate-900">
+                Horario de atención por sede
               </h2>
-              <p className="text-xs md:text-sm text-slate-500">
+              <p className="text-[13px] text-slate-500">
                 Horarios oficiales habilitados para el uso y reserva de salas de estudio.
               </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {horarios.map((h, i) => (
               <div
                 key={i}
-                className={`bg-white rounded-3xl p-6 md:p-8 shadow-xl shadow-slate-200/50 border-l-8 ${h.colorBorde} border border-slate-100 flex flex-col justify-between gap-6 transition-all hover:shadow-2xl`}
+                className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm flex flex-col justify-between gap-5 hover:shadow-md transition-shadow"
               >
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-2xl p-2.5 bg-sky-50 rounded-2xl border border-sky-100">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-50 text-xl border border-sky-100">
                       {h.icono}
                     </span>
-                    <span className="text-[10px] font-black uppercase tracking-wider px-3 py-1 bg-slate-100 text-slate-700 rounded-full border border-slate-200">
+                    <span className="rounded px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider bg-slate-100 text-slate-600 border border-slate-200">
                       Presencial
                     </span>
                   </div>
                   <div>
-                    <h3 className="text-lg md:text-xl font-bold text-slate-900">
+                    <h3 className="font-serif text-lg font-bold text-slate-900">
                       {h.sede}
                     </h3>
-                    <p className="text-xs font-semibold text-sky-700">
+                    <p className="text-[13px] font-medium text-[#00629B]">
                       {h.campus}
                     </p>
                   </div>
                 </div>
 
-                <div className="space-y-2.5 pt-4 border-t border-slate-100">
+                <div className="space-y-2 pt-3 border-t border-slate-100">
                   {h.bloques.map((b, bi) => (
                     <div
                       key={bi}
-                      className="flex items-center justify-between px-4 py-3 bg-slate-50/70 rounded-2xl border border-slate-100 text-xs"
+                      className="rounded-lg bg-slate-50 border border-slate-200 px-3.5 py-2.5 flex items-center justify-between text-[13px]"
                     >
-                      <span className="font-bold text-slate-700">{b.dias}:</span>
-                      <span className="font-extrabold text-[#00629B] bg-white px-3 py-1 rounded-xl shadow-xs border border-slate-200">
+                      <span className="font-medium text-slate-700">{b.dias}:</span>
+                      <span className="rounded-md bg-white px-2.5 py-1 font-bold text-[#00629B] border border-slate-200/80 shadow-xs tabular-nums">
                         {b.horas}
                       </span>
                     </div>
@@ -220,17 +247,17 @@ export default function Reglamento() {
           </div>
         </section>
 
-        <section className="space-y-6">
+        <section className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <span className="w-10 h-10 bg-[#FFC20E] text-slate-950 rounded-2xl flex items-center justify-center text-lg shadow-sm">
-                📜
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-7 w-7 items-center justify-center rounded-md bg-[#FFC20E] text-slate-900 shadow-sm">
+                <IconDoc className="w-4 h-4" />
               </span>
               <div>
-                <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
-                  Reglamento General de Cubículos
+                <h2 className="font-serif text-xl sm:text-2xl font-bold text-slate-900">
+                  Reglamento general de cubículos
                 </h2>
-                <p className="text-xs md:text-sm text-slate-500">
+                <p className="text-[13px] text-slate-500">
                   Haz clic en cada sección para desplegar los detalles de la normativa.
                 </p>
               </div>
@@ -240,79 +267,77 @@ export default function Reglamento() {
               <button
                 type="button"
                 onClick={() => setCategoriaAbierta(categoriaAbierta !== null ? null : 0)}
-                className="text-xs font-bold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 px-3.5 py-1.5 rounded-xl transition cursor-pointer"
+                className="text-[12px] font-medium text-[#00629B] bg-sky-50 hover:bg-sky-100 border border-sky-200 px-3 py-1.5 rounded-md transition-colors cursor-pointer"
               >
-                {categoriaAbierta !== null ? "Contraer Todo" : "Expandir Todo"}
+                {categoriaAbierta !== null ? "Contraer todo" : "Expandir todo"}
               </button>
             </div>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-3">
             {categoriasReglamento.map((cat, idx) => {
               const estaAbierto = categoriaAbierta === idx;
               return (
                 <div
                   key={cat.id}
-                  className={`bg-white rounded-3xl border transition-all duration-300 overflow-hidden shadow-sm ${
+                  className={`rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden transition-all duration-200 ${
                     estaAbierto
-                      ? `border-l-8 ${cat.colorBorde} border-slate-200 shadow-md`
-                      : "border-slate-200/80 hover:border-sky-300 hover:shadow-md"
+                      ? "border-l-4 border-l-[#00629B] shadow-md"
+                      : "hover:border-slate-300"
                   }`}
                 >
                   <button
                     type="button"
                     onClick={() => setCategoriaAbierta(estaAbierto ? null : idx)}
-                    className="w-full p-5 sm:p-6 text-left flex items-start sm:items-center justify-between gap-4 cursor-pointer select-none"
+                    className="w-full p-5 sm:p-6 text-left flex items-start sm:items-center justify-between gap-4 cursor-pointer select-none hover:bg-slate-50/40"
                   >
                     <div className="flex items-start sm:items-center gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-center text-2xl shrink-0 shadow-xs">
+                      <div className="w-10 h-10 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center text-xl shrink-0">
                         {cat.icono}
                       </div>
                       <div>
                         <div className="flex flex-wrap items-center gap-2 mb-1">
-                          <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-snug">
+                          <h3 className="font-serif text-base sm:text-lg font-bold text-slate-900 leading-snug">
                             {cat.titulo}
                           </h3>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase tracking-wider ${cat.colorBadge}`}>
+                          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded border uppercase tracking-wider ${cat.colorBadge}`}>
                             {cat.badge}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-500 line-clamp-1 sm:line-clamp-none">
+                        <p className="text-[13px] text-slate-500 line-clamp-1 sm:line-clamp-none">
                           {cat.subtitulo}
                         </p>
                       </div>
                     </div>
 
-                    <div className={`w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 shrink-0 transition-transform duration-300 ${
-                      estaAbierto ? "rotate-180 bg-sky-50 text-sky-700" : ""
+                    <span className={`flex h-7 w-7 items-center justify-center rounded-md bg-slate-100 text-slate-600 shrink-0 transition-transform duration-200 ${
+                      estaAbierto ? "rotate-180 bg-[#00629B] text-white" : ""
                     }`}>
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </div>
+                      <IconChevron className="w-4 h-4" />
+                    </span>
                   </button>
 
                   {estaAbierto && (
-                    <div className="px-5 pb-6 sm:px-6 sm:pb-7 pt-2 border-t border-slate-100 space-y-4 animate-in fade-in duration-200">
+                    <div className="px-5 pb-6 sm:px-6 sm:pb-7 pt-3 border-t border-slate-100 space-y-4 animate-fadeIn">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {cat.puntos.map((punto, pIdx) => (
                           <div
                             key={pIdx}
-                            className="bg-slate-50/80 rounded-2xl p-4 border border-slate-200/70 space-y-2 flex flex-col justify-between"
+                            className="rounded-lg bg-slate-50 border border-slate-200/80 p-4 space-y-2 flex flex-col justify-between"
                           >
                             <div>
-                              <h4 className="text-xs font-bold text-slate-800 flex items-center gap-2">
-                                <span className="w-1.5 h-1.5 rounded-full bg-sky-600" />
+                              <h4 className="text-[13px] font-semibold text-slate-900 flex items-center gap-2">
+                                <span className="h-1.5 w-1.5 rounded-full bg-[#00629B]" />
                                 {punto.titulo}
                               </h4>
-                              <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">
+                              <p className="text-[13px] text-slate-600 mt-1.5 leading-relaxed">
                                 {punto.detalle}
                               </p>
                             </div>
 
                             {punto.alerta && (
-                              <div className="mt-2 text-[11px] font-semibold text-amber-900 bg-amber-50 border border-amber-200/80 rounded-xl px-3 py-1.5 flex items-start gap-1.5">
-                                <span className="shrink-0">⚠️</span>
+                              <div className="mt-2 text-[12px] font-medium text-amber-900 bg-amber-50 border border-amber-200/80 rounded-md px-3 py-2 flex items-start gap-2">
+                                <IconAlert className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
                                 <span>{punto.alerta}</span>
                               </div>
                             )}
@@ -327,24 +352,24 @@ export default function Reglamento() {
           </div>
         </section>
 
-        <section className="bg-gradient-to-r from-[#004B75] via-[#00629B] to-[#007AB8] rounded-3xl p-8 text-white shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6 border-2 border-[#FFC20E]/40">
+        <section className="rounded-xl bg-[#00629B] p-7 md:p-8 text-white shadow-md flex flex-col md:flex-row items-center justify-between gap-6 border-b-2 border-[#FFC20E]">
           <div className="space-y-2 max-w-2xl">
-            <span className="bg-[#FFC20E] text-slate-950 font-black text-[10px] px-3 py-1 rounded-full uppercase tracking-wider">
-              ¿DUDAS SOBRE EL REGLAMENTO O UNA SANCIÓN?
+            <span className="bg-[#FFC20E] text-slate-900 font-bold text-[10px] px-2.5 py-0.5 rounded uppercase tracking-wider">
+              ¿Dudas sobre el reglamento o una sanción?
             </span>
-            <h3 className="text-2xl font-black tracking-tight">
-              Consulta en vivo con nuestro Asistente Virtual
+            <h3 className="font-serif text-2xl font-bold tracking-tight text-white">
+              Consulta en vivo con nuestro asistente virtual
             </h3>
-            <p className="text-xs md:text-sm text-sky-100 leading-relaxed">
+            <p className="text-[13px] text-sky-100/90 leading-relaxed">
               El chatbot con IA de la biblioteca conoce los tiempos de tolerancia, el estado de tus inasistencias y los horarios de cada sede en tiempo real.
             </p>
           </div>
 
           <button
             onClick={() => window.dispatchEvent(new CustomEvent("open-chat"))}
-            className="px-6 py-3.5 bg-gradient-to-r from-[#FFC20E] to-[#FFA000] hover:from-[#FFA000] hover:to-[#FF8F00] text-slate-950 font-black text-xs uppercase tracking-wider rounded-2xl shadow-xl transition-all cursor-pointer whitespace-nowrap self-stretch sm:self-auto text-center"
+            className="inline-flex items-center gap-2 rounded-md bg-[#FFC20E] px-5 py-2.5 text-[13px] font-semibold text-slate-900 transition-colors hover:bg-[#FFCA28] shadow-sm cursor-pointer whitespace-nowrap self-stretch sm:self-auto text-center"
           >
-            Abrir Asistente IA →
+            <IconChat className="w-4 h-4" /> Abrir Asistente IA
           </button>
         </section>
       </main>
