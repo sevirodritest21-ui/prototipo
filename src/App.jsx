@@ -15,6 +15,7 @@ const Reglamento = lazy(() => import("./pages/Reglamento"));
 
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import NetworkStatusBanner from "./components/NetworkStatusBanner";
 
 /* ── Iconografía (solo presentación) ─────────────────────────────── */
 const Icon = ({ path, className = "w-4 h-4" }) => (
@@ -237,6 +238,7 @@ export default function App() {
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
           <ChatbotFlotante />
+          <NetworkStatusBanner />
         </Suspense>
       </AuthProvider>
     </Router>

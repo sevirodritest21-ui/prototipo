@@ -10,12 +10,25 @@ function getAuthHeaders() {
 }
 
 async function handleResponse(response) {
-  const contentType = response.headers.get('content-type') || '';
-  const isJson = contentType.includes('application/json');
-  const data = isJson ? await response.json() : await response.text();
+  let data = null;
+  let isJson = false;
+
+  try {
+    const contentType = response.headers.get('content-type') || '';
+    isJson = contentType.includes('application/json');
+    data = isJson ? await response.json() : await response.text();
+  } catch (_) {
+    data = null;
+  }
 
   if (!response.ok) {
-    const message = (isJson && data?.detail) ? data.detail : `Error ${response.status}`;
+    if (response.status === 503 || response.status === 502) {
+      throw new Error('El servicio está temporalmente no disponible. Reintentando conexión...');
+    }
+    if (response.status === 504) {
+      throw new Error('Tiempo de respuesta agotado por el servidor.');
+    }
+    const message = (isJson && data?.detail) ? data.detail : `Error del servidor (${response.status})`;
     throw new Error(message);
   }
   return data;
