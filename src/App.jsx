@@ -44,6 +44,10 @@ function NavBar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  if (location.pathname.toLowerCase() === "/login") {
+    return null;
+  }
+
   const getLinkStyle = (path) => {
     const isActive = location.pathname === path;
     return `px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${
