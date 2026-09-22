@@ -23,6 +23,14 @@ load_dotenv("backend.env")
 
 app = FastAPI(title="API de Reservas y Chatbot UCT (PostgreSQL + Redis)")
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL")
 N8N_CANCELACION_WEBHOOK_URL = os.getenv("N8N_CANCELACION_WEBHOOK_URL")
 N8N_CREACION_WEBHOOK_URL = os.getenv("N8N_CREACION_WEBHOOK_URL")
@@ -2720,6 +2728,15 @@ async def procesar_edicion_reserva(
                 RETURNING id, nombre, rut, fecha, hora, campus_id, session_id
                 """,
                 nueva_fecha, nueva_hora, nuevo_campus_id, nuevo_cubiculo_id, reserva_id
+            )
+
+            await conn.execute(
+                """
+                UPDATE historial_reservas
+                SET fecha = $1, hora = $2, campus_id = $3
+                WHERE reserva_id = $4 AND estado = 'activa'
+                """,
+                nueva_fecha, nueva_hora.strftime("%H:%M"), nuevo_campus_id, reserva_id
             )
 
             if data.sessionId:
