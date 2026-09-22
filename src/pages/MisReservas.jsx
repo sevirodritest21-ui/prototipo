@@ -4,6 +4,7 @@ import DatePicker, { registerLocale } from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import es from "date-fns/locale/es";
 import { useAuth } from "../context/AuthContext";
+import { API_URL } from "../services/api";
 
 registerLocale("es", es);
 
@@ -49,6 +50,21 @@ const obtenerSessionId = (rut) => {
   return sId;
 };
 
+const calcularEsBloquePasado = (fechaStr, horaStr) => {
+  if (!fechaStr || !horaStr) return false;
+  const hoy = new Date();
+  const yr = hoy.getFullYear();
+  const mo = String(hoy.getMonth() + 1).padStart(2, "0");
+  const dy = String(hoy.getDate()).padStart(2, "0");
+  const hoyStr = `${yr}-${mo}-${dy}`;
+  if (fechaStr !== hoyStr) return false;
+
+  const [h, m] = horaStr.split(":").map(Number);
+  const minBloque = h * 60 + (m || 0);
+  const minActual = hoy.getHours() * 60 + hoy.getMinutes();
+  return minBloque <= minActual;
+};
+
 export default function MisReservas() {
   const { user } = useAuth();
   const [reservas, setReservas] = useState([]);
@@ -74,7 +90,16 @@ export default function MisReservas() {
   const [toastNotificacion, setToastNotificacion] = useState({ tipo: "", texto: "" });
 
   useEffect(() => {
-    fetch("http://localhost:8000/api/campus")
+    if (toastNotificacion.texto) {
+      const timer = setTimeout(() => {
+        setToastNotificacion({ tipo: "", texto: "" });
+      }, 10000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastNotificacion.texto]);
+
+  useEffect(() => {
+    fetch(`${API_URL}/api/campus`)
       .then((res) => res.json())
       .then((data) => setCampusList(data || []))
       .catch(console.error);
@@ -92,7 +117,7 @@ export default function MisReservas() {
       })
       .catch(() => {});
 
-    fetch("http://localhost:8000/api/calendario/bloqueos")
+    fetch(`${API_URL}/api/calendario/bloqueos`)
       .then((res) => res.json())
       .then((data) => setDiasBloqueados(Array.isArray(data) ? data : []))
       .catch(() => setDiasBloqueados([]));
@@ -107,7 +132,7 @@ export default function MisReservas() {
     setCargando(true);
     try {
       const token = localStorage.getItem("auth_token") || localStorage.getItem("token");
-      const res = await fetch("http://localhost:8000/api/reservas/consultar", {
+      const res = await fetch(`${API_URL}/api/reservas/consultar`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -137,7 +162,7 @@ export default function MisReservas() {
 
     const handleActualizar = () => {
       cargarReservas();
-      fetch("http://localhost:8000/api/calendario/bloqueos")
+      fetch(`${API_URL}/api/calendario/bloqueos`)
         .then((res) => res.json())
         .then((data) => setDiasBloqueados(Array.isArray(data) ? data : []))
         .catch(() => {});
@@ -171,7 +196,7 @@ export default function MisReservas() {
     try {
       const token = localStorage.getItem("auth_token") || localStorage.getItem("token");
       const sessionId = obtenerSessionId(user?.rut);
-      const url = `http://localhost:8000/api/reservas/${reservaId}${sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : ""}`;
+      const url = `${API_URL}/api/reservas/${reservaId}${sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : ""}`;
       const res = await fetch(url, {
         method: "DELETE",
         headers: {
@@ -237,7 +262,7 @@ export default function MisReservas() {
   useEffect(() => {
     if (modalEdicionOpen && editFormData.campus_id && editFormData.fecha) {
       setCargandoEditBloques(true);
-      fetch(`http://localhost:8000/api/disponibilidad?campus_id=${editFormData.campus_id}&fecha=${editFormData.fecha}`)
+      fetch(`${API_URL}/api/disponibilidad?campus_id=${editFormData.campus_id}&fecha=${editFormData.fecha}`)
         .then((res) => res.json())
         .then((data) => {
           setEditBloques(data.bloques || []);
@@ -253,9 +278,33 @@ export default function MisReservas() {
       setToastNotificacion({ tipo: "error", texto: "Por favor selecciona campus, fecha y hora." });
       return;
     }
+    if (calcularEsBloquePasado(editFormData.fecha, editFormData.hora)) {
+      setToastNotificacion({ tipo: "error", texto: "El bloque seleccionado ya ha finalizado hoy. Elige un horario futuro." });
+      return;
+    }
+
+    if (editFormData.acompanantes && editFormData.acompanantes.length > 0) {
+      const titRut = String(user?.rut || "").replace(/[.\-\s]/g, "").toUpperCase().trim();
+      const rutsVistos = new Set();
+      for (let i = 0; i < editFormData.acompanantes.length; i++) {
+        const ac = editFormData.acompanantes[i];
+        if (ac.rut && ac.rut.trim()) {
+          const acRut = ac.rut.replace(/[.\-\s]/g, "").toUpperCase().trim();
+          if (titRut && acRut === titRut) {
+            setToastNotificacion({ tipo: "error", texto: "No puedes agregarte a ti mismo como acompañante." });
+            return;
+          }
+          if (rutsVistos.has(acRut)) {
+            setToastNotificacion({ tipo: "error", texto: `El RUT ${ac.rut} está repetido en la lista de acompañantes.` });
+            return;
+          }
+          rutsVistos.add(acRut);
+        }
+      }
+    }
     try {
       const token = localStorage.getItem("auth_token") || localStorage.getItem("token");
-      const res = await fetch(`http://localhost:8000/api/reservas/${editFormData.id}`, {
+      const res = await fetch(`${API_URL}/api/reservas/${editFormData.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -683,23 +732,27 @@ export default function MisReservas() {
                 ) : (
                   <div className="grid max-h-48 grid-cols-2 gap-2 overflow-y-auto pr-1">
                     {editBloques.map((b) => {
-                      const esSeleccionado = editFormData.hora === b.hora;
+                      const esPasado = b.pasado || calcularEsBloquePasado(editFormData.fecha, b.hora);
+                      const esSeleccionado = editFormData.hora === b.hora && !esPasado;
+                      const deshabilitado = (b.disponibles === 0 && !esSeleccionado) || esPasado;
                       return (
                         <button
                           key={b.hora}
                           type="button"
-                          disabled={b.disponibles === 0 && !esSeleccionado}
-                          onClick={() => setEditFormData((prev) => ({ ...prev, hora: b.hora }))}
-                          className={`flex flex-col justify-between rounded-lg border p-2.5 text-left text-[13px] transition-all ${b.disponibles === 0 && !esSeleccionado
-                            ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
-                            : esSeleccionado
-                              ? "cursor-pointer border-[#00629B] bg-[#00629B] text-white shadow-sm"
-                              : "cursor-pointer border-slate-200 bg-white text-slate-700 hover:border-[#00629B] hover:bg-sky-50/50"
+                          disabled={deshabilitado}
+                          onClick={() => !deshabilitado && setEditFormData((prev) => ({ ...prev, hora: b.hora }))}
+                          className={`flex flex-col justify-between rounded-lg border p-2.5 text-left text-[13px] transition-all ${
+                            deshabilitado
+                              ? "cursor-not-allowed border-slate-200 bg-slate-100/70 text-slate-400 opacity-60"
+                              : esSeleccionado
+                                ? "cursor-pointer border-[#00629B] bg-[#00629B] text-white shadow-sm"
+                                : "cursor-pointer border-slate-200 bg-white text-slate-700 hover:border-[#00629B] hover:bg-sky-50/50"
                             }`}
+                          title={esPasado ? "Horario ya finalizado hoy" : ""}
                         >
                           <span className="font-medium tabular-nums">{b.rango}</span>
-                          <span className={`mt-1 text-[12px] ${esSeleccionado ? "text-sky-100" : "text-slate-500"}`}>
-                            {b.disponibles} libres
+                          <span className={`mt-1 text-[12px] ${esPasado ? "text-slate-400" : esSeleccionado ? "text-sky-100" : "text-slate-500"}`}>
+                            {esPasado ? "Finalizado" : `${b.disponibles} libres`}
                           </span>
                         </button>
                       );
@@ -726,32 +779,58 @@ export default function MisReservas() {
                   <p className="text-[12px] text-slate-400 italic">No hay acompañantes registrados.</p>
                 ) : (
                   <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
-                    {editFormData.acompanantes.map((ac, idx) => (
-                      <div key={idx} className="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs">
-                        <input
-                          type="text"
-                          placeholder="Nombre acompañante"
-                          value={ac.nombre || ""}
-                          onChange={(e) => handleAcompananteChange(idx, "nombre", e.target.value)}
-                          className="flex-1 px-2.5 py-1.5 bg-white border border-slate-300 rounded text-xs font-medium focus:outline-none focus:border-[#00629B]"
-                        />
-                        <input
-                          type="text"
-                          placeholder="RUT (ej: 12345678-9)"
-                          value={ac.rut || ""}
-                          onChange={(e) => handleAcompananteChange(idx, "rut", e.target.value)}
-                          className="w-32 px-2.5 py-1.5 bg-white border border-slate-300 rounded text-xs font-medium focus:outline-none focus:border-[#00629B]"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveAcompanante(idx)}
-                          className="p-1.5 text-rose-600 hover:bg-rose-50 rounded transition-colors cursor-pointer text-xs font-bold"
-                          title="Eliminar acompañante"
-                        >
-                          <IconClose className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
+                    {editFormData.acompanantes.map((ac, idx) => {
+                      const acRutClean = ac.rut ? ac.rut.replace(/[.\-\s]/g, "").toUpperCase().trim() : "";
+                      const titRutClean = String(user?.rut || "").replace(/[.\-\s]/g, "").toUpperCase().trim();
+                      const esMismoTitular = Boolean(acRutClean && titRutClean && acRutClean === titRutClean);
+                      const esDuplicado = Boolean(
+                        acRutClean &&
+                        editFormData.acompanantes.some((otro, i) => i !== idx && otro.rut && otro.rut.replace(/[.\-\s]/g, "").toUpperCase().trim() === acRutClean)
+                      );
+
+                      return (
+                        <div key={idx} className="flex flex-col gap-1 p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              placeholder="Nombre acompañante"
+                              value={ac.nombre || ""}
+                              onChange={(e) => handleAcompananteChange(idx, "nombre", e.target.value)}
+                              className="flex-1 px-2.5 py-1.5 bg-white border border-slate-300 rounded text-xs font-medium focus:outline-none focus:border-[#00629B]"
+                            />
+                            <input
+                              type="text"
+                              placeholder="RUT (ej: 12345678-9)"
+                              value={ac.rut || ""}
+                              onChange={(e) => handleAcompananteChange(idx, "rut", e.target.value)}
+                              className={`w-32 px-2.5 py-1.5 bg-white border rounded text-xs font-medium focus:outline-none ${
+                                esMismoTitular || esDuplicado
+                                  ? "border-rose-400 bg-rose-50/40 text-rose-900 focus:border-rose-500"
+                                  : "border-slate-300 focus:border-[#00629B]"
+                              }`}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveAcompanante(idx)}
+                              className="p-1.5 text-rose-600 hover:bg-rose-50 rounded transition-colors cursor-pointer text-xs font-bold"
+                              title="Eliminar acompañante"
+                            >
+                              <IconClose className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          {esMismoTitular && (
+                            <p className="text-[11px] font-medium text-rose-600">
+                              ⚠️ No puedes agregarte a ti mismo como acompañante.
+                            </p>
+                          )}
+                          {esDuplicado && !esMismoTitular && (
+                            <p className="text-[11px] font-medium text-rose-600">
+                              ⚠️ Este RUT ya fue ingresado en otro acompañante.
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>

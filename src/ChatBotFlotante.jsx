@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
-import { apiPost } from './services/api';
+import { apiPost, API_URL } from './services/api';
 
 // Importar el logo desde la carpeta assets
 import logoUCT from './assets/logoredondo.png';
@@ -80,7 +80,7 @@ export default function ChatbotFlotante() {
   useEffect(() => {
     if (!user) return;
 
-    fetch('http://localhost:8000/api/campus')
+    fetch(`${API_URL}/api/campus`)
       .then((res) => {
         if (!res.ok) throw new Error('Error al obtener los campus');
         return res.json();
@@ -167,7 +167,7 @@ export default function ChatbotFlotante() {
       let fallbackTexto = null;
       try {
         const token = localStorage.getItem("auth_token") || localStorage.getItem("token");
-        const resCheck = await fetch("http://localhost:8000/api/reservas/consultar", {
+        const resCheck = await fetch(`${API_URL}/api/reservas/consultar`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

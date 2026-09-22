@@ -47,6 +47,15 @@ export default function Dashboard() {
   const [confirmModal, setConfirmModal] = useState({ open: false, titulo: "", mensaje: "", onConfirm: null });
   const [toastNotificacion, setToastNotificacion] = useState({ tipo: "", texto: "" });
 
+  useEffect(() => {
+    if (toastNotificacion.texto) {
+      const timer = setTimeout(() => {
+        setToastNotificacion({ tipo: "", texto: "" });
+      }, 10000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastNotificacion.texto]);
+
   const [cmsAnuncios, setCmsAnuncios] = useState([]);
   const [cmsTarjetas, setCmsTarjetas] = useState([]);
   const [cargandoCMS, setCargandoCMS] = useState(false);

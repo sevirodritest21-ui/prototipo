@@ -4,6 +4,7 @@ import DatePicker, { registerLocale } from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import es from "date-fns/locale/es";
 import { useAuth } from "./context/AuthContext";
+import { API_URL } from "./services/api";
 
 registerLocale("es", es);
 
@@ -49,6 +50,21 @@ const obtenerSessionId = (rut) => {
   return sId;
 };
 
+const calcularEsBloquePasado = (fechaStr, horaStr) => {
+  if (!fechaStr || !horaStr) return false;
+  const hoy = new Date();
+  const yr = hoy.getFullYear();
+  const mo = String(hoy.getMonth() + 1).padStart(2, "0");
+  const dy = String(hoy.getDate()).padStart(2, "0");
+  const hoyStr = `${yr}-${mo}-${dy}`;
+  if (fechaStr !== hoyStr) return false;
+
+  const [h, m] = horaStr.split(":").map(Number);
+  const minBloque = h * 60 + (m || 0);
+  const minActual = hoy.getHours() * 60 + hoy.getMinutes();
+  return minBloque <= minActual;
+};
+
 export default function FormularioReserva() {
   const { user } = useAuth();
   const isAdmin = user?.rol === "admin";
@@ -90,9 +106,17 @@ export default function FormularioReserva() {
     acompanantes: []
   });
   const [editBloques, setEditBloques] = useState([]);
-  const [cargandoEditBloques, setCargandoEditBloques] = useState(false);
   const [confirmModal, setConfirmModal] = useState({ open: false, titulo: "", mensaje: "", onConfirm: null });
   const [toastNotificacion, setToastNotificacion] = useState({ tipo: "", texto: "" });
+
+  useEffect(() => {
+    if (toastNotificacion.texto) {
+      const timer = setTimeout(() => {
+        setToastNotificacion({ tipo: "", texto: "" });
+      }, 10000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastNotificacion.texto]);
 
   const consultarReservaActiva = async (rutConsultar) => {
     if (!rutConsultar) {
@@ -104,7 +128,7 @@ export default function FormularioReserva() {
     setCargandoReservaActiva(true);
     try {
       const token = localStorage.getItem("auth_token") || localStorage.getItem("token");
-      const res = await fetch("http://localhost:8000/api/reservas/consultar", {
+      const res = await fetch(`${API_URL}/api/reservas/consultar`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -138,7 +162,7 @@ export default function FormularioReserva() {
       const token = localStorage.getItem("auth_token") || localStorage.getItem("token");
       const rutTarget = isEstudiante ? user?.rut : formData.rut;
       const sessionId = obtenerSessionId(rutTarget);
-      const url = `http://localhost:8000/api/reservas/${resId}${sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : ""}`;
+      const url = `${API_URL}/api/reservas/${resId}${sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : ""}`;
       const res = await fetch(url, {
         method: "DELETE",
         headers: {
@@ -150,7 +174,7 @@ export default function FormularioReserva() {
         const rutTarget = isEstudiante ? user.rut : formData.rut;
         if (rutTarget) consultarReservaActiva(rutTarget.trim());
         if (formData.campus_id && formData.fecha) {
-          fetch(`http://localhost:8000/api/disponibilidad?campus_id=${formData.campus_id}&fecha=${formData.fecha}`)
+          fetch(`${API_URL}/api/disponibilidad?campus_id=${formData.campus_id}&fecha=${formData.fecha}`)
             .then((res) => res.json())
             .then((data) => setBloquesHorarios(data.bloques || []));
         }
@@ -193,7 +217,7 @@ export default function FormularioReserva() {
   useEffect(() => {
     if (modalEdicionOpen && editFormData.campus_id && editFormData.fecha) {
       setCargandoEditBloques(true);
-      fetch(`http://localhost:8000/api/disponibilidad?campus_id=${editFormData.campus_id}&fecha=${editFormData.fecha}`)
+      fetch(`${API_URL}/api/disponibilidad?campus_id=${editFormData.campus_id}&fecha=${editFormData.fecha}`)
         .then((res) => res.json())
         .then((data) => {
           setEditBloques(data.bloques || []);
@@ -209,10 +233,35 @@ export default function FormularioReserva() {
       setToastNotificacion({ tipo: "error", texto: "Por favor selecciona campus, fecha y hora." });
       return;
     }
+    if (calcularEsBloquePasado(editFormData.fecha, editFormData.hora)) {
+      setToastNotificacion({ tipo: "error", texto: "El bloque seleccionado ya ha transcurrido hoy. Elige un horario futuro." });
+      return;
+    }
+
+    if (editFormData.acompanantes && editFormData.acompanantes.length > 0) {
+      const rutTarget = isEstudiante ? user?.rut : formData.rut;
+      const titRut = String(rutTarget || "").replace(/[.\-\s]/g, "").toUpperCase().trim();
+      const rutsVistos = new Set();
+      for (let i = 0; i < editFormData.acompanantes.length; i++) {
+        const ac = editFormData.acompanantes[i];
+        if (ac.rut && ac.rut.trim()) {
+          const acRut = ac.rut.replace(/[.\-\s]/g, "").toUpperCase().trim();
+          if (titRut && acRut === titRut) {
+            setToastNotificacion({ tipo: "error", texto: "No puedes agregarte a ti mismo como acompañante." });
+            return;
+          }
+          if (rutsVistos.has(acRut)) {
+            setToastNotificacion({ tipo: "error", texto: `El RUT ${ac.rut} está repetido en la lista de acompañantes.` });
+            return;
+          }
+          rutsVistos.add(acRut);
+        }
+      }
+    }
     try {
       const token = localStorage.getItem("auth_token") || localStorage.getItem("token");
       const rutTarget = isEstudiante ? user?.rut : formData.rut;
-      const res = await fetch(`http://localhost:8000/api/reservas/${editFormData.id}`, {
+      const res = await fetch(`${API_URL}/api/reservas/${editFormData.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -260,9 +309,8 @@ export default function FormularioReserva() {
     }
   }, [formData.rut]);
 
-  // 1. Cargar campus desde el backend
   useEffect(() => {
-    fetch("http://localhost:8000/api/campus")
+    fetch(`${API_URL}/api/campus`)
       .then((res) => {
         if (!res.ok) throw new Error("Error al obtener la lista de campus");
         return res.json();
@@ -271,7 +319,6 @@ export default function FormularioReserva() {
       .catch((err) => console.error(err));
   }, []);
 
-  // 2. Cargar feriados dinámicos de la API de Chile
   useEffect(() => {
     const yearActual = new Date().getFullYear();
 
@@ -288,17 +335,16 @@ export default function FormularioReserva() {
         console.warn("Usando feriados estáticos de respaldo debido a:", err);
       });
 
-    fetch("http://localhost:8000/api/calendario/bloqueos")
+    fetch(`${API_URL}/api/calendario/bloqueos`)
       .then((res) => res.json())
       .then((data) => setDiasBloqueados(Array.isArray(data) ? data : []))
       .catch(() => setDiasBloqueados([]));
   }, []);
 
-  // 3. Consultar disponibilidad al cambiar Campus o Fecha
   useEffect(() => {
     if (formData.campus_id && formData.fecha) {
       setCargandoHorarios(true);
-      fetch(`http://localhost:8000/api/disponibilidad?campus_id=${formData.campus_id}&fecha=${formData.fecha}`)
+      fetch(`${API_URL}/api/disponibilidad?campus_id=${formData.campus_id}&fecha=${formData.fecha}`)
         .then((res) => {
           if (!res.ok) throw new Error("Error al obtener disponibilidad");
           return res.json();
@@ -316,7 +362,6 @@ export default function FormularioReserva() {
     }
   }, [formData.campus_id, formData.fecha]);
 
-  // Escuchar eventos globales de sincronización en tiempo real (Chatbot / Formulario)
   useEffect(() => {
     const handleActualizar = () => {
       const rutGuardado = isEstudiante ? user?.rut : formData.rut;
@@ -324,11 +369,11 @@ export default function FormularioReserva() {
         consultarReservaActiva(rutGuardado);
       }
       if (formData.campus_id && formData.fecha) {
-        fetch(`http://localhost:8000/api/disponibilidad?campus_id=${formData.campus_id}&fecha=${formData.fecha}`)
+        fetch(`${API_URL}/api/disponibilidad?campus_id=${formData.campus_id}&fecha=${formData.fecha}`)
           .then((res) => res.json())
           .then((data) => setBloquesHorarios(data.bloques || []));
       }
-      fetch("http://localhost:8000/api/calendario/bloqueos")
+      fetch(`${API_URL}/api/calendario/bloqueos`)
         .then((res) => res.json())
         .then((data) => setDiasBloqueados(Array.isArray(data) ? data : []))
         .catch(() => { });
@@ -482,12 +527,45 @@ export default function FormularioReserva() {
       return;
     }
 
+    if (calcularEsBloquePasado(formData.fecha, formData.hora)) {
+      setToastNotificacion({
+        tipo: "error",
+        texto: "El bloque seleccionado ya ha transcurrido. Por favor elige un horario futuro."
+      });
+      return;
+    }
+
+    if (tieneAcompanantes && listAcompanantes.length > 0) {
+      const titRut = String(isEstudiante ? user?.rut : formData.rut).replace(/[.\-\s]/g, "").toUpperCase().trim();
+      const rutsVistos = new Set();
+
+      for (let i = 0; i < listAcompanantes.length; i++) {
+        const ac = listAcompanantes[i];
+        if (!ac.nombre.trim()) {
+          setToastNotificacion({ tipo: "error", texto: `Por favor completa el nombre del acompañante ${i + 1}.` });
+          return;
+        }
+        if (ac.rut && ac.rut.trim()) {
+          const acRut = ac.rut.replace(/[.\-\s]/g, "").toUpperCase().trim();
+          if (titRut && acRut === titRut) {
+            setToastNotificacion({ tipo: "error", texto: "No puedes agregarte a ti mismo como acompañante." });
+            return;
+          }
+          if (rutsVistos.has(acRut)) {
+            setToastNotificacion({ tipo: "error", texto: `El RUT ${ac.rut} está repetido en la lista de acompañantes. Cada acompañante debe tener un RUT único.` });
+            return;
+          }
+          rutsVistos.add(acRut);
+        }
+      }
+    }
+
     const acompanantesPayload = tieneAcompanantes
       ? listAcompanantes.filter((ac) => ac.nombre.trim() !== "")
       : [];
 
     try {
-      const response = await fetch("http://localhost:8000/api/reservas", {
+      const response = await fetch(`${API_URL}/api/reservas`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -577,9 +655,8 @@ export default function FormularioReserva() {
 
         <form
           onSubmit={handleSubmit}
-          className={`relative rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden transition-all duration-300 ${
-            tieneReservaActiva ? "border-slate-300 ring-1 ring-slate-200/80 bg-slate-50/90" : ""
-          }`}
+          className={`relative rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden transition-all duration-300 ${tieneReservaActiva ? "border-slate-300 ring-1 ring-slate-200/80 bg-slate-50/90" : ""
+            }`}
         >
           {tieneReservaActiva && (
             <div className="border-b border-amber-200 bg-amber-50/95 p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -589,7 +666,7 @@ export default function FormularioReserva() {
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-amber-900">
-                    Formulario bloqueado: Ya posees una reserva activa
+                    Ya posees una reserva activa
                   </h3>
                   <p className="text-xs text-amber-800/90 mt-0.5 leading-relaxed">
                     Solo se permite 1 reserva simultánea por estudiante ({reservaActivaUser.fecha} a las {reservaActivaUser.hora}:00 hrs en {reservaActivaUser.campus}). Para reservar otro bloque, primero debes cancelar o editar tu reserva actual.
@@ -608,319 +685,353 @@ export default function FormularioReserva() {
 
           <fieldset
             disabled={formularioDeshabilitado}
-            className={`divide-y divide-slate-100 transition-all duration-300 ${
-              tieneReservaActiva ? "opacity-50 grayscale pointer-events-none select-none bg-slate-100/50" : ""
-            }`}
+            className={`divide-y divide-slate-100 transition-all duration-300 ${tieneReservaActiva ? "opacity-50 grayscale pointer-events-none select-none bg-slate-100/50" : ""
+              }`}
           >
             <section className="p-6 sm:p-8">
-            <div className="flex items-baseline gap-3">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#00629B] text-[13px] font-bold text-white shadow-sm">1</span>
-              <div>
-                <h2 className="font-serif text-xl text-slate-900">Sede y titular</h2>
-                <p className="text-[13px] text-slate-500 mt-0.5">La reserva queda a nombre de quien figura aquí.</p>
-              </div>
-            </div>
-
-            <div className="mt-6 grid gap-3 sm:grid-cols-3">
-              {campusList.map((c) => {
-                const isSelected = String(formData.campus_id) === String(c.id);
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    disabled={isAdmin}
-                    onClick={() => setFormData((prev) => ({ ...prev, campus_id: String(c.id) }))}
-                    className={`group relative rounded-lg border p-4 text-left transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC20E] focus-visible:ring-offset-2 ${isSelected
-                      ? "border-[#00629B] bg-sky-50/70 shadow-sm ring-1 ring-[#00629B]"
-                      : "border-slate-200 bg-white hover:border-[#00629B]/40 hover:bg-slate-50/80"
-                      } ${isAdmin ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
-                  >
-                    <span className={`absolute left-0 top-3.5 bottom-3.5 w-[3px] rounded-r ${isSelected ? "bg-[#FFC20E]" : "bg-transparent"}`} />
-                    <div className="flex items-start justify-between gap-2">
-                      <IconPin className={`w-4 h-4 mt-0.5 ${isSelected ? "text-[#00629B]" : "text-slate-400"}`} />
-                      {c.cubiculas_fisicos ? (
-                        <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${isSelected ? "bg-[#00629B]/10 text-[#00629B]" : "bg-slate-100 text-slate-600"}`}>
-                          {c.cubiculas_fisicos} cubículos
-                        </span>
-                      ) : null}
-                    </div>
-
-                    <h3 className="mt-3 text-[15px] font-semibold leading-snug text-slate-900">
-                      {c.nombre}
-                    </h3>
-
-                    <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2 text-[12px]">
-                      <span className="text-slate-400">Sede {c.id}</span>
-                      {isSelected ? (
-                        <span className="inline-flex items-center gap-1 font-semibold text-[#00629B]">
-                          <IconCheck className="w-3.5 h-3.5" /> Seleccionada
-                        </span>
-                      ) : (
-                        <span className="text-slate-400 group-hover:text-slate-600">Elegir</span>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="mt-6 grid gap-5 sm:grid-cols-2">
-              <div>
-                <label className="flex items-center justify-between text-[13px] font-medium text-slate-700 mb-1.5">
-                  <span>Nombre del titular</span>
-                  {isEstudiante && (
-                    <span className="inline-flex items-center gap-1 text-[12px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/60">
-                      <IconCheck className="w-3.5 h-3.5" /> Verificado
-                    </span>
-                  )}
-                </label>
-                <input
-                  type="text"
-                  name="nombre"
-                  required
-                  disabled={isAdmin || isEstudiante}
-                  value={formData.nombre}
-                  onChange={handleChange}
-                  placeholder="Juan Pérez"
-                  className="w-full rounded-md border border-slate-300 bg-white px-3.5 py-2.5 text-[15px] text-slate-900 placeholder:text-slate-400 transition-colors focus:border-[#00629B] focus:outline-none focus:ring-2 focus:ring-[#00629B]/20 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-600"
-                />
-              </div>
-
-              <div>
-                <label className="flex items-center justify-between text-[13px] font-medium text-slate-700 mb-1.5">
-                  <span>RUT del titular</span>
-                  {isEstudiante && (
-                    <span className="inline-flex items-center gap-1 text-[12px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/60">
-                      <IconCheck className="w-3.5 h-3.5" /> Verificado
-                    </span>
-                  )}
-                </label>
-                <input
-                  type="text"
-                  name="rut"
-                  required
-                  disabled={isAdmin || isEstudiante}
-                  value={formData.rut}
-                  onChange={handleChange}
-                  placeholder="12.345.678-9"
-                  className="w-full rounded-md border border-slate-300 bg-white px-3.5 py-2.5 text-[15px] tabular-nums text-slate-900 placeholder:text-slate-400 transition-colors focus:border-[#00629B] focus:outline-none focus:ring-2 focus:ring-[#00629B]/20 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-600"
-                />
-              </div>
-            </div>
-          </section>
-
-          <section className="p-6 sm:p-8">
-            <div className="flex items-baseline gap-3">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#00629B] text-[13px] font-bold text-white shadow-sm">2</span>
-              <div>
-                <h2 className="font-serif text-xl text-slate-900">Modalidad de uso</h2>
-                <p className="text-[13px] text-slate-500 mt-0.5">Si estudias en grupo, registra a quienes te acompañan.</p>
-              </div>
-            </div>
-
-            <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              <button
-                type="button"
-                disabled={isAdmin}
-                onClick={() => {
-                  if (tieneAcompanantes) {
-                    setTieneAcompanantes(false);
-                    setListAcompanantes([]);
-                    setFormData((prev) => ({ ...prev, acompanantes: [] }));
-                  }
-                }}
-                className={`flex items-center gap-3.5 rounded-lg border p-4 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC20E] focus-visible:ring-offset-2 ${!tieneAcompanantes
-                  ? "border-[#00629B] bg-sky-50/70 shadow-sm ring-1 ring-[#00629B]"
-                  : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80"
-                  } ${isAdmin ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
-              >
-                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${!tieneAcompanantes ? "bg-[#00629B] text-white shadow-sm" : "bg-slate-100 text-slate-500"
-                  }`}>
-                  <IconUser />
-                </span>
-                <span>
-                  <span className="block text-[15px] font-semibold text-slate-900">Individual</span>
-                  <span className="block text-[13px] text-slate-500">Solo tú usarás el cubículo</span>
-                </span>
-              </button>
-
-              <button
-                type="button"
-                disabled={isAdmin}
-                onClick={() => {
-                  if (!tieneAcompanantes) {
-                    setTieneAcompanantes(true);
-                    setListAcompanantes([{ nombre: "", rut: "" }]);
-                  }
-                }}
-                className={`flex items-center gap-3.5 rounded-lg border p-4 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC20E] focus-visible:ring-offset-2 ${tieneAcompanantes
-                  ? "border-[#00629B] bg-sky-50/70 shadow-sm ring-1 ring-[#00629B]"
-                  : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80"
-                  } ${isAdmin ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
-              >
-                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${tieneAcompanantes ? "bg-[#00629B] text-white shadow-sm" : "bg-slate-100 text-slate-500"
-                  }`}>
-                  <IconUsers />
-                </span>
-                <span>
-                  <span className="block text-[15px] font-semibold text-slate-900">En grupo</span>
-                  <span className="block text-[13px] text-slate-500">Con uno o más acompañantes</span>
-                </span>
-              </button>
-            </div>
-
-            {tieneAcompanantes && (
-              <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50/70 p-4">
-                <p className="text-[13px] text-slate-600">
-                  El registro de acompañantes permite controlar el aforo del cubículo.
-                </p>
-
-                <div className="mt-3 space-y-2">
-                  {listAcompanantes.map((ac, index) => (
-                    <div key={index} className="flex flex-col gap-2 rounded-md border border-slate-200 bg-white p-2.5 sm:flex-row sm:items-center">
-                      <span className="hidden sm:flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[12px] font-semibold text-slate-500">
-                        {index + 1}
-                      </span>
-                      <input
-                        type="text"
-                        required
-                        disabled={isAdmin}
-                        placeholder={`Nombre acompañante ${index + 1}`}
-                        value={ac.nombre}
-                        onChange={(e) => handleAcompananteChange(index, "nombre", e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-[14px] focus:border-[#00629B] focus:outline-none focus:ring-2 focus:ring-[#00629B]/20 disabled:cursor-not-allowed disabled:bg-slate-50 sm:flex-1"
-                      />
-                      <input
-                        type="text"
-                        disabled={isAdmin}
-                        placeholder="RUT (opcional)"
-                        value={ac.rut}
-                        onChange={(e) => handleAcompananteChange(index, "rut", e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-[14px] tabular-nums focus:border-[#00629B] focus:outline-none focus:ring-2 focus:ring-[#00629B]/20 disabled:cursor-not-allowed disabled:bg-slate-50 sm:w-40"
-                      />
-                      <button
-                        type="button"
-                        disabled={isAdmin}
-                        onClick={() => handleRemoverAcompanante(index)}
-                        title="Quitar acompañante"
-                        className="inline-flex items-center justify-center gap-1 rounded-md px-2 py-2 text-[13px] text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <IconClose className="w-4 h-4" />
-                        <span className="sm:hidden">Quitar</span>
-                      </button>
-                    </div>
-                  ))}
+              <div className="flex items-baseline gap-3">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#00629B] text-[13px] font-bold text-white shadow-sm">1</span>
+                <div>
+                  <h2 className="font-serif text-xl text-slate-900">Sede y titular</h2>
+                  <p className="text-[13px] text-slate-500 mt-0.5">La reserva queda a nombre de quien figura aquí.</p>
                 </div>
+              </div>
+
+              <div className="mt-6 grid gap-3 sm:grid-cols-3">
+                {campusList.map((c) => {
+                  const isSelected = String(formData.campus_id) === String(c.id);
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      disabled={isAdmin}
+                      onClick={() => setFormData((prev) => ({ ...prev, campus_id: String(c.id) }))}
+                      className={`group relative rounded-lg border p-4 text-left transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC20E] focus-visible:ring-offset-2 ${isSelected
+                        ? "border-[#00629B] bg-sky-50/70 shadow-sm ring-1 ring-[#00629B]"
+                        : "border-slate-200 bg-white hover:border-[#00629B]/40 hover:bg-slate-50/80"
+                        } ${isAdmin ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
+                    >
+                      <span className={`absolute left-0 top-3.5 bottom-3.5 w-[3px] rounded-r ${isSelected ? "bg-[#FFC20E]" : "bg-transparent"}`} />
+                      <div className="flex items-start justify-between gap-2">
+                        <IconPin className={`w-4 h-4 mt-0.5 ${isSelected ? "text-[#00629B]" : "text-slate-400"}`} />
+                        {c.cubiculas_fisicos ? (
+                          <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${isSelected ? "bg-[#00629B]/10 text-[#00629B]" : "bg-slate-100 text-slate-600"}`}>
+                            {c.cubiculas_fisicos} cubículos
+                          </span>
+                        ) : null}
+                      </div>
+
+                      <h3 className="mt-3 text-[15px] font-semibold leading-snug text-slate-900">
+                        {c.nombre}
+                      </h3>
+
+                      <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2 text-[12px]">
+                        <span className="text-slate-400">Sede {c.id}</span>
+                        {isSelected ? (
+                          <span className="inline-flex items-center gap-1 font-semibold text-[#00629B]">
+                            <IconCheck className="w-3.5 h-3.5" /> Seleccionada
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 group-hover:text-slate-600">Elegir</span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="mt-6 grid gap-5 sm:grid-cols-2">
+                <div>
+                  <label className="flex items-center justify-between text-[13px] font-medium text-slate-700 mb-1.5">
+                    <span>Nombre del titular</span>
+                    {isEstudiante && (
+                      <span className="inline-flex items-center gap-1 text-[12px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/60">
+                        <IconCheck className="w-3.5 h-3.5" /> Verificado
+                      </span>
+                    )}
+                  </label>
+                  <input
+                    type="text"
+                    name="nombre"
+                    required
+                    disabled={isAdmin || isEstudiante}
+                    value={formData.nombre}
+                    onChange={handleChange}
+                    placeholder="Juan Pérez"
+                    className="w-full rounded-md border border-slate-300 bg-white px-3.5 py-2.5 text-[15px] text-slate-900 placeholder:text-slate-400 transition-colors focus:border-[#00629B] focus:outline-none focus:ring-2 focus:ring-[#00629B]/20 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="flex items-center justify-between text-[13px] font-medium text-slate-700 mb-1.5">
+                    <span>RUT del titular</span>
+                    {isEstudiante && (
+                      <span className="inline-flex items-center gap-1 text-[12px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/60">
+                        <IconCheck className="w-3.5 h-3.5" /> Verificado
+                      </span>
+                    )}
+                  </label>
+                  <input
+                    type="text"
+                    name="rut"
+                    required
+                    disabled={isAdmin || isEstudiante}
+                    value={formData.rut}
+                    onChange={handleChange}
+                    placeholder="12.345.678-9"
+                    className="w-full rounded-md border border-slate-300 bg-white px-3.5 py-2.5 text-[15px] tabular-nums text-slate-900 placeholder:text-slate-400 transition-colors focus:border-[#00629B] focus:outline-none focus:ring-2 focus:ring-[#00629B]/20 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-600"
+                  />
+                </div>
+              </div>
+            </section>
+
+            <section className="p-6 sm:p-8">
+              <div className="flex items-baseline gap-3">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#00629B] text-[13px] font-bold text-white shadow-sm">2</span>
+                <div>
+                  <h2 className="font-serif text-xl text-slate-900">Modalidad de uso</h2>
+                  <p className="text-[13px] text-slate-500 mt-0.5">Si estudias en grupo, registra a quienes te acompañan.</p>
+                </div>
+              </div>
+
+              <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                <button
+                  type="button"
+                  disabled={isAdmin}
+                  onClick={() => {
+                    if (tieneAcompanantes) {
+                      setTieneAcompanantes(false);
+                      setListAcompanantes([]);
+                      setFormData((prev) => ({ ...prev, acompanantes: [] }));
+                    }
+                  }}
+                  className={`flex items-center gap-3.5 rounded-lg border p-4 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC20E] focus-visible:ring-offset-2 ${!tieneAcompanantes
+                    ? "border-[#00629B] bg-sky-50/70 shadow-sm ring-1 ring-[#00629B]"
+                    : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80"
+                    } ${isAdmin ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
+                >
+                  <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${!tieneAcompanantes ? "bg-[#00629B] text-white shadow-sm" : "bg-slate-100 text-slate-500"
+                    }`}>
+                    <IconUser />
+                  </span>
+                  <span>
+                    <span className="block text-[15px] font-semibold text-slate-900">Individual</span>
+                    <span className="block text-[13px] text-slate-500">Solo tú usarás el cubículo</span>
+                  </span>
+                </button>
 
                 <button
                   type="button"
                   disabled={isAdmin}
-                  onClick={handleAgregarAcompanante}
-                  className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-2 text-[13px] font-medium text-slate-700 transition-colors hover:border-[#00629B] hover:text-[#00629B] disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => {
+                    if (!tieneAcompanantes) {
+                      setTieneAcompanantes(true);
+                      setListAcompanantes([{ nombre: "", rut: "" }]);
+                    }
+                  }}
+                  className={`flex items-center gap-3.5 rounded-lg border p-4 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC20E] focus-visible:ring-offset-2 ${tieneAcompanantes
+                    ? "border-[#00629B] bg-sky-50/70 shadow-sm ring-1 ring-[#00629B]"
+                    : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80"
+                    } ${isAdmin ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
                 >
-                  <IconPlus className="w-4 h-4" /> Agregar acompañante
+                  <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${tieneAcompanantes ? "bg-[#00629B] text-white shadow-sm" : "bg-slate-100 text-slate-500"
+                    }`}>
+                    <IconUsers />
+                  </span>
+                  <span>
+                    <span className="block text-[15px] font-semibold text-slate-900">En grupo</span>
+                    <span className="block text-[13px] text-slate-500">Con uno o más acompañantes</span>
+                  </span>
                 </button>
               </div>
-            )}
-          </section>
 
-          <section className="p-6 sm:p-8">
-            <div className="flex items-baseline gap-3">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#00629B] text-[13px] font-bold text-white shadow-sm">3</span>
-              <div>
-                <h2 className="font-serif text-xl text-slate-900">Día y bloque horario</h2>
-                <p className="text-[13px] text-slate-500 mt-0.5">Atención de lunes a viernes, sin feriados.</p>
-              </div>
-            </div>
+              {tieneAcompanantes && (
+                <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50/70 p-4">
+                  <p className="text-[13px] text-slate-600">
+                    El registro de acompañantes permite controlar el aforo del cubículo.
+                  </p>
 
-            <div className="mt-6 sm:max-w-xs">
-              <label className="block text-[13px] font-medium text-slate-700 mb-1.5">
-                Día de la reserva
-              </label>
-              <DatePicker
-                selected={fechaSeleccionada}
-                onChange={handleFechaChange}
-                disabled={isAdmin}
-                filterDate={esDiaLaboral}
-                minDate={new Date()}
-                locale="es"
-                dateFormat="dd/MM/yyyy"
-                placeholderText="Selecciona una fecha"
-                required
-                className="w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3.5 py-2.5 text-[15px] text-slate-900 transition-colors focus:border-[#00629B] focus:outline-none focus:ring-2 focus:ring-[#00629B]/20 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500"
-              />
-            </div>
+                  <div className="mt-3 space-y-2">
+                    {listAcompanantes.map((ac, index) => {
+                      const acRutClean = ac.rut ? ac.rut.replace(/[.\-\s]/g, "").toUpperCase().trim() : "";
+                      const titRutClean = String(isEstudiante ? user?.rut : formData.rut).replace(/[.\-\s]/g, "").toUpperCase().trim();
+                      const esMismoTitular = Boolean(acRutClean && titRutClean && acRutClean === titRutClean);
+                      const esDuplicado = Boolean(
+                        acRutClean &&
+                        listAcompanantes.some((otro, idx) => idx !== index && otro.rut && otro.rut.replace(/[.\-\s]/g, "").toUpperCase().trim() === acRutClean)
+                      );
 
-            <div className="mt-6">
-              <div className="flex items-end justify-between mb-2">
-                <label className="text-[13px] font-medium text-slate-700">
-                  Bloque horario
-                </label>
-                {formData.campus_id && formData.fecha && !cargandoHorarios && bloquesHorarios.length > 0 && (
-                  <span className="text-[12px] font-medium text-slate-500">
-                    {bloquesHorarios.filter((b) => !b.agotado).length} de {bloquesHorarios.length} bloques con cupo
-                  </span>
-                )}
-              </div>
-
-              {!formData.campus_id || !formData.fecha ? (
-                <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50/60 px-5 py-8 text-center">
-                  <IconCalendar className="w-5 h-5 mx-auto text-slate-400" />
-                  <p className="mt-2 text-[14px] font-medium text-slate-700">Elige una sede y un día</p>
-                  <p className="mt-0.5 text-[13px] text-slate-500">Con esos datos calculamos los cupos reales de cada bloque.</p>
-                </div>
-              ) : cargandoHorarios ? (
-                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-                  {[1, 2, 3, 4, 5, 6].map((i) => (
-                    <div
-                      key={i}
-                      className="relative h-[68px] overflow-hidden rounded-md border border-slate-200 bg-white p-3"
-                    >
-                      <div className="h-3.5 w-20 rounded bg-slate-200/80" />
-                      <div className="mt-3 h-2.5 w-16 rounded bg-slate-200/60" />
-                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-slate-100/70 to-transparent animate-shimmer" />
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-                  {bloquesHorarios.map((b) => {
-                    const esSeleccionado = formData.hora === b.hora;
-                    return (
-                      <button
-                        key={b.hora}
-                        type="button"
-                        disabled={b.agotado || isAdmin}
-                        onClick={() => setFormData((prev) => ({ ...prev, hora: b.hora }))}
-                        className={`
-                          flex flex-col justify-between rounded-lg border p-3 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC20E] focus-visible:ring-offset-2
-                          ${b.agotado || isAdmin
-                            ? "cursor-not-allowed border-slate-200 bg-slate-50/80 text-slate-400 opacity-60"
-                            : esSeleccionado
-                              ? "cursor-pointer border-[#00629B] bg-[#00629B] text-white shadow-md shadow-[#00629B]/25 ring-1 ring-[#00629B]"
-                              : "cursor-pointer border-slate-200 bg-white text-slate-700 hover:border-[#00629B]/50 hover:bg-sky-50/30"
-                          }
-                        `}
-                      >
-                        <span className="flex items-center justify-between">
-                          <span className="text-[14px] font-semibold tabular-nums tracking-tight">{b.rango}</span>
-                          {esSeleccionado ? (
-                            <IconCheck className="w-4 h-4 text-[#FFC20E]" />
-                          ) : (
-                            <span className={`h-1.5 w-1.5 rounded-full ${b.agotado ? "bg-rose-400" : "bg-emerald-600"}`} />
+                      return (
+                        <div key={index} className="flex flex-col gap-1.5 rounded-md border border-slate-200 bg-white p-2.5">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                            <span className="hidden sm:flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[12px] font-semibold text-slate-500">
+                              {index + 1}
+                            </span>
+                            <input
+                              type="text"
+                              required
+                              disabled={isAdmin}
+                              placeholder={`Nombre acompañante ${index + 1}`}
+                              value={ac.nombre}
+                              onChange={(e) => handleAcompananteChange(index, "nombre", e.target.value)}
+                              className="w-full rounded-md border border-slate-300 px-3 py-2 text-[14px] focus:border-[#00629B] focus:outline-none focus:ring-2 focus:ring-[#00629B]/20 disabled:cursor-not-allowed disabled:bg-slate-50 sm:flex-1"
+                            />
+                            <input
+                              type="text"
+                              disabled={isAdmin}
+                              placeholder="RUT (opcional)"
+                              value={ac.rut}
+                              onChange={(e) => handleAcompananteChange(index, "rut", e.target.value)}
+                              className={`w-full rounded-md border px-3 py-2 text-[14px] tabular-nums focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 sm:w-40 ${
+                                esMismoTitular || esDuplicado
+                                  ? "border-rose-400 bg-rose-50/40 text-rose-900 focus:border-rose-500 focus:ring-rose-200"
+                                  : "border-slate-300 focus:border-[#00629B] focus:ring-[#00629B]/20"
+                              }`}
+                            />
+                            <button
+                              type="button"
+                              disabled={isAdmin}
+                              onClick={() => handleRemoverAcompanante(index)}
+                              title="Quitar acompañante"
+                              className="inline-flex items-center justify-center gap-1 rounded-md px-2 py-2 text-[13px] text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              <IconClose className="w-4 h-4" />
+                              <span className="sm:hidden">Quitar</span>
+                            </button>
+                          </div>
+                          {esMismoTitular && (
+                            <p className="text-[11px] font-medium text-rose-600 pl-0 sm:pl-9">
+                              ⚠️ No puedes agregarte a ti mismo como acompañante.
+                            </p>
                           )}
-                        </span>
-                        <span className={`mt-2 text-[12px] ${b.agotado ? "text-rose-500" : esSeleccionado ? "text-sky-100" : "text-slate-500"
-                          }`}>
-                          {b.agotado ? "Sin cupos" : `${b.disponibles} disponibles`}
-                        </span>
-                      </button>
-                    );
-                  })}
+                          {esDuplicado && !esMismoTitular && (
+                            <p className="text-[11px] font-medium text-rose-600 pl-0 sm:pl-9">
+                              ⚠️ Este RUT está repetido en la lista de acompañantes.
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={isAdmin}
+                    onClick={handleAgregarAcompanante}
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-2 text-[13px] font-medium text-slate-700 transition-colors hover:border-[#00629B] hover:text-[#00629B] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <IconPlus className="w-4 h-4" /> Agregar acompañante
+                  </button>
                 </div>
               )}
-            </div>
-          </section>
+            </section>
+
+            <section className="p-6 sm:p-8">
+              <div className="flex items-baseline gap-3">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#00629B] text-[13px] font-bold text-white shadow-sm">3</span>
+                <div>
+                  <h2 className="font-serif text-xl text-slate-900">Día y bloque horario</h2>
+                  <p className="text-[13px] text-slate-500 mt-0.5">Atención de lunes a viernes, sin feriados.</p>
+                </div>
+              </div>
+
+              <div className="mt-6 sm:max-w-xs">
+                <label className="block text-[13px] font-medium text-slate-700 mb-1.5">
+                  Día de la reserva
+                </label>
+                <DatePicker
+                  selected={fechaSeleccionada}
+                  onChange={handleFechaChange}
+                  disabled={isAdmin}
+                  filterDate={esDiaLaboral}
+                  minDate={new Date()}
+                  locale="es"
+                  dateFormat="dd/MM/yyyy"
+                  placeholderText="Selecciona una fecha"
+                  required
+                  className="w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3.5 py-2.5 text-[15px] text-slate-900 transition-colors focus:border-[#00629B] focus:outline-none focus:ring-2 focus:ring-[#00629B]/20 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500"
+                />
+              </div>
+
+              <div className="mt-6">
+                <div className="flex items-end justify-between mb-2">
+                  <label className="text-[13px] font-medium text-slate-700">
+                    Bloque horario
+                  </label>
+                  {formData.campus_id && formData.fecha && !cargandoHorarios && bloquesHorarios.length > 0 && (
+                    <span className="text-[12px] font-medium text-slate-500">
+                      {bloquesHorarios.filter((b) => !b.agotado).length} de {bloquesHorarios.length} bloques con cupo
+                    </span>
+                  )}
+                </div>
+
+                {!formData.campus_id || !formData.fecha ? (
+                  <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50/60 px-5 py-8 text-center">
+                    <IconCalendar className="w-5 h-5 mx-auto text-slate-400" />
+                    <p className="mt-2 text-[14px] font-medium text-slate-700">Elige una sede y un día</p>
+                    <p className="mt-0.5 text-[13px] text-slate-500">Con esos datos calculamos los cupos reales de cada bloque.</p>
+                  </div>
+                ) : cargandoHorarios ? (
+                  <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                    {[1, 2, 3, 4, 5, 6].map((i) => (
+                      <div
+                        key={i}
+                        className="relative h-[68px] overflow-hidden rounded-md border border-slate-200 bg-white p-3"
+                      >
+                        <div className="h-3.5 w-20 rounded bg-slate-200/80" />
+                        <div className="mt-3 h-2.5 w-16 rounded bg-slate-200/60" />
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-slate-100/70 to-transparent animate-shimmer" />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                    {bloquesHorarios.map((b) => {
+                      const esPasado = b.pasado || calcularEsBloquePasado(formData.fecha, b.hora);
+                      const deshabilitado = b.agotado || esPasado || isAdmin;
+                      const esSeleccionado = formData.hora === b.hora && !esPasado;
+                      return (
+                        <button
+                          key={b.hora}
+                          type="button"
+                          disabled={deshabilitado}
+                          onClick={() => !deshabilitado && setFormData((prev) => ({ ...prev, hora: b.hora }))}
+                          className={`
+                          flex flex-col justify-between rounded-lg border p-3 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC20E] focus-visible:ring-offset-2
+                          ${deshabilitado
+                              ? "cursor-not-allowed border-slate-200 bg-slate-100/80 text-slate-400 opacity-60"
+                              : esSeleccionado
+                                ? "cursor-pointer border-[#00629B] bg-[#00629B] text-white shadow-md shadow-[#00629B]/25 ring-1 ring-[#00629B]"
+                                : "cursor-pointer border-slate-200 bg-white text-slate-700 hover:border-[#00629B]/50 hover:bg-sky-50/30"
+                            }
+                        `}
+                          title={esPasado ? "Este bloque ya ha finalizado el día de hoy" : b.agotado ? "Sin cupos disponibles" : "Disponible para agendar"}
+                        >
+                          <span className="flex items-center justify-between">
+                            <span className="text-[14px] font-semibold tabular-nums tracking-tight">{b.rango}</span>
+                            {esSeleccionado ? (
+                              <IconCheck className="w-4 h-4 text-[#FFC20E]" />
+                            ) : (
+                              <span className={`h-1.5 w-1.5 rounded-full ${esPasado ? "bg-slate-300" : b.agotado ? "bg-rose-400" : "bg-emerald-600"}`} />
+                            )}
+                          </span>
+                          <span className={`mt-2 text-[12px] font-medium ${esPasado
+                              ? "text-slate-400"
+                              : b.agotado
+                                ? "text-rose-500"
+                                : esSeleccionado
+                                  ? "text-sky-100"
+                                  : "text-slate-500"
+                            }`}>
+                            {esPasado ? "Finalizado" : b.agotado ? "Sin cupos" : `${b.disponibles} disponibles`}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </section>
           </fieldset>
 
           <section className="bg-slate-50/90 p-6 sm:px-8 border-t border-slate-200">
@@ -1214,23 +1325,26 @@ export default function FormularioReserva() {
                 ) : (
                   <div className="grid max-h-48 grid-cols-2 gap-2 overflow-y-auto pr-1">
                     {editBloques.map((b) => {
-                      const esSeleccionado = editFormData.hora === b.hora;
+                      const esPasado = b.pasado || calcularEsBloquePasado(editFormData.fecha, b.hora);
+                      const esSeleccionado = editFormData.hora === b.hora && !esPasado;
+                      const deshabilitado = (b.disponibles === 0 && !esSeleccionado) || esPasado;
                       return (
                         <button
                           key={b.hora}
                           type="button"
-                          disabled={b.disponibles === 0 && !esSeleccionado}
-                          onClick={() => setEditFormData((prev) => ({ ...prev, hora: b.hora }))}
-                          className={`flex flex-col justify-between rounded-lg border p-2.5 text-left text-[13px] transition-all ${b.disponibles === 0 && !esSeleccionado
-                            ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
-                            : esSeleccionado
-                              ? "cursor-pointer border-[#00629B] bg-[#00629B] text-white shadow-sm"
-                              : "cursor-pointer border-slate-200 bg-white text-slate-700 hover:border-[#00629B] hover:bg-sky-50/50"
+                          disabled={deshabilitado}
+                          onClick={() => !deshabilitado && setEditFormData((prev) => ({ ...prev, hora: b.hora }))}
+                          className={`flex flex-col justify-between rounded-lg border p-2.5 text-left text-[13px] transition-all ${deshabilitado
+                              ? "cursor-not-allowed border-slate-200 bg-slate-100/70 text-slate-400 opacity-60"
+                              : esSeleccionado
+                                ? "cursor-pointer border-[#00629B] bg-[#00629B] text-white shadow-sm"
+                                : "cursor-pointer border-slate-200 bg-white text-slate-700 hover:border-[#00629B] hover:bg-sky-50/50"
                             }`}
+                          title={esPasado ? "Horario ya transcurrido el día de hoy" : ""}
                         >
                           <span className="font-medium tabular-nums">{b.rango}</span>
-                          <span className={`mt-1 text-[12px] ${esSeleccionado ? "text-sky-100" : "text-slate-500"}`}>
-                            {b.disponibles} libres
+                          <span className={`mt-1 text-[12px] ${esPasado ? "text-slate-400" : esSeleccionado ? "text-sky-100" : "text-slate-500"}`}>
+                            {esPasado ? "Finalizado" : `${b.disponibles} libres`}
                           </span>
                         </button>
                       );

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
+import { API_URL } from "./services/api";
 
 export default function PaginaInicio() {
   const { user } = useAuth();
@@ -9,12 +10,12 @@ export default function PaginaInicio() {
   const [currentSlide, setCurrentSlide] = useState(0);
 
   useEffect(() => {
-    fetch("http://localhost:8000/api/cms/anuncios")
+    fetch(`${API_URL}/api/cms/anuncios`)
       .then((res) => res.json())
       .then((data) => setAnuncios(data || []))
       .catch(() => setAnuncios([]));
 
-    fetch("http://localhost:8000/api/cms/tarjetas")
+    fetch(`${API_URL}/api/cms/tarjetas`)
       .then((res) => res.json())
       .then((data) => setTarjetas(data || []))
       .catch(() => setTarjetas([]));

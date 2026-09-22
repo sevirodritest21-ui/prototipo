@@ -28,6 +28,13 @@ export default function Login() {
   const [tipoUsuario, setTipoUsuario] = useState("estudiante");
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => setError(""), 10000);
+      return () => clearTimeout(timer);
+    }
+  }, [error]);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -40,7 +47,7 @@ export default function Login() {
     setTipoUsuario(nuevoTipo);
     setError("");
     if (nuevoTipo === "estudiante") {
-      setForm({ email: "juan.perez@alumnos.cl", password: "estudiante1234" });
+      setForm({ email: "juan.perez@alumnos.cl", password: "admin1234" });
     } else {
       setForm({ email: "admin@biblioteca.cl", password: "admin1234" });
     }
@@ -253,8 +260,8 @@ export default function Login() {
               type="submit"
               disabled={loading}
               className={`w-full py-3 px-6 rounded-lg font-medium text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer mt-1 ${esEstudiante
-                  ? "bg-sky-700 hover:bg-sky-800 text-white shadow-sm shadow-sky-900/10"
-                  : "bg-amber-500 hover:bg-amber-600 text-slate-900 shadow-sm shadow-amber-900/10"
+                ? "bg-sky-700 hover:bg-sky-800 text-white shadow-sm shadow-sky-900/10"
+                : "bg-amber-500 hover:bg-amber-600 text-slate-900 shadow-sm shadow-amber-900/10"
                 }`}
             >
               {loading ? (

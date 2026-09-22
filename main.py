@@ -1777,18 +1777,24 @@ async def consultar_disponibilidad(campus_id: int, fecha: str, request: Request)
             )
             ocupacion_map = {f["hora_str"]: f["ocupados"] for f in filas}
 
+            now_dt = datetime.now()
+            hora_actual_str = now_dt.strftime("%H:%M")
+            es_hoy = fecha_parsed == hoy
+
             resultado = []
             for bloque in BLOQUES_HORARIOS:
                 hora_key = bloque["hora"]
                 ocupados = ocupacion_map.get(hora_key, 0)
                 disponibles = max(0, capacidad_campus - ocupados)
+                es_pasado = es_hoy and (hora_key <= hora_actual_str)
                 resultado.append({
                     "hora": hora_key,
                     "rango": bloque["rango"],
                     "ocupados": ocupados,
-                    "disponibles": disponibles,
+                    "disponibles": 0 if es_pasado else disponibles,
                     "capacidad_total": capacidad_campus,
-                    "agotado": disponibles == 0
+                    "agotado": (disponibles == 0) or es_pasado,
+                    "pasado": es_pasado
                 })
 
             respuesta = {
@@ -1798,12 +1804,99 @@ async def consultar_disponibilidad(campus_id: int, fecha: str, request: Request)
                 "bloques": resultado
             }
 
-        if redis_client:
+        if redis_client and not es_hoy:
             await redis_client.setex(f"disponibilidad:{campus_id}:{fecha_str}", 300, json.dumps(respuesta))
 
         return respuesta
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+async def validar_acompanantes_cruzados(conn, rut_titular: str, fecha_parsed: date, hora_parsed: time, acompanantes, reserva_id_excluir: Optional[int] = None):
+    if not acompanantes:
+        return
+
+    rut_tit_clean = re.sub(r'[\.\-\s]', '', str(rut_titular)).upper()
+    ruts_acompanantes_vistos = set()
+    ruts_a_consultar = []
+
+    for ac in acompanantes:
+        raw_rut = ac.rut if hasattr(ac, 'rut') else (ac.get('rut') if isinstance(ac, dict) else None)
+        raw_nombre = ac.nombre if hasattr(ac, 'nombre') else (ac.get('nombre') if isinstance(ac, dict) else None)
+        if not raw_rut or not str(raw_rut).strip():
+            continue
+
+        rut_ac_clean = re.sub(r'[\.\-\s]', '', str(raw_rut)).upper()
+        if not rut_ac_clean:
+            continue
+
+        if rut_ac_clean == rut_tit_clean:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"No puedes ingresarte a ti mismo como acompañante (RUT {raw_rut})."
+            )
+
+        if rut_ac_clean in ruts_acompanantes_vistos:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"El RUT {raw_rut} está duplicado en la lista de acompañantes. Cada integrante debe tener un RUT único."
+            )
+        ruts_acompanantes_vistos.add(rut_ac_clean)
+        ruts_a_consultar.append((rut_ac_clean, raw_nombre or "Acompañante", raw_rut))
+
+    for rut_ac_clean, nombre_ac, rut_orig in ruts_a_consultar:
+        reserva_titular = await conn.fetchrow(
+            """
+            SELECT r.id
+            FROM reservas r
+            WHERE r.fecha = $1 AND r.hora = $2
+              AND REPLACE(REPLACE(UPPER(r.rut), '.', ''), '-', '') = $3
+              AND ($4::int IS NULL OR r.id != $4)
+            LIMIT 1
+            """,
+            fecha_parsed, hora_parsed, rut_ac_clean, reserva_id_excluir
+        )
+        if reserva_titular:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"El acompañante {nombre_ac} ya está inscrito en otra reserva."
+            )
+
+        reserva_como_ac = await conn.fetchrow(
+            """
+            SELECT r.id
+            FROM reserva_acompanantes ra
+            JOIN reservas r ON ra.reserva_id = r.id
+            WHERE r.fecha = $1 AND r.hora = $2
+              AND REPLACE(REPLACE(UPPER(ra.rut), '.', ''), '-', '') = $3
+              AND ($4::int IS NULL OR r.id != $4)
+            LIMIT 1
+            """,
+            fecha_parsed, hora_parsed, rut_ac_clean, reserva_id_excluir
+        )
+        if reserva_como_ac:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"El acompañante {nombre_ac} ya está inscrito en otra reserva."
+            )
+
+    titular_como_ac = await conn.fetchrow(
+        """
+        SELECT r.id
+        FROM reserva_acompanantes ra
+        JOIN reservas r ON ra.reserva_id = r.id
+        WHERE r.fecha = $1 AND r.hora = $2
+          AND REPLACE(REPLACE(UPPER(ra.rut), '.', ''), '-', '') = $3
+          AND ($4::int IS NULL OR r.id != $4)
+        LIMIT 1
+        """,
+        fecha_parsed, hora_parsed, rut_tit_clean, reserva_id_excluir
+    )
+    if titular_como_ac:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Ya estás inscrito en otra reserva."
+        )
 
 
 @app.post("/api/reservas", status_code=status.HTTP_201_CREATED, response_model=ReservaResponse)
@@ -1957,7 +2050,8 @@ async def crear_reserva(
                         detail=f"El usuario con RUT {rut_limpio} ya posee una reserva activa para el día {fecha_fmt} a las {hora_fmt} hrs en {campus_nom} (Cubículo {cub_cod}). Solo se permite 1 reserva activa por usuario."
                     )
 
-                # ASIGNACIÓN DINÁMICA DE CUBÍCULO FÍSICO LIBRE
+                await validar_acompanantes_cruzados(conn, rut_limpio, fecha_parsed, hora_parsed, reserva.acompanantes)
+
                 cubiculo_libre = await conn.fetchrow(
                     """
                     SELECT cb.id, cb.codigo 
@@ -2549,6 +2643,13 @@ async def procesar_edicion_reserva(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"No se puede trasladar la reserva a la fecha {nueva_fecha.strftime('%Y-%m-%d')}: {bloqueo['motivo']}."
                 )
+
+            acompanantes_a_validar = data.acompanantes
+            if acompanantes_a_validar is None:
+                filas_ac_actuales = await conn.fetch("SELECT nombre, rut FROM reserva_acompanantes WHERE reserva_id = $1", reserva_id)
+                acompanantes_a_validar = [{"nombre": r["nombre"], "rut": r["rut"]} for r in filas_ac_actuales]
+
+            await validar_acompanantes_cruzados(conn, rut_reserva, nueva_fecha, nueva_hora, acompanantes_a_validar, reserva_id_excluir=reserva_id)
 
             cubiculo_libre = await conn.fetchrow(
                 """
