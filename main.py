@@ -26,9 +26,11 @@ app = FastAPI(title="API de Reservas y Chatbot UCT (PostgreSQL + Redis)")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    allow_origin_regex=r"^https?://.*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_private_network=True,
 )
 
 N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL")
@@ -191,13 +193,6 @@ async def notificar_edicion_n8n(detalle: dict):
     except Exception as e:
         print(f"⚠️ Error notificando edición a n8n: {e}")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 
 @app.middleware("http")
@@ -214,7 +209,7 @@ async def add_security_headers(request: Request, call_next):
         "script-src 'self' 'unsafe-inline'; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com data:; "
-        "connect-src 'self' http://localhost:8000 http://127.0.0.1:8000 https://api.feriadosdev.com; "
+        "connect-src 'self' http: https: data:; "
         "frame-ancestors 'none';"
     )
     return response

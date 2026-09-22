@@ -1,4 +1,4 @@
-export const BASE_URL = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && window.location.hostname ? `http://${window.location.hostname}:8000` : 'http://localhost:8000');
+export const BASE_URL = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && window.location.hostname ? `${window.location.protocol}//${window.location.hostname}:8000` : 'http://localhost:8000');
 export const API_URL = BASE_URL;
 
 function getAuthHeaders() {
