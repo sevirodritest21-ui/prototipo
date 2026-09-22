@@ -2447,9 +2447,34 @@ async def eliminar_reserva_por_id(
 async def obtener_historial_reservas(
     campus_id: Optional[int] = None,
     busqueda: Optional[str] = None,
-    limite: int = 100
+    limite: Optional[int] = None,
+    limit: Optional[int] = None,
+    offset: int = 0
 ):
+    lim = limit if limit is not None else (limite if limite is not None else 50)
+    lim = max(1, min(lim, 10000))
+    off = max(0, offset)
+
     async with pool.acquire() as conn:
+        total_row = await conn.fetchrow(
+            """
+            SELECT COUNT(*) AS total FROM (
+                SELECT r.id
+                FROM reservas r
+                WHERE ($1::int IS NULL OR $1::int = 0 OR r.campus_id = $1)
+                  AND ($2::text IS NULL OR $2::text = '' OR LOWER(r.nombre) LIKE '%' || LOWER($2) || '%' OR LOWER(r.rut) LIKE '%' || LOWER($2) || '%')
+                UNION ALL
+                SELECT h.id
+                FROM historial_reservas h
+                WHERE ($1::int IS NULL OR $1::int = 0 OR h.campus_id = $1)
+                  AND ($2::text IS NULL OR $2::text = '' OR LOWER(h.nombre) LIKE '%' || LOWER($2) || '%' OR LOWER(h.rut) LIKE '%' || LOWER($2) || '%')
+                  AND NOT EXISTS (SELECT 1 FROM reservas r WHERE r.id = h.reserva_id)
+            ) t
+            """,
+            campus_id, busqueda
+        )
+        total = int(total_row["total"]) if total_row else 0
+
         filas = await conn.fetch(
             """
             SELECT 
@@ -2484,9 +2509,9 @@ async def obtener_historial_reservas(
               AND NOT EXISTS (SELECT 1 FROM reservas r WHERE r.id = h.reserva_id)
 
             ORDER BY fecha_registro DESC
-            LIMIT $3
+            LIMIT $3 OFFSET $4
             """,
-            campus_id, busqueda, limite
+            campus_id, busqueda, lim, off
         )
         historial = [dict(f) for f in filas]
         for h in historial:
@@ -2494,7 +2519,13 @@ async def obtener_historial_reservas(
                 h["fecha"] = str(h["fecha"])
             if h.get("fecha_registro"):
                 h["fecha_registro"] = str(h["fecha_registro"])
-        return historial
+
+        return {
+            "registros": historial,
+            "total": total,
+            "limit": lim,
+            "offset": off
+        }
 
 
 @app.delete("/api/dashboard/historial/limpiar")

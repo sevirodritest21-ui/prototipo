@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { apiGet, apiPost, apiPut, apiDelete } from "../services/api";
+import { queryClient } from "../services/queries";
 import * as XLSX from "xlsx";
 
 export default function Dashboard() {
@@ -82,6 +83,7 @@ export default function Dashboard() {
       ]);
       setCmsAnuncios(anunciosData || []);
       setCmsTarjetas(tarjetasData || []);
+      queryClient.invalidateQueries({ queryKey: ["cms"] });
     } catch {
       setCmsAnuncios([]);
       setCmsTarjetas([]);
@@ -116,6 +118,9 @@ export default function Dashboard() {
   const [busquedaHistorial, setBusquedaHistorial] = useState("");
   const [mostrarHistorial, setMostrarHistorial] = useState(true);
   const [campusFiltroHistorial, setCampusFiltroHistorial] = useState("todos");
+  const [paginaHistorial, setPaginaHistorial] = useState(1);
+  const [limiteHistorial, setLimiteHistorial] = useState(25);
+  const [totalHistorial, setTotalHistorial] = useState(0);
   const [exportandoExcel, setExportandoExcel] = useState(false);
   const [limpiandoHistorial, setLimpiandoHistorial] = useState(false);
 
@@ -132,7 +137,8 @@ export default function Dashboard() {
     setCargandoBloqueos(true);
     try {
       const data = await apiGet("/api/calendario/bloqueos");
-      setDiasBloqueados(Array.isArray(data) ? data : []);
+      setDiasBloqueados(data || []);
+      queryClient.invalidateQueries({ queryKey: ["calendario", "bloqueos"] });
     } catch {
       setDiasBloqueados([]);
     } finally {
@@ -188,7 +194,7 @@ export default function Dashboard() {
     return map[String(d).trim().toLowerCase()] || d;
   };
 
-  const fetchHistorial = async () => {
+  const fetchHistorial = async (pagina = paginaHistorial, limite = limiteHistorial) => {
     setCargandoHistorial(true);
     try {
       const params = new URLSearchParams();
@@ -196,10 +202,17 @@ export default function Dashboard() {
         params.append("campus_id", campusFiltroHistorial);
       }
       if (busquedaHistorial) params.append("busqueda", busquedaHistorial);
+      params.append("limit", String(limite));
+      params.append("offset", String((pagina - 1) * limite));
+
       const data = await apiGet(`/api/dashboard/historial?${params.toString()}`);
-      setHistorial(data || []);
+      const registros = Array.isArray(data) ? data : (data?.registros || []);
+      const total = typeof data?.total === "number" ? data.total : registros.length;
+      setHistorial(registros);
+      setTotalHistorial(total);
     } catch {
       setHistorial([]);
+      setTotalHistorial(0);
     } finally {
       setCargandoHistorial(false);
     }
@@ -213,10 +226,11 @@ export default function Dashboard() {
         params.append("campus_id", campusFiltroHistorial);
       }
       if (busquedaHistorial) params.append("busqueda", busquedaHistorial);
-      params.append("limite", "10000");
+      params.append("limit", "10000");
+      params.append("offset", "0");
 
       const data = await apiGet(`/api/dashboard/historial?${params.toString()}`);
-      const registros = Array.isArray(data) && data.length > 0 ? data : historial;
+      const registros = Array.isArray(data) ? data : (data?.registros || []);
 
       if (!registros || registros.length === 0) {
         setToastNotificacion({ tipo: "error", texto: "No hay registros en el historial para exportar." });
@@ -286,15 +300,17 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (activeTab === "historial") {
-      fetchHistorial();
+      setPaginaHistorial(1);
+      fetchHistorial(1, limiteHistorial);
     }
-  }, [campusFiltroHistorial, busquedaHistorial, activeTab]);
+  }, [campusFiltroHistorial, busquedaHistorial, limiteHistorial, activeTab]);
 
   // Cargar lista de campus
   const fetchCampus = async () => {
     try {
       const data = await apiGet("/api/campus");
       setCampus(data);
+      queryClient.invalidateQueries({ queryKey: ["campus"] });
       if (data.length > 0) {
         if (!campusSeleccionado || !data.some((c) => c.id === campusSeleccionado)) {
           setCampusSeleccionado(data[0].id);
@@ -1155,9 +1171,13 @@ export default function Dashboard() {
 
               <div className="pt-2">
                 {cargandoCubiculosCampus ? (
-                  <p className="text-[11px] font-semibold text-[#00629B] animate-pulse">
-                    Cargando cubículos de la sede seleccionada...
-                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {[1, 2, 3, 4, 5, 6].map((i) => (
+                      <div key={i} className="relative h-8 w-24 overflow-hidden rounded-xl bg-slate-100 border border-slate-200">
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/80 to-transparent animate-shimmer" />
+                      </div>
+                    ))}
+                  </div>
                 ) : cubiculosCampus.length > 0 ? (
                   <div>
                     <p className="text-[11px] font-semibold text-slate-500 mb-2.5">
@@ -1360,8 +1380,13 @@ export default function Dashboard() {
                   </form>
 
                   {cargandoCubiculosModal ? (
-                    <div className="py-6 text-center text-xs text-slate-500">
-                      Cargando cubículos...
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {[1, 2, 3, 4].map((i) => (
+                        <div key={i} className="relative h-12 overflow-hidden rounded-xl border border-slate-200 bg-white p-2.5">
+                          <div className="h-4 w-24 rounded bg-slate-200/80" />
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-slate-100/70 to-transparent animate-shimmer" />
+                        </div>
+                      ))}
                     </div>
                   ) : cubiculosEditModal.length === 0 ? (
                     <div className="p-6 bg-slate-50/70 border border-dashed border-slate-200 rounded-2xl text-center text-xs text-slate-500">
@@ -2068,49 +2093,108 @@ export default function Dashboard() {
                     No hay reservas registradas en el historial para esta búsqueda.
                   </div>
                 ) : (
-                  <div className="overflow-x-auto rounded-2xl border border-slate-200/80 shadow-xs">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead>
-                        <tr className="bg-slate-50/80 text-slate-600 font-semibold border-b border-slate-200 text-[11px]">
-                          <th className="p-3.5">ID original</th>
-                          <th className="p-3.5">Alumno titular</th>
-                          <th className="p-3.5">RUT</th>
-                          <th className="p-3.5">Sede</th>
-                          <th className="p-3.5">Fecha reserva</th>
-                          <th className="p-3.5">Hora bloque</th>
-                          <th className="p-3.5">Estado</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 bg-white">
-                        {historial.map((h) => (
-                          <tr key={h.id} className="hover:bg-slate-50/70 transition-colors">
-                            <td className="p-3.5 font-semibold text-slate-400">#{h.reserva_id || h.id}</td>
-                            <td className="p-3.5 font-bold text-slate-900">{h.nombre}</td>
-                            <td className="p-3.5 font-medium text-slate-700">{h.rut}</td>
-                            <td className="p-3.5 text-slate-600 font-medium">{h.campus_nombre || "Sede Principal"}</td>
-                            <td className="p-3.5 text-slate-800 font-semibold">{h.fecha}</td>
-                            <td className="p-3.5 font-bold text-[#00629B]">{h.hora} hrs</td>
-                            <td className="p-3.5">
-                              <span
-                                className={`px-2.5 py-1 rounded-full text-[10px] font-bold capitalize ${h.estado === "cancelada"
-                                  ? "bg-rose-50 text-rose-700 border border-rose-200"
-                                  : h.estado === "inasistencia"
-                                    ? "bg-rose-100 text-rose-800 border border-rose-300"
-                                    : h.estado === "activa"
-                                      ? "bg-sky-50 text-sky-800 border border-sky-200"
-                                      : h.estado === "expirada" || h.estado === "inactiva"
-                                        ? "bg-amber-50 text-amber-800 border border-amber-200"
-                                        : "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                                  }`}
-                              >
-                                {h.estado === "inasistencia" ? "⚠️ Inasistencia" : h.estado}
-                              </span>
-                            </td>
+                  <>
+                    <div className="overflow-x-auto rounded-2xl border border-slate-200/80 shadow-xs">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-slate-50/80 text-slate-600 font-semibold border-b border-slate-200 text-[11px]">
+                            <th className="p-3.5">ID original</th>
+                            <th className="p-3.5">Alumno titular</th>
+                            <th className="p-3.5">RUT</th>
+                            <th className="p-3.5">Sede</th>
+                            <th className="p-3.5">Fecha reserva</th>
+                            <th className="p-3.5">Hora bloque</th>
+                            <th className="p-3.5">Estado</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 bg-white">
+                          {historial.map((h) => (
+                            <tr key={h.id} className="hover:bg-slate-50/70 transition-colors">
+                              <td className="p-3.5 font-semibold text-slate-400">#{h.reserva_id || h.id}</td>
+                              <td className="p-3.5 font-bold text-slate-900">{h.nombre}</td>
+                              <td className="p-3.5 font-medium text-slate-700">{h.rut}</td>
+                              <td className="p-3.5 text-slate-600 font-medium">{h.campus_nombre || "Sede Principal"}</td>
+                              <td className="p-3.5 text-slate-800 font-semibold">{h.fecha}</td>
+                              <td className="p-3.5 font-bold text-[#00629B]">{h.hora} hrs</td>
+                              <td className="p-3.5">
+                                <span
+                                  className={`px-2.5 py-1 rounded-full text-[10px] font-bold capitalize ${h.estado === "cancelada"
+                                    ? "bg-rose-50 text-rose-700 border border-rose-200"
+                                    : h.estado === "inasistencia"
+                                      ? "bg-rose-100 text-rose-800 border border-rose-300"
+                                      : h.estado === "activa"
+                                        ? "bg-sky-50 text-sky-800 border border-sky-200"
+                                        : h.estado === "expirada" || h.estado === "inactiva"
+                                          ? "bg-amber-50 text-amber-800 border border-amber-200"
+                                          : "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                                    }`}
+                                >
+                                  {h.estado === "inasistencia" ? "⚠️ Inasistencia" : h.estado}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {totalHistorial > 0 && (
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 text-xs text-slate-600">
+                        <div className="flex items-center gap-2">
+                          <span>Mostrar</span>
+                          <select
+                            value={limiteHistorial}
+                            onChange={(e) => {
+                              const nuevoLim = Number(e.target.value);
+                              setLimiteHistorial(nuevoLim);
+                              setPaginaHistorial(1);
+                              fetchHistorial(1, nuevoLim);
+                            }}
+                            className="px-2 py-1 bg-white border border-slate-200 rounded-lg font-semibold text-slate-700 outline-none cursor-pointer"
+                          >
+                            <option value={10}>10</option>
+                            <option value={25}>25</option>
+                            <option value={50}>50</option>
+                            <option value={100}>100</option>
+                          </select>
+                          <span>por página</span>
+                          <span className="text-slate-400 ml-1">
+                            ({(paginaHistorial - 1) * limiteHistorial + 1} - {Math.min(paginaHistorial * limiteHistorial, totalHistorial)} de {totalHistorial})
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            disabled={paginaHistorial <= 1 || cargandoHistorial}
+                            onClick={() => {
+                              const prev = paginaHistorial - 1;
+                              setPaginaHistorial(prev);
+                              fetchHistorial(prev, limiteHistorial);
+                            }}
+                            className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
+                          >
+                            ◀ Anterior
+                          </button>
+                          <span className="px-3 py-1.5 font-bold text-slate-700">
+                            {paginaHistorial} / {Math.max(1, Math.ceil(totalHistorial / limiteHistorial))}
+                          </span>
+                          <button
+                            type="button"
+                            disabled={paginaHistorial >= Math.ceil(totalHistorial / limiteHistorial) || cargandoHistorial}
+                            onClick={() => {
+                              const sig = paginaHistorial + 1;
+                              setPaginaHistorial(sig);
+                              fetchHistorial(sig, limiteHistorial);
+                            }}
+                            className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
+                          >
+                            Siguiente ▶
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}
@@ -2140,9 +2224,18 @@ export default function Dashboard() {
 
               <div className="flex-1 overflow-y-auto space-y-3 pr-1">
                 {cargandoBloque ? (
-                  <div className="py-14 text-center text-slate-500 space-y-3">
-                    <div className="w-6 h-6 border-2 border-[#00629B] border-t-transparent rounded-full animate-spin mx-auto" />
-                    <p className="text-xs font-medium">Cargando detalles de los alumnos...</p>
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 space-y-3 shadow-xs">
+                        <div className="flex justify-between items-center">
+                          <div className="h-5 w-32 rounded-lg bg-slate-200/80" />
+                          <div className="h-5 w-16 rounded-lg bg-slate-200/60" />
+                        </div>
+                        <div className="h-4 w-44 rounded bg-slate-200/70" />
+                        <div className="h-3 w-28 rounded bg-slate-200/50" />
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-slate-100/70 to-transparent animate-shimmer" />
+                      </div>
+                    ))}
                   </div>
                 ) : reservasBloque.length === 0 ? (
                   <p className="py-10 text-center text-xs text-slate-500">

@@ -5,6 +5,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import es from "date-fns/locale/es";
 import { useAuth } from "./context/AuthContext";
 import { API_URL } from "./services/api";
+import { useCampusQuery, useDiasBloqueadosQuery, useFeriadosQuery, queryClient } from "./services/queries";
 
 registerLocale("es", es);
 
@@ -70,9 +71,9 @@ export default function FormularioReserva() {
   const isAdmin = user?.rol === "admin";
   const isEstudiante = user?.rol === "estudiante";
 
-  const [campusList, setCampusList] = useState([]);
-  const [feriados, setFeriados] = useState(FERIADOS_CHILE_2026);
-  const [diasBloqueados, setDiasBloqueados] = useState([]);
+  const { data: campusList = [] } = useCampusQuery();
+  const { data: feriados = FERIADOS_CHILE_2026 } = useFeriadosQuery();
+  const { data: diasBloqueados = [] } = useDiasBloqueadosQuery();
   const [fechaSeleccionada, setFechaSeleccionada] = useState(null);
 
   // Estado para los bloques de horas devueltos por el backend
@@ -309,37 +310,7 @@ export default function FormularioReserva() {
     }
   }, [formData.rut]);
 
-  useEffect(() => {
-    fetch(`${API_URL}/api/campus`)
-      .then((res) => {
-        if (!res.ok) throw new Error("Error al obtener la lista de campus");
-        return res.json();
-      })
-      .then((data) => setCampusList(data))
-      .catch((err) => console.error(err));
-  }, []);
 
-  useEffect(() => {
-    const yearActual = new Date().getFullYear();
-
-    fetch(`https://api.feriadosdev.com/api/v1/feriados/${yearActual}`)
-      .then((res) => res.json())
-      .then((resData) => {
-        const lista = resData?.data?.feriados || resData?.feriados || resData;
-        if (Array.isArray(lista) && lista.length > 0) {
-          const fechasApi = lista.map((f) => f.fecha);
-          setFeriados(fechasApi);
-        }
-      })
-      .catch((err) => {
-        console.warn("Usando feriados estáticos de respaldo debido a:", err);
-      });
-
-    fetch(`${API_URL}/api/calendario/bloqueos`)
-      .then((res) => res.json())
-      .then((data) => setDiasBloqueados(Array.isArray(data) ? data : []))
-      .catch(() => setDiasBloqueados([]));
-  }, []);
 
   useEffect(() => {
     if (formData.campus_id && formData.fecha) {
@@ -373,10 +344,7 @@ export default function FormularioReserva() {
           .then((res) => res.json())
           .then((data) => setBloquesHorarios(data.bloques || []));
       }
-      fetch(`${API_URL}/api/calendario/bloqueos`)
-        .then((res) => res.json())
-        .then((data) => setDiasBloqueados(Array.isArray(data) ? data : []))
-        .catch(() => { });
+      queryClient.invalidateQueries({ queryKey: ["calendario", "bloqueos"] });
     };
 
     window.addEventListener("reservaActualizada", handleActualizar);

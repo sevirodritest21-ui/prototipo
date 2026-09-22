@@ -1,25 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
-import { API_URL } from "./services/api";
+import { useCmsAnunciosQuery, useCmsTarjetasQuery } from "./services/queries";
 
 export default function PaginaInicio() {
   const { user } = useAuth();
-  const [anuncios, setAnuncios] = useState([]);
-  const [tarjetas, setTarjetas] = useState([]);
+  const { data: anuncios = [] } = useCmsAnunciosQuery();
+  const { data: tarjetas = [] } = useCmsTarjetasQuery();
   const [currentSlide, setCurrentSlide] = useState(0);
-
-  useEffect(() => {
-    fetch(`${API_URL}/api/cms/anuncios`)
-      .then((res) => res.json())
-      .then((data) => setAnuncios(data || []))
-      .catch(() => setAnuncios([]));
-
-    fetch(`${API_URL}/api/cms/tarjetas`)
-      .then((res) => res.json())
-      .then((data) => setTarjetas(data || []))
-      .catch(() => setTarjetas([]));
-  }, []);
 
   useEffect(() => {
     if (anuncios.length <= 1) return;

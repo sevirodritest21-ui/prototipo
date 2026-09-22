@@ -5,6 +5,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import es from "date-fns/locale/es";
 import { useAuth } from "../context/AuthContext";
 import { API_URL } from "../services/api";
+import { useCampusQuery, useDiasBloqueadosQuery, useFeriadosQuery, queryClient } from "../services/queries";
 
 registerLocale("es", es);
 
@@ -70,9 +71,9 @@ export default function MisReservas() {
   const [reservas, setReservas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [sancion, setSancion] = useState(null);
-  const [campusList, setCampusList] = useState([]);
-  const [feriados, setFeriados] = useState(FERIADOS_CHILE_2026);
-  const [diasBloqueados, setDiasBloqueados] = useState([]);
+  const { data: campusList = [] } = useCampusQuery();
+  const { data: feriados = FERIADOS_CHILE_2026 } = useFeriadosQuery();
+  const { data: diasBloqueados = [] } = useDiasBloqueadosQuery();
 
   // Estado Modal Edición
   const [modalEdicionOpen, setModalEdicionOpen] = useState(false);
@@ -98,30 +99,7 @@ export default function MisReservas() {
     }
   }, [toastNotificacion.texto]);
 
-  useEffect(() => {
-    fetch(`${API_URL}/api/campus`)
-      .then((res) => res.json())
-      .then((data) => setCampusList(data || []))
-      .catch(console.error);
-  }, []);
 
-  useEffect(() => {
-    const yearActual = new Date().getFullYear();
-    fetch(`https://api.feriadosdev.com/api/v1/feriados/${yearActual}`)
-      .then((res) => res.json())
-      .then((resData) => {
-        const lista = resData?.data?.feriados || resData?.feriados || resData;
-        if (Array.isArray(lista) && lista.length > 0) {
-          setFeriados(lista.map((f) => f.fecha));
-        }
-      })
-      .catch(() => {});
-
-    fetch(`${API_URL}/api/calendario/bloqueos`)
-      .then((res) => res.json())
-      .then((data) => setDiasBloqueados(Array.isArray(data) ? data : []))
-      .catch(() => setDiasBloqueados([]));
-  }, []);
 
   const cargarReservas = async () => {
     if (!user || !user.rut) {
@@ -162,10 +140,7 @@ export default function MisReservas() {
 
     const handleActualizar = () => {
       cargarReservas();
-      fetch(`${API_URL}/api/calendario/bloqueos`)
-        .then((res) => res.json())
-        .then((data) => setDiasBloqueados(Array.isArray(data) ? data : []))
-        .catch(() => {});
+      queryClient.invalidateQueries({ queryKey: ["calendario", "bloqueos"] });
     };
 
     window.addEventListener("reservaActualizada", handleActualizar);
@@ -402,9 +377,21 @@ export default function MisReservas() {
         )}
 
         {cargando ? (
-          <div className="rounded-xl border border-slate-200 bg-white p-12 text-center shadow-sm">
-            <div className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-[#00629B] border-t-transparent" />
-            <p className="mt-4 text-[13px] font-medium text-slate-500">Cargando tus reservas...</p>
+          <div className="space-y-4">
+            {[1, 2].map((i) => (
+              <div key={i} className="relative overflow-hidden rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="flex justify-between items-center">
+                  <div className="h-5 w-44 rounded bg-slate-200/80" />
+                  <div className="h-6 w-24 rounded-full bg-slate-200/60" />
+                </div>
+                <div className="mt-4 flex flex-wrap gap-4">
+                  <div className="h-4 w-32 rounded bg-slate-200/60" />
+                  <div className="h-4 w-28 rounded bg-slate-200/60" />
+                  <div className="h-4 w-24 rounded bg-slate-200/60" />
+                </div>
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-slate-100/70 to-transparent animate-shimmer" />
+              </div>
+            ))}
           </div>
         ) : reservas.length === 0 ? (
           <div className="rounded-xl border border-slate-200 bg-white p-12 text-center shadow-sm">
