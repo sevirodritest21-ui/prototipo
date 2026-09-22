@@ -107,6 +107,7 @@ export default function FormularioReserva() {
     acompanantes: []
   });
   const [editBloques, setEditBloques] = useState([]);
+  const [cargandoEditBloques, setCargandoEditBloques] = useState(false);
   const [confirmModal, setConfirmModal] = useState({ open: false, titulo: "", mensaje: "", onConfirm: null });
   const [toastNotificacion, setToastNotificacion] = useState({ tipo: "", texto: "" });
 
@@ -203,13 +204,14 @@ export default function FormularioReserva() {
   };
 
   const abrirModalEdicion = (reserva) => {
-    const [yr, mo, dy] = reserva.fecha.split("-").map(Number);
+    if (!reserva) return;
+    const [yr, mo, dy] = (reserva.fecha || "").split("-").map(Number);
     setEditFormData({
       id: reserva.id,
       campus_id: String(reserva.campus_id || ""),
-      fecha: reserva.fecha,
-      hora: reserva.hora,
-      fechaObj: new Date(yr, mo - 1, dy),
+      fecha: reserva.fecha || "",
+      hora: reserva.hora || "",
+      fechaObj: yr && mo && dy ? new Date(yr, mo - 1, dy) : null,
       acompanantes: reserva.acompanantes ? JSON.parse(JSON.stringify(reserva.acompanantes)) : []
     });
     setModalEdicionOpen(true);
@@ -1215,11 +1217,11 @@ export default function FormularioReserva() {
               <div className="rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-3 text-[13px]">
                 <div className="flex items-center justify-between">
                   <span className="flex items-center gap-1.5 text-slate-500"><IconLock className="w-3.5 h-3.5" /> Titular</span>
-                  <strong className="font-medium text-slate-900">{isEstudiante ? user.nombre : formData.nombre || "Estudiante"}</strong>
+                  <strong className="font-medium text-slate-900">{isEstudiante ? (user?.nombre || "Estudiante") : (formData.nombre || "Estudiante")}</strong>
                 </div>
                 <div className="mt-2 flex items-center justify-between">
                   <span className="flex items-center gap-1.5 text-slate-500"><IconLock className="w-3.5 h-3.5" /> RUT</span>
-                  <strong className="font-medium tabular-nums text-slate-900">{isEstudiante ? user.rut : formData.rut || "N/A"}</strong>
+                  <strong className="font-medium tabular-nums text-slate-900">{isEstudiante ? (user?.rut || "N/A") : (formData.rut || "N/A")}</strong>
                 </div>
                 <p className="mt-2 border-t border-slate-200 pt-2 text-[12px] text-slate-500">
                   Los datos del titular no se pueden modificar.
