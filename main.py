@@ -264,10 +264,10 @@ async def startup():
         r_client = aioredis.from_url(REDIS_URL, decode_responses=True, socket_connect_timeout=1.5)
         await r_client.ping()
         redis_client = r_client
-        print("✅ Conexión con Redis establecida exitosamente.")
+        print("[REDIS] Conexión con Redis establecida exitosamente.")
     except Exception as e:
         redis_client = None
-        print(f"⚠️ Redis no activo ({e}). Modo Fallback PostgreSQL.")
+        print(f"[REDIS] Redis no activo ({e}). Modo Fallback PostgreSQL.")
 
     async with pool.acquire() as conn:
         await conn.execute("""
@@ -1850,55 +1850,58 @@ async def validar_acompanantes_cruzados(conn, rut_titular: str, fecha_parsed: da
     for rut_ac_clean, nombre_ac, rut_orig in ruts_a_consultar:
         reserva_titular = await conn.fetchrow(
             """
-            SELECT r.id
+            SELECT r.id, r.fecha, r.hora, c.nombre AS campus_nombre
             FROM reservas r
-            WHERE r.fecha = $1 AND r.hora = $2
-              AND REPLACE(REPLACE(UPPER(r.rut), '.', ''), '-', '') = $3
-              AND ($4::int IS NULL OR r.id != $4)
+            LEFT JOIN campus c ON r.campus_id = c.id
+            WHERE REPLACE(REPLACE(UPPER(r.rut), '.', ''), '-', '') = $1
+              AND (r.fecha > CURRENT_DATE OR (r.fecha = CURRENT_DATE AND r.hora + INTERVAL '1 hour' > CURRENT_TIME))
+              AND ($2::int IS NULL OR r.id != $2)
             LIMIT 1
             """,
-            fecha_parsed, hora_parsed, rut_ac_clean, reserva_id_excluir
+            rut_ac_clean, reserva_id_excluir
         )
         if reserva_titular:
+            fecha_str = reserva_titular["fecha"].strftime("%Y-%m-%d")
+            hora_str = reserva_titular["hora"].strftime("%H:%M")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"El acompañante {nombre_ac} ya está inscrito en otra reserva."
+                detail=f"El acompañante {nombre_ac} ya posee una reserva activa en el sistema ({fecha_str} a las {hora_str} hrs). Solo se permite 1 reserva activa por estudiante."
             )
 
         reserva_como_ac = await conn.fetchrow(
             """
-            SELECT r.id
+            SELECT r.id, r.fecha, r.hora, r.nombre AS titular_nombre
             FROM reserva_acompanantes ra
             JOIN reservas r ON ra.reserva_id = r.id
-            WHERE r.fecha = $1 AND r.hora = $2
-              AND REPLACE(REPLACE(UPPER(ra.rut), '.', ''), '-', '') = $3
-              AND ($4::int IS NULL OR r.id != $4)
+            WHERE REPLACE(REPLACE(UPPER(ra.rut), '.', ''), '-', '') = $1
+              AND (r.fecha > CURRENT_DATE OR (r.fecha = CURRENT_DATE AND r.hora + INTERVAL '1 hour' > CURRENT_TIME))
+              AND ($2::int IS NULL OR r.id != $2)
             LIMIT 1
             """,
-            fecha_parsed, hora_parsed, rut_ac_clean, reserva_id_excluir
+            rut_ac_clean, reserva_id_excluir
         )
         if reserva_como_ac:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"El acompañante {nombre_ac} ya está inscrito en otra reserva."
+                detail=f"El acompañante {nombre_ac} ya está registrado como acompañante en otra reserva activa (Titular: {reserva_como_ac['titular_nombre']})."
             )
 
     titular_como_ac = await conn.fetchrow(
         """
-        SELECT r.id
+        SELECT r.id, r.fecha, r.hora, r.nombre AS titular_nombre
         FROM reserva_acompanantes ra
         JOIN reservas r ON ra.reserva_id = r.id
-        WHERE r.fecha = $1 AND r.hora = $2
-          AND REPLACE(REPLACE(UPPER(ra.rut), '.', ''), '-', '') = $3
-          AND ($4::int IS NULL OR r.id != $4)
+        WHERE REPLACE(REPLACE(UPPER(ra.rut), '.', ''), '-', '') = $1
+          AND (r.fecha > CURRENT_DATE OR (r.fecha = CURRENT_DATE AND r.hora + INTERVAL '1 hour' > CURRENT_TIME))
+          AND ($2::int IS NULL OR r.id != $2)
         LIMIT 1
         """,
-        fecha_parsed, hora_parsed, rut_tit_clean, reserva_id_excluir
+        rut_tit_clean, reserva_id_excluir
     )
     if titular_como_ac:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Ya estás inscrito en otra reserva."
+            detail=f"Ya estás registrado como acompañante en una reserva activa (Titular: {titular_como_ac['titular_nombre']}). No puedes registrar otra reserva."
         )
 
 
@@ -1951,7 +1954,7 @@ async def crear_reserva(
     if not rut_final or not reserva.fecha or not reserva.hora:
         raise HTTPException(status_code=400, detail="Faltan datos obligatorios (RUT, fecha u hora).")
 
-    rut_limpio = str(rut_final).replace(".", "").upper().strip()
+    rut_limpio = re.sub(r'[\.\-\s]', '', str(rut_final)).upper().strip()
     if "[" in rut_limpio or "RUT_" in rut_limpio or len(rut_limpio) > 12:
         raise HTTPException(status_code=400, detail="El RUT proporcionado no es válido.")
 
@@ -2037,7 +2040,7 @@ async def crear_reserva(
                     FROM reservas r
                     LEFT JOIN campus c ON r.campus_id = c.id
                     LEFT JOIN cubiculos cb ON r.cubiculo_id = cb.id
-                    WHERE r.rut = $1
+                    WHERE REPLACE(REPLACE(REPLACE(UPPER(r.rut), '.', ''), '-', ''), ' ', '') = $1
                       AND (r.fecha > CURRENT_DATE OR (r.fecha = CURRENT_DATE AND r.hora + INTERVAL '1 hour' > CURRENT_TIME))
                     LIMIT 1
                     """,
@@ -2051,6 +2054,30 @@ async def crear_reserva(
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail=f"El usuario con RUT {rut_limpio} ya posee una reserva activa para el día {fecha_fmt} a las {hora_fmt} hrs en {campus_nom} (Cubículo {cub_cod}). Solo se permite 1 reserva activa por usuario."
+                    )
+
+                reserva_como_ac = await conn.fetchrow(
+                    """
+                    SELECT r.id, r.fecha, r.hora, c.nombre AS campus_nombre, cb.codigo AS cubiculo_codigo, r.nombre AS titular_nombre
+                    FROM reserva_acompanantes ra
+                    JOIN reservas r ON ra.reserva_id = r.id
+                    LEFT JOIN campus c ON r.campus_id = c.id
+                    LEFT JOIN cubiculos cb ON r.cubiculo_id = cb.id
+                    WHERE REPLACE(REPLACE(REPLACE(UPPER(ra.rut), '.', ''), '-', ''), ' ', '') = $1
+                      AND (r.fecha > CURRENT_DATE OR (r.fecha = CURRENT_DATE AND r.hora + INTERVAL '1 hour' > CURRENT_TIME))
+                    LIMIT 1
+                    """,
+                    rut_limpio
+                )
+                if reserva_como_ac:
+                    fecha_fmt = reserva_como_ac["fecha"].strftime("%Y-%m-%d")
+                    hora_fmt = reserva_como_ac["hora"].strftime("%H:%M")
+                    campus_nom = reserva_como_ac["campus_nombre"] or "Campus"
+                    cub_cod = reserva_como_ac["cubiculo_codigo"] or "N/A"
+                    titular_nom = reserva_como_ac["titular_nombre"] or "otro estudiante"
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"El usuario con RUT {rut_limpio} ya está registrado como acompañante en una reserva activa (Titular: {titular_nom}) para el día {fecha_fmt} a las {hora_fmt} hrs en {campus_nom} (Cubículo {cub_cod}). Solo se permite 1 reserva activa por usuario."
                     )
 
                 await validar_acompanantes_cruzados(conn, rut_limpio, fecha_parsed, hora_parsed, reserva.acompanantes)
@@ -2314,9 +2341,9 @@ async def eliminar_reserva(data: EsquemaEliminar, request: Request, background_t
             if not rut_consulta:
                 raise HTTPException(status_code=400, detail="RUT no especificado.")
 
-            rut_limpio = str(rut_consulta).replace(".", "").upper().strip()
+            rut_limpio = re.sub(r'[\.\-\s]', '', str(rut_consulta)).upper().strip()
 
-            condicion_reserva = "WHERE r.rut = $1"
+            condicion_reserva = "WHERE REPLACE(REPLACE(REPLACE(UPPER(r.rut), '.', ''), '-', ''), ' ', '') = $1"
             params_fetch = [rut_limpio]
             if data.reserva_id:
                 condicion_reserva += " AND r.id = $2"
@@ -2336,6 +2363,30 @@ async def eliminar_reserva(data: EsquemaEliminar, request: Request, background_t
             filas_canceladas = [dict(f) for f in reservas_a_eliminar]
 
             if not filas_canceladas:
+                cond_ac = "WHERE REPLACE(REPLACE(UPPER(ra.rut), '.', ''), '-', '') = $1 AND (r.fecha > CURRENT_DATE OR (r.fecha = CURRENT_DATE AND r.hora + INTERVAL '1 hour' > CURRENT_TIME))"
+                params_ac = [rut_limpio]
+                if data.reserva_id:
+                    cond_ac += " AND ra.reserva_id = $2"
+                    params_ac.append(data.reserva_id)
+                res_ac = await conn.fetchrow(
+                    f"""
+                    SELECT ra.id, ra.reserva_id, r.nombre AS titular_nombre, r.fecha, r.hora
+                    FROM reserva_acompanantes ra
+                    JOIN reservas r ON ra.reserva_id = r.id
+                    {cond_ac}
+                    LIMIT 1
+                    """,
+                    *params_ac
+                )
+                if res_ac:
+                    await conn.execute("DELETE FROM reserva_acompanantes WHERE id = $1", res_ac["id"])
+                    await invalidar_caches_disponibilidad()
+                    return {
+                        "ok": True,
+                        "mensaje": "Te has desvinculado exitosamente de la reserva.",
+                        "reserva_id": res_ac["reserva_id"],
+                        "canceladas": 1
+                    }
                 raise HTTPException(status_code=404, detail=f"No se encontró ninguna reserva activa perteneciente al RUT {rut_limpio}.")
 
             ids_a_borrar = [f["id"] for f in filas_canceladas]
@@ -2414,6 +2465,14 @@ async def eliminar_reserva_por_id(
             if current_user.get("rol") != "admin":
                 user_rut_clean = str(current_user.get("rut", "")).replace(".", "").replace("-", "").upper().strip()
                 if user_rut_clean != rut_res_clean:
+                    es_acomp = await conn.fetchrow(
+                        "SELECT id FROM reserva_acompanantes WHERE reserva_id = $1 AND REPLACE(REPLACE(REPLACE(UPPER(rut), '.', ''), '-', ''), ' ', '') = $2",
+                        reserva_id, user_rut_clean
+                    )
+                    if es_acomp:
+                        await conn.execute("DELETE FROM reserva_acompanantes WHERE id = $1", es_acomp["id"])
+                        await invalidar_caches_disponibilidad()
+                        return {"ok": True, "mensaje": "Te has desvinculado exitosamente de la reserva."}
                     raise HTTPException(status_code=403, detail="No tienes permisos para eliminar esta reserva.")
         elif sessionId:
             rut_ses = extraer_rut_de_session(sessionId)
@@ -2839,15 +2898,21 @@ async def consultar_reservas(data: EsquemaConsulta, request: Request, credential
             if not rut_consulta or "[" in str(rut_consulta):
                 raise HTTPException(status_code=400, detail="RUT no válido.")
 
-            rut_limpio = str(rut_consulta).replace(".", "").upper().strip()
+            rut_limpio = re.sub(r'[\.\-\s]', '', str(rut_consulta)).upper().strip()
 
             reservas_usuario = await conn.fetch(
                 """
-                SELECT r.id, r.nombre, r.rut, r.fecha, r.hora, c.nombre AS campus_nombre, r.campus_id, cb.codigo AS cubiculo_codigo
+                SELECT r.id, r.nombre, r.rut, r.fecha, r.hora, c.nombre AS campus_nombre, r.campus_id, cb.codigo AS cubiculo_codigo,
+                       (CASE WHEN REPLACE(REPLACE(UPPER(r.rut), '.', ''), '-', '') = $1 THEN true ELSE false END) AS es_titular
                 FROM reservas r
                 LEFT JOIN campus c ON r.campus_id = c.id
                 LEFT JOIN cubiculos cb ON r.cubiculo_id = cb.id
-                WHERE r.rut = $1 
+                WHERE REPLACE(REPLACE(UPPER(r.rut), '.', ''), '-', '') = $1 
+                   OR r.id IN (
+                       SELECT ra.reserva_id 
+                       FROM reserva_acompanantes ra 
+                       WHERE REPLACE(REPLACE(UPPER(ra.rut), '.', ''), '-', '') = $1
+                   )
                 ORDER BY r.fecha ASC, r.hora ASC
                 """,
                 rut_limpio
@@ -2868,6 +2933,7 @@ async def consultar_reservas(data: EsquemaConsulta, request: Request, credential
                 r_hora = r["hora"]
                 hora_fin = (datetime.combine(r_fecha, r_hora) + timedelta(hours=1)).time()
                 es_activa = (r_fecha > now_date) or (r_fecha == now_date and hora_fin > now_time)
+                es_titular = bool(r["es_titular"])
 
                 respuesta.append({
                     "id": str(r["id"]),
@@ -2880,7 +2946,11 @@ async def consultar_reservas(data: EsquemaConsulta, request: Request, credential
                     "cubiculo_codigo": r["cubiculo_codigo"] or "Sin asignación",
                     "activa": es_activa,
                     "acompanantes": lista_ac,
-                    "estado": "activa" if es_activa else "expirada"
+                    "estado": "activa" if es_activa else "expirada",
+                    "es_titular": es_titular,
+                    "rol_estudiante": "titular" if es_titular else "acompanante",
+                    "titular_nombre": r["nombre"],
+                    "titular_rut": r["rut"],
                 })
 
             historial_pasadas = await conn.fetch(

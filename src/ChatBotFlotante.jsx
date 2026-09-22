@@ -44,8 +44,13 @@ const extraerDatosReserva = (texto) => {
   const horaMatch = texto.match(/\b(\d{1,2}:\d{2}(?:\s*(?:a|-)\s*\d{1,2}:\d{2})?)\s*(?:hrs|horas)?\b/i);
   if (horaMatch) hora = horaMatch[0];
 
+  let id = null;
+  const idMatch = texto.match(/reserva\s*(?:id|#|n[úu]mero)?\s*:?\s*(\d+)/i) || texto.match(/#(\d+)/);
+  if (idMatch) id = idMatch[1];
+
   return {
     tipo: esConfirmada ? "confirmada" : esCancelada ? "cancelada" : "pendiente_confirmacion",
+    id,
     campus,
     cubiculo,
     fecha,
@@ -148,7 +153,10 @@ export default function ChatbotFlotante() {
         email: user.email,
       };
 
-      const data = await apiPost('/api/chat', payload, { signal: controller.signal });
+      const data = await apiPost('/api/chat', payload, { 
+        signal: controller.signal,
+        timeout: 120000 
+      });
       clearTimeout(timeoutId);
 
       let textoRespuesta = (data.response || '').replace(/Calling\s+[a-zA-Z0-9_\-]+(\s*with\s+input:)?\s*\{[\s\S]*?\}/gi, '').trim();
@@ -356,8 +364,30 @@ export default function ChatbotFlotante() {
             </div>
           ) : (
             <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-gradient-to-b from-sky-50/30 via-slate-50/50 to-white/80 backdrop-blur-md">
-              {mensajes.map((msg) => {
-                const cardData = msg.esBot && msg.texto !== 'Escribiendo...' ? extraerDatosReserva(msg.texto) : null;
+              {mensajes.map((msg, index) => {
+                let cardData = msg.esBot && msg.texto !== 'Escribiendo...' ? extraerDatosReserva(msg.texto) : null;
+
+                if (cardData && cardData.tipo === 'cancelada' && !cardData.campus && !cardData.fecha) {
+                  for (let i = index - 1; i >= 0; i--) {
+                    const prev = mensajes[i];
+                    if (prev?.texto) {
+                      const prevData = extraerDatosReserva(prev.texto);
+                      if (prevData && (prevData.campus || prevData.fecha || prevData.cubiculo)) {
+                        cardData = {
+                          ...cardData,
+                          campus: prevData.campus,
+                          cubiculo: prevData.cubiculo,
+                          fecha: prevData.fecha,
+                          hora: prevData.hora,
+                          id: prevData.id || cardData.id
+                        };
+                        break;
+                      }
+                    }
+                  }
+                }
+
+                const tieneDetalles = cardData && Boolean(cardData.campus || cardData.fecha || cardData.hora || cardData.cubiculo);
 
                 return (
                   <div key={msg.id} className={`flex flex-col ${msg.esBot ? 'items-start' : 'items-end'}`}>
@@ -370,7 +400,11 @@ export default function ChatbotFlotante() {
                     </div>
 
                     {cardData && (
-                      <div className="max-w-[90%] mt-2 rounded-2xl border border-sky-200/80 p-3.5 shadow-lg shadow-sky-950/5 text-xs space-y-2.5 bg-white/90 backdrop-blur-lg">
+                      <div className={`max-w-[90%] mt-2 rounded-2xl border p-3.5 shadow-lg shadow-sky-950/5 text-xs space-y-2.5 backdrop-blur-lg ${
+                        cardData.tipo === 'cancelada'
+                          ? 'border-rose-200/90 bg-rose-50/40'
+                          : 'border-sky-200/80 bg-white/90'
+                      }`}>
                         <div className="flex items-center justify-between border-b pb-2 border-slate-100">
                           <span className={`font-bold flex items-center gap-1.5 ${
                             cardData.tipo === 'confirmada' ? 'text-emerald-700' : cardData.tipo === 'cancelada' ? 'text-rose-600' : 'text-amber-700'
@@ -378,29 +412,48 @@ export default function ChatbotFlotante() {
                             <span>{cardData.tipo === 'confirmada' ? '✅' : cardData.tipo === 'cancelada' ? '🗑️' : '⚡'}</span>
                             <span>{cardData.tipo === 'confirmada' ? 'Reserva Confirmada' : cardData.tipo === 'cancelada' ? 'Reserva Cancelada' : 'Confirmar Reserva'}</span>
                           </span>
-                          <span className="text-[10px] uppercase font-black px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
-                            UCT
+                          <span className={`text-[10px] uppercase font-black px-2 py-0.5 rounded-full border ${
+                            cardData.tipo === 'cancelada'
+                              ? 'bg-rose-50 text-rose-700 border-rose-200'
+                              : 'bg-amber-50 text-amber-800 border-amber-200'
+                          }`}>
+                            {cardData.tipo === 'cancelada' ? 'Liberada' : 'UCT'}
                           </span>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-2 text-[11px] bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
-                          <div>
-                            <p className="text-slate-400 font-medium">Sede / Campus:</p>
-                            <p className="font-bold text-slate-800">{cardData.campus || "Sede seleccionada"}</p>
+                        {cardData.tipo === 'cancelada' && !tieneDetalles ? (
+                          <div className="rounded-xl border border-rose-100 bg-white/80 p-3 text-[11px] text-slate-700 space-y-1.5 shadow-xs">
+                            <p className="font-bold text-rose-700 flex items-center gap-1.5">
+                              <span>✓</span> Cubículo liberado en el sistema
+                            </p>
+                            <p className="text-slate-500 text-[11px] leading-relaxed">
+                              La reserva fue eliminada con éxito. Tu cupo quedó libre para que puedas agendar un nuevo bloque cuando lo requieras.
+                            </p>
                           </div>
-                          <div>
-                            <p className="text-slate-400 font-medium">Cubículo:</p>
-                            <p className="font-bold text-slate-800">{cardData.cubiculo || "Asignado"}</p>
+                        ) : (
+                          <div className={`grid grid-cols-2 gap-2 text-[11px] p-2.5 rounded-xl border ${
+                            cardData.tipo === 'cancelada'
+                              ? 'bg-white/80 border-rose-100'
+                              : 'bg-slate-50/80 border-slate-100'
+                          }`}>
+                            <div>
+                              <p className="text-slate-400 font-medium">Sede / Campus:</p>
+                              <p className="font-bold text-slate-800">{cardData.campus || (cardData.tipo === 'cancelada' ? "Liberada" : "Sede seleccionada")}</p>
+                            </div>
+                            <div>
+                              <p className="text-slate-400 font-medium">Cubículo:</p>
+                              <p className="font-bold text-slate-800">{cardData.cubiculo || (cardData.tipo === 'cancelada' ? "Liberado" : "Asignado")}</p>
+                            </div>
+                            <div>
+                              <p className="text-slate-400 font-medium">Fecha:</p>
+                              <p className="font-bold text-slate-800">{cardData.fecha || (cardData.tipo === 'cancelada' ? "Cancelada" : "Fecha solicitada")}</p>
+                            </div>
+                            <div>
+                              <p className="text-slate-400 font-medium">Horario:</p>
+                              <p className="font-bold text-slate-800">{cardData.hora || (cardData.tipo === 'cancelada' ? "Cancelado" : "Bloque agendado")}</p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-slate-400 font-medium">Fecha:</p>
-                            <p className="font-bold text-slate-800">{cardData.fecha || "Fecha solicitada"}</p>
-                          </div>
-                          <div>
-                            <p className="text-slate-400 font-medium">Horario:</p>
-                            <p className="font-bold text-slate-800">{cardData.hora || "Bloque agendado"}</p>
-                          </div>
-                        </div>
+                        )}
 
                         {cardData.tipo === 'pendiente_confirmacion' && (
                           <div className="flex items-center gap-2 pt-1">
@@ -434,6 +487,28 @@ export default function ChatbotFlotante() {
                               className="w-full py-2 px-3 bg-[#00629B] hover:bg-[#004B75] text-white rounded-xl font-bold text-xs transition-all shadow-sm cursor-pointer flex items-center justify-center gap-1.5"
                             >
                               <span>📋</span> Ver en Mis Reservas
+                            </button>
+                          </div>
+                        )}
+
+                        {cardData.tipo === 'cancelada' && (
+                          <div className="pt-1 flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => enviarMensajeTexto("Quiero agendar un cubículo")}
+                              className="flex-1 py-2 px-3 bg-[#00629B] hover:bg-[#004B75] text-white rounded-xl font-bold text-xs transition-all shadow-sm cursor-pointer flex items-center justify-center gap-1.5"
+                            >
+                              <span>📅</span> Agendar nueva reserva
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsChatOpen(false);
+                                navigate('/mis-reservas');
+                              }}
+                              className="py-2 px-3 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl font-semibold text-xs transition-all cursor-pointer"
+                            >
+                              Mis reservas
                             </button>
                           </div>
                         )}

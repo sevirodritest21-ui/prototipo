@@ -179,12 +179,13 @@ export default function MisReservas() {
         }
       });
       if (res.ok) {
-        setToastNotificacion({ tipo: "exito", texto: "Reserva cancelada exitosamente." });
+        const data = await res.json().catch(() => ({}));
+        setToastNotificacion({ tipo: "exito", texto: data.mensaje || "Operación realizada exitosamente." });
         cargarReservas();
         window.dispatchEvent(new CustomEvent("reservaActualizada"));
       } else {
         const data = await res.json();
-        setToastNotificacion({ tipo: "error", texto: "Error al cancelar la reserva: " + (data.detail || "") });
+        setToastNotificacion({ tipo: "error", texto: "Error al procesar la reserva: " + (data.detail || "") });
       }
     } catch (e) {
       setToastNotificacion({ tipo: "error", texto: "No se pudo conectar con el servidor." });
@@ -447,9 +448,13 @@ export default function MisReservas() {
                         </div>
 
                         <div className="flex items-center gap-2">
-                          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-500/20 px-3 py-0.5 text-[11px] font-semibold text-emerald-200">
-                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" />
-                            Pase activo
+                          <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-0.5 text-[11px] font-semibold ${
+                            res.es_titular === false
+                              ? "border-sky-400/30 bg-sky-500/20 text-sky-200"
+                              : "border-emerald-400/30 bg-emerald-500/20 text-emerald-200"
+                          }`}>
+                            <span className={`h-1.5 w-1.5 rounded-full ${res.es_titular === false ? "bg-sky-300" : "bg-emerald-400 animate-ping"}`} />
+                            {res.es_titular === false ? "Acompañante" : "Pase activo"}
                           </span>
                           <span className="rounded bg-white/10 px-2.5 py-0.5 font-mono text-[11px] font-medium text-white border border-white/15">
                             #RES-{res.id}
@@ -503,10 +508,10 @@ export default function MisReservas() {
                                 Estudiante titular
                               </span>
                               <p className="font-semibold text-slate-900 text-sm">
-                                {user?.nombre || "Estudiante"}
+                                {res.es_titular === false ? (res.titular_nombre || res.nombre) : (user?.nombre || res.nombre || "Estudiante")}
                               </p>
                               <p className="font-mono text-slate-500 text-[11px]">
-                                RUT: {user?.rut || res.rut || "N/A"}
+                                RUT: {res.es_titular === false ? (res.titular_rut || res.rut) : (user?.rut || res.rut || "N/A")}
                               </p>
                             </div>
 
@@ -548,20 +553,32 @@ export default function MisReservas() {
                           </div>
 
                           <div className="w-full space-y-2 pt-2 border-t border-slate-200">
-                            <button
-                              type="button"
-                              onClick={() => abrirModalEdicion(res)}
-                              className="w-full py-2.5 px-3 bg-[#00629B] hover:bg-[#004B75] text-white text-[13px] font-semibold rounded-md shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC20E]"
-                            >
-                              <IconEdit className="w-3.5 h-3.5" /> Modificar
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleCancelarReserva(res)}
-                              className="w-full py-2 px-3 border border-rose-200 bg-white hover:bg-rose-50 text-rose-700 text-[12px] font-medium rounded-md transition-colors cursor-pointer flex items-center justify-center gap-1.5"
-                            >
-                              <IconTrash className="w-3.5 h-3.5" /> Cancelar cupo
-                            </button>
+                            {res.es_titular !== false ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => abrirModalEdicion(res)}
+                                  className="w-full py-2.5 px-3 bg-[#00629B] hover:bg-[#004B75] text-white text-[13px] font-semibold rounded-md shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC20E]"
+                                >
+                                  <IconEdit className="w-3.5 h-3.5" /> Modificar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCancelarReserva(res)}
+                                  className="w-full py-2 px-3 border border-rose-200 bg-white hover:bg-rose-50 text-rose-700 text-[12px] font-medium rounded-md transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                                >
+                                  <IconTrash className="w-3.5 h-3.5" /> Cancelar cupo
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleCancelarReserva(res)}
+                                className="w-full py-2.5 px-3 border border-rose-200 bg-white hover:bg-rose-50 text-rose-700 text-[12px] font-medium rounded-md transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                              >
+                                <IconTrash className="w-3.5 h-3.5" /> Desvincularme
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -854,10 +871,14 @@ export default function MisReservas() {
                 </span>
                 <div>
                   <h3 className="font-serif text-lg text-slate-900">
-                    ¿Confirmas la cancelación de tu reserva?
+                    {confirmModal.reserva?.es_titular === false
+                      ? "¿Deseas desvincularte de la reserva?"
+                      : "¿Confirmas la cancelación de tu reserva?"}
                   </h3>
                   <p className="mt-1 text-[13px] leading-relaxed text-slate-600">
-                    Esta acción liberará el espacio inmediatamente para otros estudiantes.
+                    {confirmModal.reserva?.es_titular === false
+                      ? "Te retirarás como acompañante de esta reserva y tu cuenta quedará habilitada para reservar tu propio cubículo."
+                      : "Esta acción liberará el espacio inmediatamente para otros estudiantes."}
                   </p>
                 </div>
               </div>
@@ -865,7 +886,9 @@ export default function MisReservas() {
               {confirmModal.reserva && (
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3.5 text-xs space-y-2">
                   <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
-                    <span className="font-medium text-slate-600">Pase a cancelar:</span>
+                    <span className="font-medium text-slate-600">
+                      {confirmModal.reserva.es_titular === false ? "Pase de acompañante:" : "Pase a cancelar:"}
+                    </span>
                     <span className="font-mono font-semibold text-[#00629B] bg-sky-50 px-2 py-0.5 rounded border border-sky-200/60">
                       ID #{confirmModal.reserva.id}
                     </span>
@@ -904,7 +927,7 @@ export default function MisReservas() {
                   onClick={() => setConfirmModal({ open: false, reserva: null, onConfirm: null })}
                   className="cursor-pointer rounded-md border border-slate-300 bg-white px-4 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-50"
                 >
-                  Conservar reserva
+                  {confirmModal.reserva?.es_titular === false ? "Conservar lugar" : "Conservar reserva"}
                 </button>
                 <button
                   type="button"
@@ -914,7 +937,7 @@ export default function MisReservas() {
                   }}
                   className="cursor-pointer rounded-md bg-rose-700 px-5 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-rose-800"
                 >
-                  Sí, cancelar cupo
+                  {confirmModal.reserva?.es_titular === false ? "Sí, desvincularme" : "Sí, cancelar cupo"}
                 </button>
               </div>
             </div>

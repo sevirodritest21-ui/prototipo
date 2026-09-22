@@ -118,10 +118,10 @@ export default function Login() {
             </div>
 
             <h1 className="font-serif text-[34px] leading-[1.15] text-white mb-4">
-              Gestión de reservas,<br />sin filas ni papeleo.
+              Gestión de reservas<br />de cubiculos.
             </h1>
             <p className="text-sm leading-relaxed text-sky-200/80 max-w-[30ch]">
-              Ingresa a tu cuenta para reservar salas, revisar tu historial y administrar el catálogo.
+              Ingresa a tu cuenta para reservar cubiculos, ademas de gestionar todo lo relacionado a tus reservas.
             </p>
           </div>
 

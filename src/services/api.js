@@ -35,41 +35,45 @@ async function handleResponse(response) {
   return data;
 }
 
-export async function apiGet(path) {
+export async function apiGet(path, options = {}) {
   const response = await fetch(`${BASE_URL}${path}`, {
     method: 'GET',
     headers: getAuthHeaders(),
     credentials: 'include',
+    ...options,
   });
   return handleResponse(response);
 }
 
-export async function apiPost(path, body) {
+export async function apiPost(path, body, options = {}) {
   const response = await fetch(`${BASE_URL}${path}`, {
     method: 'POST',
     headers: getAuthHeaders(),
     credentials: 'include',
-    body: JSON.stringify(body),
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+    ...options,
   });
   return handleResponse(response);
 }
 
-export async function apiPut(path, body) {
+export async function apiPut(path, body, options = {}) {
   const response = await fetch(`${BASE_URL}${path}`, {
     method: 'PUT',
     headers: getAuthHeaders(),
     credentials: 'include',
-    body: JSON.stringify(body),
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+    ...options,
   });
   return handleResponse(response);
 }
 
-export async function apiDelete(path, body) {
+export async function apiDelete(path, body, options = {}) {
   const response = await fetch(`${BASE_URL}${path}`, {
     method: 'DELETE',
     headers: getAuthHeaders(),
     credentials: 'include',
     body: body ? JSON.stringify(body) : undefined,
+    ...options,
   });
   return handleResponse(response);
 }

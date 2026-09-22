@@ -172,7 +172,8 @@ export default function FormularioReserva() {
         }
       });
       if (res.ok) {
-        setToastNotificacion({ tipo: "exito", texto: "Reserva cancelada exitosamente." });
+        const data = await res.json().catch(() => ({}));
+        setToastNotificacion({ tipo: "exito", texto: data.mensaje || "Operación realizada exitosamente." });
         const rutTarget = isEstudiante ? user.rut : formData.rut;
         if (rutTarget) consultarReservaActiva(rutTarget.trim());
         if (formData.campus_id && formData.fecha) {
@@ -182,7 +183,7 @@ export default function FormularioReserva() {
         }
       } else {
         const data = await res.json();
-        setToastNotificacion({ tipo: "error", texto: "Error al cancelar reserva: " + (data.detail || "") });
+        setToastNotificacion({ tipo: "error", texto: "Error al procesar reserva: " + (data.detail || "") });
       }
     } catch (e) {
       setToastNotificacion({ tipo: "error", texto: "Error al conectar con el servidor." });
@@ -190,10 +191,13 @@ export default function FormularioReserva() {
   };
 
   const handleCancelarReservaId = (resId) => {
+    const esAcomp = reservaActivaUser && reservaActivaUser.es_titular === false;
     setConfirmModal({
       open: true,
-      titulo: "Cancelar Reserva",
-      mensaje: `¿Estás seguro de que deseas cancelar la reserva ID ${resId}?`,
+      titulo: esAcomp ? "Desvincularme de la Reserva" : "Cancelar Reserva",
+      mensaje: esAcomp
+        ? `¿Deseas desvincularte de la reserva ID ${resId} del titular ${reservaActivaUser.titular_nombre || "otro estudiante"}? Quedarás habilitado para agendar tu propio cubículo.`
+        : `¿Estás seguro de que deseas cancelar la reserva ID ${resId}?`,
       onConfirm: () => ejecutarCancelacionId(resId)
     });
   };
@@ -636,10 +640,14 @@ export default function FormularioReserva() {
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-amber-900">
-                    Ya posees una reserva activa
+                    {reservaActivaUser.es_titular === false
+                      ? "Estás registrado como acompañante en una reserva activa"
+                      : "Ya posees una reserva activa"}
                   </h3>
                   <p className="text-xs text-amber-800/90 mt-0.5 leading-relaxed">
-                    Solo se permite 1 reserva simultánea por estudiante ({reservaActivaUser.fecha} a las {reservaActivaUser.hora}:00 hrs en {reservaActivaUser.campus}). Para reservar otro bloque, primero debes cancelar o editar tu reserva actual.
+                    {reservaActivaUser.es_titular === false
+                      ? `Figuras como acompañante en la reserva de ${reservaActivaUser.titular_nombre || "otro estudiante"} (${reservaActivaUser.fecha} a las ${reservaActivaUser.hora} hrs en ${reservaActivaUser.campus}). Solo se permite 1 reserva activa por estudiante. Para agendar por tu cuenta, primero debes desvincularte.`
+                      : `Solo se permite 1 reserva simultánea por estudiante (${reservaActivaUser.fecha} a las ${reservaActivaUser.hora}:00 hrs en ${reservaActivaUser.campus}). Para reservar otro bloque, primero debes cancelar o editar tu reserva actual.`}
                   </p>
                 </div>
               </div>
@@ -1075,10 +1083,22 @@ export default function FormularioReserva() {
           {reservaActivaUser && (
             <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
               <div className="border-b border-sky-900 bg-[#00629B] px-4 py-3 flex items-center justify-between text-white">
-                <h3 className="text-[13px] font-semibold text-white">Tu reserva activa</h3>
-                <span className="rounded bg-[#FFC20E] px-2 py-0.5 text-[11px] font-bold text-slate-900">Confirmada</span>
+                <h3 className="text-[13px] font-semibold text-white">
+                  {reservaActivaUser.es_titular === false ? "Tu reserva como acompañante" : "Tu reserva activa"}
+                </h3>
+                <span className={`rounded px-2 py-0.5 text-[11px] font-bold ${
+                  reservaActivaUser.es_titular === false ? "bg-sky-100 text-sky-900" : "bg-[#FFC20E] text-slate-900"
+                }`}>
+                  {reservaActivaUser.es_titular === false ? "Acompañante" : "Confirmada"}
+                </span>
               </div>
               <dl className="divide-y divide-slate-100 px-4 text-[13px]">
+                {reservaActivaUser.es_titular === false && (
+                  <div className="flex items-center justify-between py-2.5">
+                    <dt className="text-slate-500">Titular</dt>
+                    <dd className="font-semibold text-slate-900">{reservaActivaUser.titular_nombre}</dd>
+                  </div>
+                )}
                 <div className="flex items-center justify-between py-2.5">
                   <dt className="text-slate-500">Sede</dt>
                   <dd className="font-semibold text-slate-900">{reservaActivaUser.campus}</dd>
@@ -1103,16 +1123,28 @@ export default function FormularioReserva() {
                 >
                   <IconList className="w-3.5 h-3.5" /> Mis reservas
                 </Link>
-                <button
-                  type="button"
-                  onClick={() => abrirModalEdicion(reservaActivaUser)}
-                  className="inline-flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-md bg-[#00629B] px-3 py-2 text-[13px] font-medium text-white transition-colors hover:bg-[#004B75]"
-                >
-                  <IconEdit className="w-3.5 h-3.5" /> Editar
-                </button>
+                {reservaActivaUser.es_titular !== false ? (
+                  <button
+                    type="button"
+                    onClick={() => abrirModalEdicion(reservaActivaUser)}
+                    className="inline-flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-md bg-[#00629B] px-3 py-2 text-[13px] font-medium text-white transition-colors hover:bg-[#004B75]"
+                  >
+                    <IconEdit className="w-3.5 h-3.5" /> Editar
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleCancelarReservaActiva}
+                    className="inline-flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-rose-200 bg-white px-3 py-2 text-[13px] font-medium text-rose-700 transition-colors hover:bg-rose-50"
+                  >
+                    Salir de reserva
+                  </button>
+                )}
               </div>
               <p className="border-t border-slate-100 px-4 py-2.5 text-[12px] leading-relaxed text-slate-500">
-                Para agendar otro bloque, primero cancela o edita esta reserva.
+                {reservaActivaUser.es_titular === false
+                  ? "Para agendar tu propio cubículo, primero debes desvincularte de esta reserva."
+                  : "Para agendar otro bloque, primero cancela o edita esta reserva."}
               </p>
             </div>
           )}
