@@ -71,11 +71,17 @@ export default function MisReservas() {
   const [reservas, setReservas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [sancion, setSancion] = useState(null);
+  const [paginaHistorial, setPaginaHistorial] = useState(1);
+  const [paginacionHistorial, setPaginacionHistorial] = useState({
+    pagina: 1,
+    limite: 5,
+    total_items: 0,
+    total_paginas: 1
+  });
   const { data: campusList = [] } = useCampusQuery();
   const { data: feriados = FERIADOS_CHILE_2026 } = useFeriadosQuery();
   const { data: diasBloqueados = [] } = useDiasBloqueadosQuery();
 
-  // Estado Modal Edición
   const [modalEdicionOpen, setModalEdicionOpen] = useState(false);
   const [editFormData, setEditFormData] = useState({
     id: null,
@@ -99,9 +105,7 @@ export default function MisReservas() {
     }
   }, [toastNotificacion.texto]);
 
-
-
-  const cargarReservas = async () => {
+  const cargarReservas = async (pagina = paginaHistorial) => {
     if (!user || !user.rut) {
       setCargando(false);
       setSancion(null);
@@ -116,12 +120,21 @@ export default function MisReservas() {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
-        body: JSON.stringify({ rut: user.rut, sessionId: obtenerSessionId(user.rut) })
+        body: JSON.stringify({
+          rut: user.rut,
+          sessionId: obtenerSessionId(user.rut),
+          pagina_historial: pagina,
+          limite_historial: 5
+        })
       });
       if (res.ok) {
         const data = await res.json();
         setReservas(data.reservas || []);
         setSancion(data.sancion || null);
+        if (data.paginacion_historial) {
+          setPaginacionHistorial(data.paginacion_historial);
+          setPaginaHistorial(data.paginacion_historial.pagina);
+        }
       } else {
         setReservas([]);
         setSancion(null);
@@ -133,6 +146,19 @@ export default function MisReservas() {
     } finally {
       setCargando(false);
     }
+  };
+
+  const cambiarPaginaHistorial = (nuevaPagina) => {
+    if (nuevaPagina < 1 || nuevaPagina > paginacionHistorial.total_paginas) return;
+    setPaginaHistorial(nuevaPagina);
+    cargarReservas(nuevaPagina);
+  };
+
+  const obtenerNumerosPaginacion = (actual, total) => {
+    if (total <= 5) return Array.from({ length: total }, (_, i) => i + 1);
+    if (actual <= 3) return [1, 2, 3, 4, 5];
+    if (actual >= total - 2) return [total - 4, total - 3, total - 2, total - 1, total];
+    return [actual - 2, actual - 1, actual, actual + 1, actual + 2];
   };
 
   useEffect(() => {
@@ -588,12 +614,22 @@ export default function MisReservas() {
               )}
             </div>
 
-            {reservasPasadas.length > 0 && (
+            {(reservasPasadas.length > 0 || paginacionHistorial.total_items > 0) && (
               <div className="pt-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <IconList className="w-4 h-4 text-slate-500" />
-                  <h2 className="font-serif text-xl text-slate-900">Historial de reservas anteriores ({reservasPasadas.length})</h2>
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-2">
+                    <IconList className="w-4 h-4 text-slate-500" />
+                    <h2 className="font-serif text-xl text-slate-900">
+                      Historial de reservas anteriores ({paginacionHistorial.total_items || reservasPasadas.length})
+                    </h2>
+                  </div>
+                  {paginacionHistorial.total_paginas > 1 && (
+                    <span className="text-[12px] text-slate-500 font-medium">
+                      Página {paginacionHistorial.pagina} de {paginacionHistorial.total_paginas}
+                    </span>
+                  )}
                 </div>
+
                 <div className="space-y-2.5">
                   {reservasPasadas.map((res) => (
                     <div
@@ -625,6 +661,48 @@ export default function MisReservas() {
                     </div>
                   ))}
                 </div>
+
+                {paginacionHistorial.total_paginas > 1 && (
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-3">
+                    <p className="text-[12px] text-slate-500">
+                      Mostrando {reservasPasadas.length} de {paginacionHistorial.total_items} registros
+                    </p>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => cambiarPaginaHistorial(paginacionHistorial.pagina - 1)}
+                        disabled={paginacionHistorial.pagina <= 1}
+                        className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        Anterior
+                      </button>
+                      <div className="flex items-center gap-1">
+                        {obtenerNumerosPaginacion(paginacionHistorial.pagina, paginacionHistorial.total_paginas).map((num) => (
+                          <button
+                            key={num}
+                            type="button"
+                            onClick={() => cambiarPaginaHistorial(num)}
+                            className={`min-w-[32px] h-8 rounded-md text-[12px] font-medium transition ${
+                              num === paginacionHistorial.pagina
+                                ? "bg-[#00629B] text-white shadow-xs"
+                                : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                            }`}
+                          >
+                            {num}
+                          </button>
+                        ))}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => cambiarPaginaHistorial(paginacionHistorial.pagina + 1)}
+                        disabled={paginacionHistorial.pagina >= paginacionHistorial.total_paginas}
+                        className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        Siguiente
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

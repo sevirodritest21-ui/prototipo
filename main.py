@@ -655,6 +655,8 @@ class EsquemaEliminar(BaseModel):
 class EsquemaConsulta(BaseModel):
     rut: Optional[str] = None
     sessionId: Optional[str] = None
+    pagina_historial: Optional[int] = 1
+    limite_historial: Optional[int] = 5
 
 
 class EsquemaEditarReserva(BaseModel):
@@ -2918,9 +2920,6 @@ async def consultar_reservas(data: EsquemaConsulta, request: Request, credential
                 rut_limpio
             )
 
-            if not reservas_usuario:
-                raise HTTPException(status_code=404, detail=f"No hay reservas registradas para el RUT {rut_limpio}.")
-
             now_date = date.today()
             now_time = datetime.now().time()
 
@@ -2935,23 +2934,58 @@ async def consultar_reservas(data: EsquemaConsulta, request: Request, credential
                 es_activa = (r_fecha > now_date) or (r_fecha == now_date and hora_fin > now_time)
                 es_titular = bool(r["es_titular"])
 
-                respuesta.append({
-                    "id": str(r["id"]),
-                    "nombre": r["nombre"],
-                    "rut": r["rut"],
-                    "fecha": r_fecha.strftime("%Y-%m-%d"),
-                    "hora": r_hora.strftime("%H:%M"),
-                    "campus_id": r["campus_id"],
-                    "campus": r["campus_nombre"] or "Sin asignación",
-                    "cubiculo_codigo": r["cubiculo_codigo"] or "Sin asignación",
-                    "activa": es_activa,
-                    "acompanantes": lista_ac,
-                    "estado": "activa" if es_activa else "expirada",
-                    "es_titular": es_titular,
-                    "rol_estudiante": "titular" if es_titular else "acompanante",
-                    "titular_nombre": r["nombre"],
-                    "titular_rut": r["rut"],
-                })
+                if es_activa:
+                    respuesta.append({
+                        "id": str(r["id"]),
+                        "nombre": r["nombre"],
+                        "rut": r["rut"],
+                        "fecha": r_fecha.strftime("%Y-%m-%d"),
+                        "hora": r_hora.strftime("%H:%M"),
+                        "campus_id": r["campus_id"],
+                        "campus": r["campus_nombre"] or "Sin asignación",
+                        "cubiculo_codigo": r["cubiculo_codigo"] or "Sin asignación",
+                        "activa": True,
+                        "acompanantes": lista_ac,
+                        "estado": "activa",
+                        "es_titular": es_titular,
+                        "rol_estudiante": "titular" if es_titular else "acompanante",
+                        "titular_nombre": r["nombre"],
+                        "titular_rut": r["rut"],
+                    })
+
+            pagina = max(1, data.pagina_historial or 1)
+            limite = max(1, min(data.limite_historial or 5, 50))
+            offset = (pagina - 1) * limite
+
+            total_historial_row = await conn.fetchrow(
+                """
+                SELECT COUNT(*) AS total
+                FROM historial_reservas h
+                WHERE REPLACE(REPLACE(REPLACE(UPPER(h.rut), '.', ''), '-', ''), ' ', '') = $1
+                  AND NOT EXISTS (
+                      SELECT 1 FROM reservas r 
+                      WHERE r.id = h.reserva_id 
+                        AND (r.fecha > CURRENT_DATE OR (r.fecha = CURRENT_DATE AND (r.hora + interval '1 hour') > CURRENT_TIME))
+                  )
+                """,
+                rut_limpio
+            )
+            total_historial = int(total_historial_row["total"]) if total_historial_row else 0
+            total_paginas = max(1, (total_historial + limite - 1) // limite) if total_historial > 0 else 1
+
+            if not respuesta and total_historial == 0:
+                sancion = await verificar_sancion_usuario(conn, rut_limpio)
+                return {
+                    "success": True,
+                    "reservas": [],
+                    "sancion": sancion,
+                    "paginacion_historial": {
+                        "pagina": 1,
+                        "limite": limite,
+                        "total_items": 0,
+                        "total_paginas": 1
+                    }
+                }
 
             historial_pasadas = await conn.fetch(
                 """
@@ -2959,11 +2993,17 @@ async def consultar_reservas(data: EsquemaConsulta, request: Request, credential
                 FROM historial_reservas h
                 LEFT JOIN campus c ON h.campus_id = c.id
                 WHERE REPLACE(REPLACE(REPLACE(UPPER(h.rut), '.', ''), '-', ''), ' ', '') = $1
-                  AND NOT EXISTS (SELECT 1 FROM reservas r WHERE r.id = h.reserva_id)
+                  AND NOT EXISTS (
+                      SELECT 1 FROM reservas r 
+                      WHERE r.id = h.reserva_id 
+                        AND (r.fecha > CURRENT_DATE OR (r.fecha = CURRENT_DATE AND (r.hora + interval '1 hour') > CURRENT_TIME))
+                  )
                 ORDER BY h.fecha_registro DESC
-                LIMIT 20
+                LIMIT $2 OFFSET $3
                 """,
-                rut_limpio
+                rut_limpio,
+                limite,
+                offset
             )
             for h in historial_pasadas:
                 h_fecha = h["fecha"]
@@ -2983,7 +3023,17 @@ async def consultar_reservas(data: EsquemaConsulta, request: Request, credential
                 })
 
             sancion = await verificar_sancion_usuario(conn, rut_limpio)
-            return {"success": True, "reservas": respuesta, "sancion": sancion}
+            return {
+                "success": True,
+                "reservas": respuesta,
+                "sancion": sancion,
+                "paginacion_historial": {
+                    "pagina": pagina,
+                    "limite": limite,
+                    "total_items": total_historial,
+                    "total_paginas": total_paginas
+                }
+            }
 
     except HTTPException:
         raise
