@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useTheme } from "../context/ThemeContext";
 import logoRedondo from "../assets/logoredondo.png";
 import logoUct from "../assets/logo.png";
 
 export default function Login() {
   const { user, loading: authLoading, login } = useAuth();
+  const { toggleTheme, isDark } = useTheme();
   const navigate = useNavigate();
 
   // Limpiar credenciales temporales previa al montar la vista de Login
@@ -80,6 +82,23 @@ export default function Login() {
 
   return (
     <div className="min-h-screen bg-sky-50 flex items-center justify-center px-4 py-16 relative overflow-hidden font-sans">
+      <button
+        type="button"
+        onClick={toggleTheme}
+        className="fixed top-4 right-4 z-50 flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white/90 text-slate-700 shadow-md backdrop-blur-md transition hover:bg-white hover:text-slate-950 focus:outline-none dark:border-slate-700 dark:bg-slate-800/90 dark:text-amber-400 dark:hover:bg-slate-800"
+        title={isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
+        aria-label={isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
+      >
+        {isDark ? (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+            <circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+            <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+          </svg>
+        )}
+      </button>
       {/* Textura de fondo sutil: retícula fina, sin orbes difusos */}
       <div
         className="absolute inset-0 pointer-events-none opacity-[0.35]"

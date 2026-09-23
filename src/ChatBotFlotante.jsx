@@ -312,7 +312,7 @@ export default function ChatbotFlotante() {
   return (
     <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
       {isChatOpen && (
-        <div className="mb-4 w-[calc(100vw-2rem)] sm:w-[400px] h-[540px] rounded-3xl bg-white/95 backdrop-blur-2xl shadow-[0_20px_60px_-15px_rgba(0,98,155,0.3)] border border-sky-100 flex flex-col overflow-hidden transition-all duration-300 origin-bottom-right">
+        <div className="mb-4 w-[calc(100vw-2rem)] sm:w-[400px] h-[540px] rounded-3xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl shadow-[0_20px_60px_-15px_rgba(0,98,155,0.3)] dark:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)] border border-sky-100 dark:border-slate-800 flex flex-col overflow-hidden transition-all duration-300 origin-bottom-right">
           <div className="bg-gradient-to-r from-[#004B75] via-[#00629B] to-[#007AB8] p-4 text-white flex justify-between items-center shadow-md relative border-b-2 border-[#FFC20E]">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 p-1 flex items-center justify-center shrink-0 shadow-inner">
@@ -345,14 +345,14 @@ export default function ChatbotFlotante() {
           </div>
 
           {!user ? (
-            <div className="flex-1 p-6 flex flex-col items-center justify-center text-center bg-slate-50/80 backdrop-blur-md">
-              <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-amber-100 to-amber-200 border border-amber-300/80 flex items-center justify-center mb-4 text-2xl shadow-inner">
+            <div className="flex-1 p-6 flex flex-col items-center justify-center text-center bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-md">
+              <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-amber-100 to-amber-200 dark:from-amber-900/40 dark:to-amber-800/40 border border-amber-300/80 dark:border-amber-600/40 flex items-center justify-center mb-4 text-2xl shadow-inner">
                 🔒
               </div>
-              <h3 className="text-base font-black text-slate-800 mb-1">
+              <h3 className="text-base font-black text-slate-800 dark:text-slate-100 mb-1">
                 Chatbot Institucional
               </h3>
-              <p className="text-xs text-slate-500 mb-6 max-w-xs leading-relaxed">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-6 max-w-xs leading-relaxed">
                 Inicia sesión con tu cuenta universitaria para consultar disponibilidad o reservar cubículos con inteligencia artificial.
               </p>
               <button
@@ -363,7 +363,7 @@ export default function ChatbotFlotante() {
               </button>
             </div>
           ) : (
-            <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-gradient-to-b from-sky-50/30 via-slate-50/50 to-white/80 backdrop-blur-md">
+            <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-gradient-to-b from-sky-50/30 via-slate-50/50 to-white/80 dark:from-slate-950/70 dark:via-slate-900/80 dark:to-slate-950/90 backdrop-blur-md">
               {mensajes.map((msg, index) => {
                 let cardData = msg.esBot && msg.texto !== 'Escribiendo...' ? extraerDatosReserva(msg.texto) : null;
 
@@ -393,64 +393,64 @@ export default function ChatbotFlotante() {
                   <div key={msg.id} className={`flex flex-col ${msg.esBot ? 'items-start' : 'items-end'}`}>
                     <div className={`max-w-[88%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-line backdrop-blur-md transition-all ${
                       msg.esBot
-                        ? 'bg-white/85 text-slate-800 rounded-tl-sm border border-slate-200/70 shadow-[0_4px_16px_rgba(0,0,0,0.03)]'
+                        ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-tl-sm border border-slate-200/70 dark:border-slate-700/80 shadow-[0_4px_16px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_16px_rgba(0,0,0,0.3)]'
                         : 'bg-gradient-to-r from-[#00629B] to-[#007AB8] text-white rounded-tr-sm shadow-[0_4px_16px_rgba(0,98,155,0.25)] border border-sky-400/30'
-                    } ${msg.texto === 'Escribiendo...' ? 'text-slate-400 italic bg-white/50 animate-pulse' : ''}`}>
+                    } ${msg.texto === 'Escribiendo...' ? 'text-slate-400 italic bg-white/50 dark:bg-slate-800/50 dark:text-slate-400 animate-pulse' : ''}`}>
                       {msg.texto}
                     </div>
 
                     {cardData && (
                       <div className={`max-w-[90%] mt-2 rounded-2xl border p-3.5 shadow-lg shadow-sky-950/5 text-xs space-y-2.5 backdrop-blur-lg ${
                         cardData.tipo === 'cancelada'
-                          ? 'border-rose-200/90 bg-rose-50/40'
-                          : 'border-sky-200/80 bg-white/90'
+                          ? 'border-rose-200/90 bg-rose-50/40 dark:bg-rose-950/40 dark:border-rose-900/70'
+                          : 'border-sky-200/80 bg-white/90 dark:bg-slate-800/95 dark:border-slate-700'
                       }`}>
-                        <div className="flex items-center justify-between border-b pb-2 border-slate-100">
+                        <div className="flex items-center justify-between border-b pb-2 border-slate-100 dark:border-slate-700/60">
                           <span className={`font-bold flex items-center gap-1.5 ${
-                            cardData.tipo === 'confirmada' ? 'text-emerald-700' : cardData.tipo === 'cancelada' ? 'text-rose-600' : 'text-amber-700'
+                            cardData.tipo === 'confirmada' ? 'text-emerald-700 dark:text-emerald-400' : cardData.tipo === 'cancelada' ? 'text-rose-600 dark:text-rose-400' : 'text-amber-700 dark:text-amber-400'
                           }`}>
                             <span>{cardData.tipo === 'confirmada' ? '✅' : cardData.tipo === 'cancelada' ? '🗑️' : '⚡'}</span>
                             <span>{cardData.tipo === 'confirmada' ? 'Reserva Confirmada' : cardData.tipo === 'cancelada' ? 'Reserva Cancelada' : 'Confirmar Reserva'}</span>
                           </span>
                           <span className={`text-[10px] uppercase font-black px-2 py-0.5 rounded-full border ${
                             cardData.tipo === 'cancelada'
-                              ? 'bg-rose-50 text-rose-700 border-rose-200'
-                              : 'bg-amber-50 text-amber-800 border-amber-200'
+                              ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/70 dark:text-rose-300 dark:border-rose-800'
+                              : 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/70 dark:text-amber-300 dark:border-amber-800'
                           }`}>
                             {cardData.tipo === 'cancelada' ? 'Liberada' : 'UCT'}
                           </span>
                         </div>
 
                         {cardData.tipo === 'cancelada' && !tieneDetalles ? (
-                          <div className="rounded-xl border border-rose-100 bg-white/80 p-3 text-[11px] text-slate-700 space-y-1.5 shadow-xs">
-                            <p className="font-bold text-rose-700 flex items-center gap-1.5">
+                          <div className="rounded-xl border border-rose-100 bg-white/80 dark:bg-slate-900/80 dark:border-rose-900/50 p-3 text-[11px] text-slate-700 dark:text-slate-200 space-y-1.5 shadow-xs">
+                            <p className="font-bold text-rose-700 dark:text-rose-400 flex items-center gap-1.5">
                               <span>✓</span> Cubículo liberado en el sistema
                             </p>
-                            <p className="text-slate-500 text-[11px] leading-relaxed">
+                            <p className="text-slate-500 dark:text-slate-400 text-[11px] leading-relaxed">
                               La reserva fue eliminada con éxito. Tu cupo quedó libre para que puedas agendar un nuevo bloque cuando lo requieras.
                             </p>
                           </div>
                         ) : (
                           <div className={`grid grid-cols-2 gap-2 text-[11px] p-2.5 rounded-xl border ${
                             cardData.tipo === 'cancelada'
-                              ? 'bg-white/80 border-rose-100'
-                              : 'bg-slate-50/80 border-slate-100'
+                              ? 'bg-white/80 border-rose-100 dark:bg-slate-900/80 dark:border-rose-900/50'
+                              : 'bg-slate-50/80 border-slate-100 dark:bg-slate-900/80 dark:border-slate-700/70'
                           }`}>
                             <div>
-                              <p className="text-slate-400 font-medium">Sede / Campus:</p>
-                              <p className="font-bold text-slate-800">{cardData.campus || (cardData.tipo === 'cancelada' ? "Liberada" : "Sede seleccionada")}</p>
+                              <p className="text-slate-400 dark:text-slate-400 font-medium">Sede / Campus:</p>
+                              <p className="font-bold text-slate-800 dark:text-slate-100">{cardData.campus || (cardData.tipo === 'cancelada' ? "Liberada" : "Sede seleccionada")}</p>
                             </div>
                             <div>
-                              <p className="text-slate-400 font-medium">Cubículo:</p>
-                              <p className="font-bold text-slate-800">{cardData.cubiculo || (cardData.tipo === 'cancelada' ? "Liberado" : "Asignado")}</p>
+                              <p className="text-slate-400 dark:text-slate-400 font-medium">Cubículo:</p>
+                              <p className="font-bold text-slate-800 dark:text-slate-100">{cardData.cubiculo || (cardData.tipo === 'cancelada' ? "Liberado" : "Asignado")}</p>
                             </div>
                             <div>
-                              <p className="text-slate-400 font-medium">Fecha:</p>
-                              <p className="font-bold text-slate-800">{cardData.fecha || (cardData.tipo === 'cancelada' ? "Cancelada" : "Fecha solicitada")}</p>
+                              <p className="text-slate-400 dark:text-slate-400 font-medium">Fecha:</p>
+                              <p className="font-bold text-slate-800 dark:text-slate-100">{cardData.fecha || (cardData.tipo === 'cancelada' ? "Cancelada" : "Fecha solicitada")}</p>
                             </div>
                             <div>
-                              <p className="text-slate-400 font-medium">Horario:</p>
-                              <p className="font-bold text-slate-800">{cardData.hora || (cardData.tipo === 'cancelada' ? "Cancelado" : "Bloque agendado")}</p>
+                              <p className="text-slate-400 dark:text-slate-400 font-medium">Horario:</p>
+                              <p className="font-bold text-slate-800 dark:text-slate-100">{cardData.hora || (cardData.tipo === 'cancelada' ? "Cancelado" : "Bloque agendado")}</p>
                             </div>
                           </div>
                         )}
@@ -469,7 +469,7 @@ export default function ChatbotFlotante() {
                               type="button"
                               onClick={() => enviarMensajeTexto("No, deseo cancelar la solicitud")}
                               disabled={cargandoBot}
-                              className="py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold text-xs transition-all cursor-pointer disabled:opacity-50"
+                              className="py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-200 rounded-xl font-semibold text-xs transition-all cursor-pointer disabled:opacity-50"
                             >
                               ✕ Cancelar
                             </button>
@@ -506,7 +506,7 @@ export default function ChatbotFlotante() {
                                 setIsChatOpen(false);
                                 navigate('/mis-reservas');
                               }}
-                              className="py-2 px-3 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl font-semibold text-xs transition-all cursor-pointer"
+                              className="py-2 px-3 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700 rounded-xl font-semibold text-xs transition-all cursor-pointer"
                             >
                               Mis reservas
                             </button>
@@ -522,7 +522,7 @@ export default function ChatbotFlotante() {
           )}
 
           {user && !cargandoBot && (
-            <div className="px-3 pt-2 pb-1 flex items-center gap-1.5 overflow-x-auto bg-white/80 backdrop-blur-md border-t border-slate-100 scrollbar-none">
+            <div className="px-3 pt-2 pb-1 flex items-center gap-1.5 overflow-x-auto bg-white/80 dark:bg-slate-900/90 backdrop-blur-md border-t border-slate-100 dark:border-slate-800 scrollbar-none">
               {[
                 { label: "📅 Agendar cubículo", texto: "Quiero agendar un cubículo" },
                 { label: "🔍 Ver mis reservas", texto: "Muéstrame mis reservas activas" },
@@ -533,7 +533,7 @@ export default function ChatbotFlotante() {
                   key={idx}
                   type="button"
                   onClick={() => enviarMensajeTexto(chip.texto)}
-                  className="px-2.5 py-1 bg-sky-50/60 hover:bg-sky-100/70 border border-sky-200/70 hover:border-[#FFC20E] rounded-full text-[11px] font-semibold text-slate-700 hover:text-sky-900 whitespace-nowrap transition-all cursor-pointer shadow-2xs"
+                  className="px-2.5 py-1 bg-sky-50/60 hover:bg-sky-100/70 border border-sky-200/70 hover:border-[#FFC20E] rounded-full text-[11px] font-semibold text-slate-700 hover:text-sky-900 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:border-slate-700 dark:hover:border-[#FFC20E] dark:text-slate-200 dark:hover:text-white whitespace-nowrap transition-all cursor-pointer shadow-2xs"
                 >
                   {chip.label}
                 </button>
@@ -541,7 +541,7 @@ export default function ChatbotFlotante() {
             </div>
           )}
 
-          <form onSubmit={handleEnviarMensaje} className="p-3 border-t border-slate-100 bg-white/90 backdrop-blur-md flex items-center space-x-2">
+          <form onSubmit={handleEnviarMensaje} className="p-3 border-t border-slate-100 dark:border-slate-800 bg-white/90 dark:bg-slate-900/95 backdrop-blur-md flex items-center space-x-2">
             <input
               type="text"
               value={nuevoMensaje}
@@ -558,8 +558,8 @@ export default function ChatbotFlotante() {
               }
               className={`flex-1 px-4 py-2.5 text-sm border rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#00629B] transition-all ${
                 escuchandoVoz
-                  ? "border-red-400 bg-red-50/50 text-red-900 placeholder:text-red-500 font-medium"
-                  : "border-slate-200 bg-slate-50/70 focus:bg-white disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                  ? "border-red-400 bg-red-50/50 text-red-900 placeholder:text-red-500 font-medium dark:bg-red-950/40 dark:text-red-200 dark:placeholder:text-red-400"
+                  : "border-slate-200 bg-slate-50/70 focus:bg-white disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed dark:border-slate-700 dark:bg-slate-800/80 dark:focus:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:disabled:bg-slate-800/50 dark:disabled:text-slate-600"
               }`}
             />
             {user && (
@@ -571,7 +571,7 @@ export default function ChatbotFlotante() {
                 className={`p-2.5 rounded-2xl transition-all flex items-center justify-center cursor-pointer shadow-sm ${
                   escuchandoVoz
                     ? "bg-red-500 hover:bg-red-600 text-white animate-pulse"
-                    : "bg-slate-100 hover:bg-sky-50 text-slate-700 hover:text-sky-700 border border-slate-200 hover:border-sky-200"
+                    : "bg-slate-100 hover:bg-sky-50 text-slate-700 hover:text-sky-700 border border-slate-200 hover:border-sky-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-slate-700"
                 } disabled:opacity-40 disabled:cursor-not-allowed`}
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -582,7 +582,7 @@ export default function ChatbotFlotante() {
             <button
               type="submit"
               disabled={!user || cargandoBot || !nuevoMensaje.trim()}
-              className="bg-gradient-to-r from-[#00629B] to-[#0082B3] hover:from-[#004B75] hover:to-[#00629B] text-white px-4 py-2.5 rounded-2xl text-sm font-bold transition-all shadow-md shadow-sky-900/15 cursor-pointer disabled:bg-slate-300 disabled:shadow-none disabled:cursor-not-allowed"
+              className="bg-gradient-to-r from-[#00629B] to-[#0082B3] hover:from-[#004B75] hover:to-[#00629B] text-white px-4 py-2.5 rounded-2xl text-sm font-bold transition-all shadow-md shadow-sky-900/15 cursor-pointer disabled:bg-slate-300 dark:disabled:bg-slate-800 dark:disabled:text-slate-600 disabled:shadow-none disabled:cursor-not-allowed"
             >
               {cargandoBot ? '...' : 'Enviar'}
             </button>
@@ -591,7 +591,7 @@ export default function ChatbotFlotante() {
       )}
       <button
         onClick={() => setIsChatOpen((prev) => !prev)}
-        className="w-16 h-16 rounded-full bg-white border-2 border-[#FFC20E] shadow-[0_10px_30px_rgba(0,98,155,0.3)] transition-all duration-300 hover:scale-110 flex items-center justify-center p-1.5 cursor-pointer overflow-hidden group ring-4 ring-[#00629B]/10"
+        className="w-16 h-16 rounded-full bg-white dark:bg-slate-800 border-2 border-[#FFC20E] shadow-[0_10px_30px_rgba(0,98,155,0.3)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.6)] transition-all duration-300 hover:scale-110 flex items-center justify-center p-1.5 cursor-pointer overflow-hidden group ring-4 ring-[#00629B]/10 dark:ring-sky-400/20"
         title="Abrir Asistente Virtual UCT"
       >
         <img

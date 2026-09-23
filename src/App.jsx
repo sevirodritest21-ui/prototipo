@@ -15,9 +15,9 @@ const Reglamento = lazy(() => import("./pages/Reglamento"));
 
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { ThemeProvider, useTheme } from "./context/ThemeContext";
 import NetworkStatusBanner from "./components/NetworkStatusBanner";
 
-/* ── Iconografía (solo presentación) ─────────────────────────────── */
 const Icon = ({ path, className = "w-4 h-4" }) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"
     strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
@@ -32,6 +32,12 @@ const IconCalendar = (p) => <Icon {...p} path={<><rect x="3" y="5" width="18" he
 const IconDoc = (p) => <Icon {...p} path={<><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z" /><path d="M14 3v5h5M9 13h6M9 17h4" /></>} />;
 const IconLogout = (p) => <Icon {...p} path={<><path d="M15 17l5-5-5-5" /><path d="M20 12H9" /><path d="M11 3H6a2 2 0 00-2 2v14a2 2 0 002 2h5" /></>} />;
 const IconLogin = (p) => <Icon {...p} path={<><path d="M10 17l5-5-5-5" /><path d="M15 12H3" /><path d="M13 3h5a2 2 0 012 2v14a2 2 0 01-2 2h-5" /></>} />;
+const IconSun = (p) => (
+  <Icon {...p} path={<><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" /></>} />
+);
+const IconMoon = (p) => (
+  <Icon {...p} path={<path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />} />
+);
 
 function LoadingFallback() {
   return (
@@ -47,6 +53,7 @@ function LoadingFallback() {
 
 function NavBar() {
   const { user, logout } = useAuth();
+  const { toggleTheme, isDark } = useTheme();
   const location = useLocation();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -80,7 +87,6 @@ function NavBar() {
       <div className="mx-auto max-w-7xl px-6">
         <div className="flex h-16 items-center justify-between">
 
-          {/* LOGO E IDENTIDAD INSTITUCIONAL */}
           <Link to="/" className="group flex items-center gap-3">
             <img
               src={logoUCT}
@@ -99,8 +105,7 @@ function NavBar() {
             </span>
           </Link>
 
-          {/* MENÚ DE NAVEGACIÓN Y PERFIL */}
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-3 sm:gap-5">
             <div className="hidden md:flex items-center gap-7">
               <Link to="/" className={getLinkStyle("/")}>
                 Inicio
@@ -112,6 +117,16 @@ function NavBar() {
                 Reglamento
               </Link>
             </div>
+
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="flex h-9 w-9 items-center justify-center rounded-md border border-white/15 bg-white/10 text-white transition hover:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC20E]"
+              title={isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
+              aria-label={isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
+            >
+              {isDark ? <IconSun className="w-4 h-4 text-[#FFC20E]" /> : <IconMoon className="w-4 h-4 text-sky-200" />}
+            </button>
 
             {user ? (
               <div className="relative" ref={dropdownRef}>
@@ -183,6 +198,19 @@ function NavBar() {
 
                     <div className="border-t border-slate-200 py-1">
                       <button
+                        type="button"
+                        onClick={toggleTheme}
+                        className="flex w-full cursor-pointer items-center justify-between px-4 py-2.5 text-left text-[13px] text-slate-700 hover:bg-slate-50 hover:text-[#00629B]"
+                      >
+                        <span className="flex items-center gap-2.5">
+                          {isDark ? <IconSun className="w-4 h-4 text-[#FFC20E]" /> : <IconMoon className="w-4 h-4 text-slate-400" />}
+                          Modo {isDark ? "claro" : "oscuro"}
+                        </span>
+                        <span className="text-[11px] font-medium text-slate-400">
+                          {isDark ? "Activado" : "Desactivado"}
+                        </span>
+                      </button>
+                      <button
                         id="nav-logout"
                         onClick={() => {
                           setDropdownOpen(false);
@@ -216,31 +244,31 @@ function NavBar() {
 export default function App() {
   return (
     <Router>
-      <AuthProvider>
-        <NavBar />
-        <Suspense fallback={<LoadingFallback />}>
-          <Routes>
-            <Route path="/login" element={<Login />} />
+      <ThemeProvider>
+        <AuthProvider>
+          <NavBar />
+          <Suspense fallback={<LoadingFallback />}>
+            <Routes>
+              <Route path="/login" element={<Login />} />
 
-            <Route element={<ProtectedRoute />}>
-              <Route path="/" element={<PaginaInicio />} />
-              <Route path="/reservar" element={<FormularioReserva />} />
-              <Route path="/mis-reservas" element={<MisReservas />} />
-              <Route path="/reglamento" element={<Reglamento />} />
-            </Route>
+              <Route element={<ProtectedRoute />}>
+                <Route path="/" element={<PaginaInicio />} />
+                <Route path="/reservar" element={<FormularioReserva />} />
+                <Route path="/mis-reservas" element={<MisReservas />} />
+                <Route path="/reglamento" element={<Reglamento />} />
+              </Route>
 
-            {/* Ruta protegida EXCLUSIVA para Administradores */}
-            <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
-              <Route path="/dashboard" element={<Dashboard />} />
-            </Route>
+              <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
+                <Route path="/dashboard" element={<Dashboard />} />
+              </Route>
 
-            {/* Redirección por defecto a /login */}
-            <Route path="*" element={<Navigate to="/login" replace />} />
-          </Routes>
-          <ChatbotFlotante />
-          <NetworkStatusBanner />
-        </Suspense>
-      </AuthProvider>
+              <Route path="*" element={<Navigate to="/login" replace />} />
+            </Routes>
+            <ChatbotFlotante />
+            <NetworkStatusBanner />
+          </Suspense>
+        </AuthProvider>
+      </ThemeProvider>
     </Router>
   );
 }

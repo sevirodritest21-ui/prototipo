@@ -1,4 +1,19 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light;
+  --color-bg-base: #f4f6f9;
+  --color-card-base: #ffffff;
+  --color-border-base: #e2e8f0;
+}
+
+html.dark {
+  color-scheme: dark;
+  --color-bg-base: #0b1120;
+  --color-card-base: #131d33;
+  --color-border-base: #243254;
+}
 
 html,
 body,
@@ -10,12 +25,81 @@ body,
 }
 
 body {
-  background: #020617;
+  background-color: #f4f6f9;
+  color: #1e293b;
   overflow-x: hidden;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+html.dark body {
+  background-color: #0b1120;
+  color: #f1f5f9;
 }
 
 * {
   box-sizing: border-box;
+}
+
+html.dark .bg-\[\#F4F6F9\],
+html.dark .bg-\[\#F6F8FB\],
+html.dark .bg-sky-50 {
+  background-color: #0b1120 !important;
+}
+
+html.dark .bg-white,
+html.dark .bg-white\/95,
+html.dark .bg-white\/90,
+html.dark .bg-white\/85,
+html.dark .bg-white\/80,
+html.dark .bg-white\/70,
+html.dark .bg-white\/50 {
+  background-color: #131d33 !important;
+}
+
+html.dark .bg-slate-50,
+html.dark .bg-slate-50\/60,
+html.dark .bg-slate-50\/70,
+html.dark .bg-slate-50\/80,
+html.dark .bg-slate-100 {
+  background-color: #1a2744 !important;
+}
+
+html.dark .border-slate-100,
+html.dark .border-slate-200,
+html.dark .border-slate-200\/80,
+html.dark .border-slate-300 {
+  border-color: #243254 !important;
+}
+
+html.dark .text-slate-900,
+html.dark .text-slate-800 {
+  color: #f8fafc !important;
+}
+
+html.dark .text-slate-700,
+html.dark .text-slate-600 {
+  color: #cbd5e1 !important;
+}
+
+html.dark .text-slate-500 {
+  color: #94a3b8 !important;
+}
+
+html.dark .text-slate-400 {
+  color: #64748b !important;
+}
+
+html.dark input:not([type="checkbox"]):not([type="radio"]),
+html.dark select,
+html.dark textarea {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  border-color: #334155 !important;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #64748b !important;
 }
 
 .react-datepicker__day--disabled,
@@ -36,6 +120,39 @@ body {
   background-color: #00629B !important;
   color: #ffffff !important;
   font-weight: bold !important;
+}
+
+html.dark .react-datepicker {
+  background-color: #131d33 !important;
+  border-color: #243254 !important;
+  color: #f1f5f9 !important;
+}
+
+html.dark .react-datepicker__header {
+  background-color: #0f172a !important;
+  border-bottom-color: #243254 !important;
+}
+
+html.dark .react-datepicker__current-month,
+html.dark .react-datepicker-time__header,
+html.dark .react-datepicker-year-header,
+html.dark .react-datepicker__day-name {
+  color: #e2e8f0 !important;
+}
+
+html.dark .react-datepicker__day {
+  color: #f1f5f9 !important;
+}
+
+html.dark .react-datepicker__day:hover {
+  background-color: #1e293b !important;
+}
+
+html.dark .react-datepicker__day--disabled,
+html.dark .react-datepicker__day--disabled:hover {
+  color: #475569 !important;
+  background-color: #0f172a !important;
+  opacity: 0.35 !important;
 }
 
 @keyframes shimmer {
