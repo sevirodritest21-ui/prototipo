@@ -167,3 +167,32 @@ html.dark .react-datepicker__day--disabled:hover {
 .animate-shimmer {
   animation: shimmer 1.5s infinite linear;
 }
+
+@keyframes audioWave {
+  0%, 100% {
+    transform: scaleY(0.25);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes audioRipple {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.85;
+  }
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+.animate-audio-wave {
+  animation: audioWave 0.8s ease-in-out infinite;
+  transform-origin: bottom;
+}
+
+.animate-audio-ripple {
+  animation: audioRipple 1.4s cubic-bezier(0, 0.2, 0.8, 1) infinite;
+}

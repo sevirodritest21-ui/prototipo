@@ -67,6 +67,8 @@ export default function ChatbotFlotante() {
   const [cargandoBot, setCargandoBot] = useState(false);
   const [escuchandoVoz, setEscuchandoVoz] = useState(false);
   const recognitionRef = useRef(null);
+  const pressTimerRef = useRef(null);
+  const isHoldingRef = useRef(false);
 
   // Referencia para el Auto-Scroll al final de la conversación
   const chatEndRef = useRef(null);
@@ -247,17 +249,17 @@ export default function ChatbotFlotante() {
     }
   };
 
-  const toggleDictadoPorVoz = () => {
+  const startListening = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
       alert('Tu navegador no soporta entrada por voz.');
       return;
     }
 
-    if (escuchandoVoz && recognitionRef.current) {
-      recognitionRef.current.stop();
-      setEscuchandoVoz(false);
-      return;
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch {}
     }
 
     const recognition = new SpeechRecognition();
@@ -292,7 +294,47 @@ export default function ChatbotFlotante() {
     };
 
     recognitionRef.current = recognition;
-    recognition.start();
+    try {
+      recognition.start();
+    } catch {}
+  };
+
+  const stopListening = () => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch {}
+    }
+    setEscuchandoVoz(false);
+  };
+
+  const handleMicMouseDown = () => {
+    pressTimerRef.current = setTimeout(() => {
+      isHoldingRef.current = true;
+      if (!escuchandoVoz) {
+        startListening();
+      }
+    }, 180);
+  };
+
+  const handleMicMouseUp = () => {
+    if (pressTimerRef.current) {
+      clearTimeout(pressTimerRef.current);
+      pressTimerRef.current = null;
+    }
+    if (isHoldingRef.current) {
+      isHoldingRef.current = false;
+      stopListening();
+    }
+  };
+
+  const toggleDictadoPorVoz = () => {
+    if (isHoldingRef.current) return;
+    if (escuchandoVoz) {
+      stopListening();
+    } else {
+      startListening();
+    }
   };
 
   const handleEnviarMensaje = (e) => {
@@ -542,47 +584,79 @@ export default function ChatbotFlotante() {
           )}
 
           <form onSubmit={handleEnviarMensaje} className="p-3 border-t border-slate-100 dark:border-slate-800 bg-white/90 dark:bg-slate-900/95 backdrop-blur-md flex items-center space-x-2">
-            <input
-              type="text"
-              value={nuevoMensaje}
-              onChange={(e) => setNuevoMensaje(e.target.value)}
-              disabled={!user || cargandoBot}
-              placeholder={
-                !user
-                  ? "Debes iniciar sesión para chatear..."
-                  : escuchandoVoz
-                    ? "🎙️ Escuchando... habla ahora..."
+            {escuchandoVoz ? (
+              <div className="flex-1 flex items-center justify-between px-3.5 py-2.5 bg-rose-50/80 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800/80 rounded-2xl shadow-inner min-w-0">
+                <div className="flex items-center gap-2 min-w-0 pr-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping shrink-0" />
+                  <span className="text-xs font-semibold text-rose-700 dark:text-rose-300 truncate">
+                    {nuevoMensaje ? nuevoMensaje : "Escuchando... habla ahora"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 shrink-0 h-6">
+                  {[4, 12, 18, 8, 22, 14, 24, 7, 16, 10, 20].map((h, i) => (
+                    <span
+                      key={i}
+                      className="w-1 bg-rose-500 dark:bg-rose-400 rounded-full animate-audio-wave"
+                      style={{
+                        animationDelay: `${i * 90}ms`,
+                        height: `${h}px`
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <input
+                type="text"
+                value={nuevoMensaje}
+                onChange={(e) => setNuevoMensaje(e.target.value)}
+                disabled={!user || cargandoBot}
+                placeholder={
+                  !user
+                    ? "Debes iniciar sesión para chatear..."
                     : cargandoBot
                       ? "Esperando respuesta del asistente..."
                       : "Pídeme una reserva (ej: mañana a las 10:00)..."
-              }
-              className={`flex-1 px-4 py-2.5 text-sm border rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#00629B] transition-all ${
-                escuchandoVoz
-                  ? "border-red-400 bg-red-50/50 text-red-900 placeholder:text-red-500 font-medium dark:bg-red-950/40 dark:text-red-200 dark:placeholder:text-red-400"
-                  : "border-slate-200 bg-slate-50/70 focus:bg-white disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed dark:border-slate-700 dark:bg-slate-800/80 dark:focus:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:disabled:bg-slate-800/50 dark:disabled:text-slate-600"
-              }`}
-            />
-            {user && (
-              <button
-                type="button"
-                onClick={toggleDictadoPorVoz}
-                disabled={cargandoBot}
-                title={escuchandoVoz ? "Detener dictado" : "Dictar mensaje por voz"}
-                className={`p-2.5 rounded-2xl transition-all flex items-center justify-center cursor-pointer shadow-sm ${
-                  escuchandoVoz
-                    ? "bg-red-500 hover:bg-red-600 text-white animate-pulse"
-                    : "bg-slate-100 hover:bg-sky-50 text-slate-700 hover:text-sky-700 border border-slate-200 hover:border-sky-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-slate-700"
-                } disabled:opacity-40 disabled:cursor-not-allowed`}
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m-4 0h8m-4-8a3 3 0 003-3V5a3 3 0 00-6 0v6a3 3 0 003 3z" />
-                </svg>
-              </button>
+                }
+                className="flex-1 px-4 py-2.5 text-sm border border-slate-200 bg-slate-50/70 focus:bg-white rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#00629B] transition-all disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed dark:border-slate-700 dark:bg-slate-800/80 dark:focus:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:disabled:bg-slate-800/50 dark:disabled:text-slate-600"
+              />
             )}
+
+            {user && (
+              <div className="relative flex items-center justify-center shrink-0">
+                {escuchandoVoz && (
+                  <>
+                    <span className="absolute -inset-1 rounded-2xl bg-rose-500/40 animate-audio-ripple pointer-events-none" />
+                    <span className="absolute -inset-2 rounded-2xl bg-rose-500/25 animate-audio-ripple pointer-events-none" style={{ animationDelay: "450ms" }} />
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={toggleDictadoPorVoz}
+                  onMouseDown={handleMicMouseDown}
+                  onMouseUp={handleMicMouseUp}
+                  onMouseLeave={handleMicMouseUp}
+                  onTouchStart={handleMicMouseDown}
+                  onTouchEnd={handleMicMouseUp}
+                  disabled={cargandoBot}
+                  title={escuchandoVoz ? "Soltar o presionar para enviar" : "Mantén presionado o presiona para hablar"}
+                  className={`relative p-2.5 rounded-2xl transition-all duration-200 flex items-center justify-center cursor-pointer ${
+                    escuchandoVoz
+                      ? "bg-rose-500 text-white scale-110 shadow-[0_0_24px_rgba(244,63,94,0.7)] ring-4 ring-rose-400/40"
+                      : "bg-slate-100 hover:bg-sky-50 text-slate-700 hover:text-sky-700 border border-slate-200 hover:border-sky-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-slate-700 shadow-sm hover:scale-105 active:scale-95"
+                  } disabled:opacity-40 disabled:cursor-not-allowed`}
+                >
+                  <svg className={`w-5 h-5 transition-transform ${escuchandoVoz ? "scale-110" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m-4 0h8m-4-8a3 3 0 003-3V5a3 3 0 00-6 0v6a3 3 0 003 3z" />
+                  </svg>
+                </button>
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={!user || cargandoBot || !nuevoMensaje.trim()}
-              className="bg-gradient-to-r from-[#00629B] to-[#0082B3] hover:from-[#004B75] hover:to-[#00629B] text-white px-4 py-2.5 rounded-2xl text-sm font-bold transition-all shadow-md shadow-sky-900/15 cursor-pointer disabled:bg-slate-300 dark:disabled:bg-slate-800 dark:disabled:text-slate-600 disabled:shadow-none disabled:cursor-not-allowed"
+              className="bg-gradient-to-r from-[#00629B] to-[#0082B3] hover:from-[#004B75] hover:to-[#00629B] text-white px-4 py-2.5 rounded-2xl text-sm font-bold transition-all shadow-md shadow-sky-900/15 cursor-pointer disabled:bg-slate-300 dark:disabled:bg-slate-800 dark:disabled:text-slate-600 disabled:shadow-none disabled:cursor-not-allowed shrink-0"
             >
               {cargandoBot ? '...' : 'Enviar'}
             </button>
