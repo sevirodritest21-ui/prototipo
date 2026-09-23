@@ -117,26 +117,26 @@ export default function PaginaInicio() {
           </div>
 
           {slides.length > 1 && (
-            <div className="flex items-center justify-between px-6 pb-4 pt-2 bg-black/20 backdrop-blur-xs relative z-10">
+            <div className="flex items-center justify-between px-6 py-2.5 bg-[#FFC20E] relative z-10 shadow-inner">
               <div className="flex items-center gap-2">
                 {slides.map((_, idx) => (
                   <button
                     key={idx}
                     onClick={() => setCurrentSlide(idx)}
-                    className={`h-2 rounded-full transition-all cursor-pointer ${idx === currentSlide ? "w-8 bg-[#00A3E0]" : "w-2 bg-white/40 hover:bg-white/60"}`}
+                    className={`h-2 rounded-full transition-all cursor-pointer ${idx === currentSlide ? "w-8 bg-[#00629B]" : "w-2 bg-slate-900/30 hover:bg-slate-900/50"}`}
                   />
                 ))}
               </div>
               <div className="flex gap-2">
                 <button
                   onClick={() => setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length)}
-                  className="w-7 h-7 rounded-full bg-black/20 hover:bg-black/40 text-white text-xs flex items-center justify-center transition cursor-pointer"
+                  className="w-7 h-7 rounded-full bg-slate-900/15 hover:bg-slate-900/30 text-slate-950 font-bold text-xs flex items-center justify-center transition cursor-pointer"
                 >
                   ‹
                 </button>
                 <button
                   onClick={() => setCurrentSlide((prev) => (prev + 1) % slides.length)}
-                  className="w-7 h-7 rounded-full bg-black/20 hover:bg-black/40 text-white text-xs flex items-center justify-center transition cursor-pointer"
+                  className="w-7 h-7 rounded-full bg-slate-900/15 hover:bg-slate-900/30 text-slate-950 font-bold text-xs flex items-center justify-center transition cursor-pointer"
                 >
                   ›
                 </button>
