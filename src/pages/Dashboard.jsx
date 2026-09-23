@@ -41,6 +41,16 @@ export default function Dashboard() {
   const [fechaSeleccionada, setFechaSeleccionada] = useState(hoyStr);
   const [activeTab, setActiveTab] = useState("monitoreo");
 
+  const [modalMantenimiento, setModalMantenimiento] = useState({
+    open: false,
+    cubiculo: null,
+    fecha: hoyStr,
+    motivo: "",
+    mantenimientos: [],
+    cargando: false,
+    guardando: false,
+  });
+
   const [bloqueSeleccionado, setBloqueSeleccionado] = useState(null);
   const [reservasBloque, setReservasBloque] = useState([]);
   const [cargandoBloque, setCargandoBloque] = useState(false);
@@ -328,7 +338,7 @@ export default function Dashboard() {
     if (!campusId) return;
     setCargandoCubiculosCampus(true);
     try {
-      const data = await apiGet(`/api/cubiculos?campus_id=${campusId}`);
+      const data = await apiGet(`/api/cubiculos?campus_id=${campusId}&fecha=${fechaSeleccionada}`);
       setCubiculosCampus(data || []);
     } catch {
       setCubiculosCampus([]);
@@ -346,7 +356,7 @@ export default function Dashboard() {
     if (idAUsar) {
       fetchCubiculos(idAUsar);
     }
-  }, [campusDestinoCubiculo, campusSeleccionado]);
+  }, [campusDestinoCubiculo, campusSeleccionado, fechaSeleccionada]);
 
   // Cargar datos del resumen al cambiar campus o fecha
   const fetchResumen = async () => {
@@ -570,7 +580,7 @@ export default function Dashboard() {
     if (!campusId) return;
     setCargandoCubiculosModal(true);
     try {
-      const data = await apiGet(`/api/cubiculos?campus_id=${campusId}`);
+      const data = await apiGet(`/api/cubiculos?campus_id=${campusId}&fecha=${fechaSeleccionada}`);
       setCubiculosEditModal(data || []);
     } catch {
       setCubiculosEditModal([]);
@@ -630,6 +640,93 @@ export default function Dashboard() {
         }
       }
     });
+  };
+
+  const handleAbrirModalMantenimiento = async (cb) => {
+    setModalMantenimiento({
+      open: true,
+      cubiculo: cb,
+      fecha: fechaSeleccionada || hoyStr,
+      motivo: "",
+      mantenimientos: [],
+      cargando: true,
+      guardando: false,
+    });
+    try {
+      const data = await apiGet(`/api/cubiculos/${cb.id}/mantenimientos`);
+      setModalMantenimiento((prev) => ({
+        ...prev,
+        mantenimientos: data || [],
+        cargando: false,
+      }));
+    } catch {
+      setModalMantenimiento((prev) => ({ ...prev, cargando: false }));
+    }
+  };
+
+  const handleGuardarMantenimientoCubiculo = async (e) => {
+    e.preventDefault();
+    if (!modalMantenimiento.cubiculo || !modalMantenimiento.fecha) return;
+
+    setModalMantenimiento((prev) => ({ ...prev, guardando: true }));
+    try {
+      await apiPost(`/api/cubiculos/${modalMantenimiento.cubiculo.id}/mantenimientos`, {
+        fecha: modalMantenimiento.fecha,
+        motivo: modalMantenimiento.motivo || "Mantenimiento / Fuera de servicio",
+      });
+
+      const data = await apiGet(`/api/cubiculos/${modalMantenimiento.cubiculo.id}/mantenimientos`);
+      setModalMantenimiento((prev) => ({
+        ...prev,
+        mantenimientos: data || [],
+        motivo: "",
+        guardando: false,
+      }));
+
+      const idAUsar = campusDestinoCubiculo || campusSeleccionado;
+      if (idAUsar) fetchCubiculos(idAUsar);
+      if (campusAEditar) fetchCubiculosModal(campusAEditar.id);
+      fetchResumen();
+
+      setToastNotificacion({
+        tipo: "exito",
+        texto: `Cubículo '${modalMantenimiento.cubiculo.codigo}' puesto en mantenimiento para el ${modalMantenimiento.fecha}.`,
+      });
+    } catch (err) {
+      setModalMantenimiento((prev) => ({ ...prev, guardando: false }));
+      setToastNotificacion({
+        tipo: "error",
+        texto: err.message || "Error al programar mantenimiento.",
+      });
+    }
+  };
+
+  const handleEliminarMantenimiento = async (mantenimientoId) => {
+    try {
+      await apiDelete(`/api/cubiculos/mantenimientos/${mantenimientoId}`);
+      if (modalMantenimiento.cubiculo) {
+        const data = await apiGet(`/api/cubiculos/${modalMantenimiento.cubiculo.id}/mantenimientos`);
+        setModalMantenimiento((prev) => ({
+          ...prev,
+          mantenimientos: data || [],
+        }));
+      }
+
+      const idAUsar = campusDestinoCubiculo || campusSeleccionado;
+      if (idAUsar) fetchCubiculos(idAUsar);
+      if (campusAEditar) fetchCubiculosModal(campusAEditar.id);
+      fetchResumen();
+
+      setToastNotificacion({
+        tipo: "exito",
+        texto: "Mantenimiento cancelado. El cubículo vuelve a estar disponible en esa fecha.",
+      });
+    } catch (err) {
+      setToastNotificacion({
+        tipo: "error",
+        texto: err.message || "Error al eliminar mantenimiento.",
+      });
+    }
   };
 
   const handleCrearCubiculoModal = async (e) => {
@@ -1221,9 +1318,30 @@ export default function Dashboard() {
                         ) : (
                           <div
                             key={cb.id}
-                            className="group flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 bg-white border border-slate-200 hover:border-[#00629B]/40 rounded-xl text-xs font-semibold text-slate-800 shadow-xs transition-all"
+                            className={`group flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 rounded-xl text-xs font-semibold shadow-xs transition-all ${
+                              cb.en_mantenimiento
+                                ? "bg-amber-50/90 border border-amber-300 text-amber-900"
+                                : "bg-white border border-slate-200 hover:border-[#00629B]/40 text-slate-800"
+                            }`}
                           >
-                            <span>🚪 {cb.codigo}</span>
+                            <span>{cb.en_mantenimiento ? "⚠️" : "🚪"} {cb.codigo}</span>
+                            {cb.en_mantenimiento && (
+                              <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-200/80 text-amber-800 px-1.5 py-0.5 rounded">
+                                Mantenimiento
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleAbrirModalMantenimiento(cb)}
+                              className={`p-1 rounded-lg cursor-pointer transition-colors ${
+                                cb.en_mantenimiento
+                                  ? "text-amber-600 hover:text-amber-800 hover:bg-amber-100"
+                                  : "text-slate-400 hover:text-amber-600 hover:bg-amber-50"
+                              }`}
+                              title="Gestionar días de mantenimiento"
+                            >
+                              🛠️
+                            </button>
                             <button
                               type="button"
                               onClick={() => {
@@ -1428,13 +1546,36 @@ export default function Dashboard() {
                               </button>
                             </div>
                           ) : (
-                            <span className="font-semibold text-xs text-slate-800 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200">
-                              🚪 {cb.codigo}
-                            </span>
+                            cb.en_mantenimiento ? (
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-semibold text-xs text-amber-900 bg-amber-50 border border-amber-300 px-2.5 py-1 rounded-lg">
+                                  ⚠️ {cb.codigo}
+                                </span>
+                                <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded border border-amber-200 uppercase">
+                                  Mantenimiento
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="font-semibold text-xs text-slate-800 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200">
+                                🚪 {cb.codigo}
+                              </span>
+                            )
                           )}
 
                           {editingCubiculoId !== cb.id && (
                             <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleAbrirModalMantenimiento(cb)}
+                                className={`w-7 h-7 flex items-center justify-center rounded-lg border text-xs transition-all cursor-pointer ${
+                                  cb.en_mantenimiento
+                                    ? "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                                    : "border-slate-200 bg-white text-slate-600 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200"
+                                }`}
+                                title="Gestionar días de mantenimiento"
+                              >
+                                🛠️
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => {
@@ -2876,6 +3017,125 @@ export default function Dashboard() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {modalMantenimiento.open && modalMantenimiento.cubiculo && (
+          <div className={OVERLAY}>
+            <div className={`${MODAL} max-w-lg p-6 space-y-5 animate-slideUp`}>
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-lg border border-amber-200">
+                    🛠️
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">
+                      Mantenimiento: Cubículo {modalMantenimiento.cubiculo.codigo}
+                    </h3>
+                    <p className="text-[11px] text-slate-500">
+                      Inhabilita este espacio en días puntuales por reparaciones o limpieza.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setModalMantenimiento((prev) => ({ ...prev, open: false }))}
+                  className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 text-xs cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleGuardarMantenimientoCubiculo} className="space-y-3.5 bg-slate-50/70 p-4 rounded-xl border border-slate-200/80">
+                <p className="text-xs font-bold text-slate-800">
+                  📅 Programar fecha fuera de servicio
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className={LABEL}>Fecha</label>
+                    <input
+                      type="date"
+                      required
+                      min={hoyStr}
+                      value={modalMantenimiento.fecha}
+                      onChange={(e) => setModalMantenimiento((prev) => ({ ...prev, fecha: e.target.value }))}
+                      className={INPUT}
+                    />
+                  </div>
+                  <div>
+                    <label className={LABEL}>Motivo</label>
+                    <input
+                      type="text"
+                      placeholder="ej: Limpieza profunda, pintura..."
+                      value={modalMantenimiento.motivo}
+                      onChange={(e) => setModalMantenimiento((prev) => ({ ...prev, motivo: e.target.value }))}
+                      className={INPUT}
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={modalMantenimiento.guardando || !modalMantenimiento.fecha}
+                    className={`${BTN_PRIMARY} text-xs py-2 px-4`}
+                  >
+                    {modalMantenimiento.guardando ? "Guardando..." : "➕ Asignar mantenimiento"}
+                  </button>
+                </div>
+              </form>
+
+              <div className="space-y-2.5">
+                <p className="text-xs font-bold text-slate-800">
+                  📋 Fechas programadas ({modalMantenimiento.mantenimientos.length})
+                </p>
+
+                {modalMantenimiento.cargando ? (
+                  <div className="py-6 text-center text-xs text-slate-400 animate-pulse">
+                    Cargando fechas de mantenimiento...
+                  </div>
+                ) : modalMantenimiento.mantenimientos.length === 0 ? (
+                  <div className="py-5 text-center text-xs text-slate-500 bg-slate-50/60 rounded-xl border border-dashed border-slate-200">
+                    No hay mantenimientos programados para este cubículo.
+                  </div>
+                ) : (
+                  <div className="max-h-52 overflow-y-auto space-y-2 pr-1">
+                    {modalMantenimiento.mantenimientos.map((m) => (
+                      <div
+                        key={m.id}
+                        className="flex items-center justify-between gap-3 p-3 rounded-xl border border-amber-200/80 bg-amber-50/50 text-xs shadow-xs"
+                      >
+                        <div className="min-w-0">
+                          <p className="font-bold text-slate-800">
+                            🗓️ {m.fecha}
+                          </p>
+                          <p className="text-[11px] text-slate-600 truncate">
+                            {m.motivo || "Mantenimiento / Fuera de servicio"}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleEliminarMantenimiento(m.id)}
+                          className="shrink-0 px-2.5 py-1.5 rounded-lg border border-rose-200 bg-white hover:bg-rose-50 text-rose-600 font-semibold text-[11px] cursor-pointer transition-colors"
+                          title="Habilitar cubículo en esta fecha"
+                        >
+                          Habilitar ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-2 border-t border-slate-100 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setModalMantenimiento((prev) => ({ ...prev, open: false }))}
+                  className="px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-all cursor-pointer"
+                >
+                  Cerrar
+                </button>
+              </div>
             </div>
           </div>
         )}

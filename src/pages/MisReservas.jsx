@@ -340,7 +340,7 @@ export default function MisReservas() {
 
   return (
     <div className="min-h-screen bg-[#F4F6F9] pt-16 pb-20 font-sans text-slate-800">
-      
+
       <header className="bg-[#00629B] text-white shadow-md">
         <div className="mx-auto max-w-5xl px-5 py-9 sm:py-11">
           <div className="flex flex-wrap items-start justify-between gap-6">
@@ -438,7 +438,7 @@ export default function MisReservas() {
           </div>
         ) : (
           <div className="space-y-8">
-            
+
             <div>
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
@@ -474,11 +474,10 @@ export default function MisReservas() {
                         </div>
 
                         <div className="flex items-center gap-2">
-                          <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-0.5 text-[11px] font-semibold ${
-                            res.es_titular === false
+                          <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-0.5 text-[11px] font-semibold ${res.es_titular === false
                               ? "border-sky-400/30 bg-sky-500/20 text-sky-200"
                               : "border-emerald-400/30 bg-emerald-500/20 text-emerald-200"
-                          }`}>
+                            }`}>
                             <span className={`h-1.5 w-1.5 rounded-full ${res.es_titular === false ? "bg-sky-300" : "bg-emerald-400 animate-ping"}`} />
                             {res.es_titular === false ? "Acompañante" : "Pase activo"}
                           </span>
@@ -642,13 +641,12 @@ export default function MisReservas() {
                           <span className="text-[11px] px-2 py-0.5 rounded font-mono bg-slate-100 text-slate-700 font-medium border border-slate-200">
                             {res.cubiculo_codigo}
                           </span>
-                          <span className={`text-[10px] px-2 py-0.5 rounded font-semibold uppercase ${
-                            res.estado === "inasistencia"
+                          <span className={`text-[10px] px-2 py-0.5 rounded font-semibold uppercase ${res.estado === "inasistencia"
                               ? "bg-rose-50 text-rose-800 border border-rose-200"
                               : res.estado === "cancelada"
-                              ? "bg-amber-50 text-amber-800 border border-amber-200"
-                              : "bg-slate-100 text-slate-600 border border-slate-200"
-                          }`}>
+                                ? "bg-amber-50 text-amber-800 border border-amber-200"
+                                : "bg-slate-100 text-slate-600 border border-slate-200"
+                            }`}>
                             {res.estado === "inasistencia" ? "Inasistencia" : res.estado || "Finalizada"}
                           </span>
                         </div>
@@ -682,11 +680,10 @@ export default function MisReservas() {
                             key={num}
                             type="button"
                             onClick={() => cambiarPaginaHistorial(num)}
-                            className={`min-w-[32px] h-8 rounded-md text-[12px] font-medium transition ${
-                              num === paginacionHistorial.pagina
+                            className={`min-w-[32px] h-8 rounded-md text-[12px] font-medium transition ${num === paginacionHistorial.pagina
                                 ? "bg-[#00629B] text-white shadow-xs"
                                 : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                            }`}
+                              }`}
                           >
                             {num}
                           </button>
@@ -823,8 +820,7 @@ export default function MisReservas() {
                           type="button"
                           disabled={deshabilitado}
                           onClick={() => !deshabilitado && setEditFormData((prev) => ({ ...prev, hora: b.hora }))}
-                          className={`flex flex-col justify-between rounded-lg border p-2.5 text-left text-[13px] transition-all ${
-                            deshabilitado
+                          className={`flex flex-col justify-between rounded-lg border p-2.5 text-left text-[13px] transition-all ${deshabilitado
                               ? "cursor-not-allowed border-slate-200 bg-slate-100/70 text-slate-400 opacity-60"
                               : esSeleccionado
                                 ? "cursor-pointer border-[#00629B] bg-[#00629B] text-white shadow-sm"
@@ -885,11 +881,10 @@ export default function MisReservas() {
                               placeholder="RUT (ej: 12345678-9)"
                               value={ac.rut || ""}
                               onChange={(e) => handleAcompananteChange(idx, "rut", e.target.value)}
-                              className={`w-32 px-2.5 py-1.5 bg-white border rounded text-xs font-medium focus:outline-none ${
-                                esMismoTitular || esDuplicado
+                              className={`w-32 px-2.5 py-1.5 bg-white border rounded text-xs font-medium focus:outline-none ${esMismoTitular || esDuplicado
                                   ? "border-rose-400 bg-rose-50/40 text-rose-900 focus:border-rose-500"
                                   : "border-slate-300 focus:border-[#00629B]"
-                              }`}
+                                }`}
                             />
                             <button
                               type="button"
@@ -941,7 +936,7 @@ export default function MisReservas() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-[2px] animate-fadeIn">
           <div className="w-full max-w-md overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl">
             <div className="h-1 bg-rose-600" />
-            
+
             <div className="p-6 space-y-4">
               <div className="flex items-start gap-3">
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-rose-50 text-rose-700">
@@ -1024,11 +1019,10 @@ export default function MisReservas() {
       )}
 
       {toastNotificacion.texto && (
-        <div className={`fixed bottom-6 right-6 z-50 flex max-w-sm items-start gap-3 rounded-md border-l-[3px] bg-white px-4 py-3.5 text-[13px] shadow-xl animate-slideUp ${
-          toastNotificacion.tipo === "error"
+        <div className={`fixed bottom-6 right-6 z-50 flex max-w-sm items-start gap-3 rounded-md border-l-[3px] bg-white px-4 py-3.5 text-[13px] shadow-xl animate-slideUp ${toastNotificacion.tipo === "error"
             ? "border-l-rose-600 border border-slate-200"
             : "border-l-emerald-600 border border-slate-200"
-        }`}>
+          }`}>
           <span className={toastNotificacion.tipo === "error" ? "text-rose-600" : "text-emerald-600"}>
             {toastNotificacion.tipo === "error" ? <IconAlert /> : <IconCheck />}
           </span>

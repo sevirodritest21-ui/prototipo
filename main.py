@@ -354,6 +354,17 @@ async def startup():
                 creado_por VARCHAR(100) DEFAULT 'Administrador',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE TABLE IF NOT EXISTS cubiculos_mantenimiento (
+                id SERIAL PRIMARY KEY,
+                cubiculo_id INT NOT NULL REFERENCES cubiculos(id) ON DELETE CASCADE,
+                fecha DATE NOT NULL,
+                motivo VARCHAR(255) DEFAULT 'Mantenimiento / Fuera de servicio',
+                creado_por VARCHAR(100) DEFAULT 'Administrador',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (cubiculo_id, fecha)
+            );
+            CREATE INDEX IF NOT EXISTS idx_cubiculos_mantenimiento_fecha ON cubiculos_mantenimiento (fecha);
         """)
 
 
@@ -753,7 +764,13 @@ class CrearCubiculoRequest(BaseModel):
 
 
 class ActualizarCubiculoRequest(BaseModel):
-    codigo: str
+    codigo: Optional[str] = None
+    estado: Optional[str] = None
+
+
+class CrearMantenimientoCubiculoRequest(BaseModel):
+    fecha: str
+    motivo: Optional[str] = "Mantenimiento / Fuera de servicio"
 
 
 class LoginRequest(BaseModel):
@@ -1055,14 +1072,55 @@ async def get_me(current_user: dict = Depends(get_current_user)):
 # --- Endpoints de Gestión de Cubículos ---
 
 @app.get("/api/cubiculos")
-async def obtener_cubiculos(campus_id: Optional[int] = None):
+async def obtener_cubiculos(campus_id: Optional[int] = None, fecha: Optional[str] = None):
+    fecha_dt = None
+    if fecha:
+        try:
+            fecha_dt = datetime.strptime(fecha.strip(), "%Y-%m-%d").date()
+        except ValueError:
+            pass
+
     async with pool.acquire() as conn:
-        if campus_id:
-            filas = await conn.fetch(
-                "SELECT id, codigo, campus_id, estado FROM cubiculos WHERE campus_id = $1 ORDER BY codigo ASC", campus_id
-            )
+        if fecha_dt:
+            if campus_id:
+                filas = await conn.fetch(
+                    """
+                    SELECT cb.id, cb.codigo, cb.campus_id, cb.estado,
+                           cm.id as mantenimiento_id,
+                           cm.motivo as mantenimiento_motivo,
+                           cm.fecha::text as mantenimiento_fecha,
+                           (cm.id IS NOT NULL OR cb.estado = 'mantenimiento') as en_mantenimiento
+                    FROM cubiculos cb
+                    LEFT JOIN cubiculos_mantenimiento cm 
+                      ON cb.id = cm.cubiculo_id AND cm.fecha = $2
+                    WHERE cb.campus_id = $1
+                    ORDER BY cb.codigo ASC
+                    """,
+                    campus_id, fecha_dt
+                )
+            else:
+                filas = await conn.fetch(
+                    """
+                    SELECT cb.id, cb.codigo, cb.campus_id, cb.estado,
+                           cm.id as mantenimiento_id,
+                           cm.motivo as mantenimiento_motivo,
+                           cm.fecha::text as mantenimiento_fecha,
+                           (cm.id IS NOT NULL OR cb.estado = 'mantenimiento') as en_mantenimiento
+                    FROM cubiculos cb
+                    LEFT JOIN cubiculos_mantenimiento cm 
+                      ON cb.id = cm.cubiculo_id AND cm.fecha = $1
+                    ORDER BY cb.campus_id, cb.codigo ASC
+                    """,
+                    fecha_dt
+                )
         else:
-            filas = await conn.fetch("SELECT id, codigo, campus_id, estado FROM cubiculos ORDER BY campus_id, codigo ASC")
+            if campus_id:
+                filas = await conn.fetch(
+                    "SELECT id, codigo, campus_id, estado FROM cubiculos WHERE campus_id = $1 ORDER BY codigo ASC",
+                    campus_id
+                )
+            else:
+                filas = await conn.fetch("SELECT id, codigo, campus_id, estado FROM cubiculos ORDER BY campus_id, codigo ASC")
         return [dict(f) for f in filas]
 
 
@@ -1106,25 +1164,33 @@ async def actualizar_cubiculo(cubiculo_id: int, data: ActualizarCubiculoRequest,
     if current_user.get("rol") != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
 
-    codigo_clean = data.codigo.strip().upper()
     async with pool.acquire() as conn:
-        existente = await conn.fetchval(
-            "SELECT id FROM cubiculos WHERE UPPER(codigo) = $1 AND id != $2",
-            codigo_clean, cubiculo_id
-        )
-        if existente:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Ya existe un cubículo registrado con el código '{codigo_clean}'."
+        row_cub = await conn.fetchrow("SELECT id, codigo, campus_id, estado FROM cubiculos WHERE id = $1", cubiculo_id)
+        if not row_cub:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cubículo no encontrado.")
+
+        codigo_clean = data.codigo.strip().upper() if data.codigo else row_cub["codigo"]
+        estado_clean = data.estado.strip().lower() if data.estado else (row_cub["estado"] or "disponible")
+
+        if estado_clean not in ["disponible", "mantenimiento"]:
+            estado_clean = "disponible"
+
+        if data.codigo and codigo_clean != row_cub["codigo"]:
+            existente = await conn.fetchval(
+                "SELECT id FROM cubiculos WHERE UPPER(codigo) = $1 AND id != $2",
+                codigo_clean, cubiculo_id
             )
+            if existente:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Ya existe un cubículo registrado con el código '{codigo_clean}'."
+                )
 
         try:
             row = await conn.fetchrow(
-                "UPDATE cubiculos SET codigo = $1 WHERE id = $2 RETURNING id, codigo, campus_id, estado",
-                codigo_clean, cubiculo_id
+                "UPDATE cubiculos SET codigo = $1, estado = $2 WHERE id = $3 RETURNING id, codigo, campus_id, estado",
+                codigo_clean, estado_clean, cubiculo_id
             )
-            if not row:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cubículo no encontrado.")
             await invalidar_caches_disponibilidad()
             return dict(row)
         except asyncpg.UniqueViolationError:
@@ -1152,6 +1218,117 @@ async def eliminar_cubiculo(cubiculo_id: int, current_user: dict = Depends(get_c
         )
         await invalidar_caches_disponibilidad()
         return {"mensaje": "Cubículo eliminado exitosamente", "campus_id": campus_id}
+
+
+@app.get("/api/cubiculos/{cubiculo_id}/mantenimientos")
+async def obtener_mantenimientos_cubiculo(cubiculo_id: int):
+    async with pool.acquire() as conn:
+        filas = await conn.fetch(
+            """
+            SELECT id, cubiculo_id, fecha::text as fecha, motivo, creado_por, created_at::text as created_at
+            FROM cubiculos_mantenimiento
+            WHERE cubiculo_id = $1
+            ORDER BY fecha ASC
+            """,
+            cubiculo_id
+        )
+        return [dict(f) for f in filas]
+
+
+@app.post("/api/cubiculos/{cubiculo_id}/mantenimientos", status_code=status.HTTP_201_CREATED)
+async def programar_mantenimiento_cubiculo(
+    cubiculo_id: int, 
+    data: CrearMantenimientoCubiculoRequest, 
+    current_user: dict = Depends(get_current_user)
+):
+    if current_user.get("rol") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
+
+    try:
+        fecha_dt = datetime.strptime(data.fecha.strip(), "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Formato de fecha inválido. Use YYYY-MM-DD.")
+
+    motivo = (data.motivo or "Mantenimiento / Fuera de servicio").strip()
+    admin_nombre = current_user.get("nombre") or "Administrador"
+
+    async with pool.acquire() as conn:
+        cub = await conn.fetchrow("SELECT id, codigo, campus_id FROM cubiculos WHERE id = $1", cubiculo_id)
+        if not cub:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cubículo no encontrado.")
+
+        existente = await conn.fetchval(
+            "SELECT id FROM cubiculos_mantenimiento WHERE cubiculo_id = $1 AND fecha = $2",
+            cubiculo_id, fecha_dt
+        )
+        if existente:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"El cubículo '{cub['codigo']}' ya tiene mantenimiento programado para el día {data.fecha}."
+            )
+
+        reservas_activas = await conn.fetch(
+            "SELECT id, nombre, hora FROM reservas WHERE cubiculo_id = $1 AND fecha = $2",
+            cubiculo_id, fecha_dt
+        )
+        if reservas_activas:
+            for res in reservas_activas:
+                otro_cub = await conn.fetchrow(
+                    """
+                    SELECT cb.id, cb.codigo 
+                    FROM cubiculos cb
+                    WHERE cb.campus_id = $1 
+                      AND cb.id != $2
+                      AND (cb.estado IS NULL OR cb.estado = 'disponible')
+                      AND cb.id NOT IN (
+                          SELECT cm.cubiculo_id FROM cubiculos_mantenimiento cm WHERE cm.fecha = $3
+                      )
+                      AND cb.id NOT IN (
+                          SELECT r.cubiculo_id 
+                          FROM reservas r 
+                          WHERE r.campus_id = $1 AND r.fecha = $3 AND r.hora = $4 AND r.cubiculo_id IS NOT NULL AND r.id != $5
+                      )
+                    ORDER BY cb.codigo ASC
+                    LIMIT 1
+                    """,
+                    cub["campus_id"], cubiculo_id, fecha_dt, res["hora"], res["id"]
+                )
+                if otro_cub:
+                    await conn.execute("UPDATE reservas SET cubiculo_id = $1 WHERE id = $2", otro_cub["id"], res["id"])
+                else:
+                    hora_str = res["hora"].strftime("%H:%M") if hasattr(res["hora"], "strftime") else str(res["hora"])[:5]
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"No se puede programar mantenimiento para el {data.fecha}: la reserva de '{res['nombre']}' a las {hora_str} hrs está asignada a este cubículo y no hay cubículos libres alternativos."
+                    )
+
+        row = await conn.fetchrow(
+            """
+            INSERT INTO cubiculos_mantenimiento (cubiculo_id, fecha, motivo, creado_por)
+            VALUES ($1, $2, $3, $4)
+            RETURNING id, cubiculo_id, fecha::text as fecha, motivo, creado_por, created_at::text as created_at
+            """,
+            cubiculo_id, fecha_dt, motivo, admin_nombre
+        )
+        await invalidar_caches_disponibilidad()
+        return dict(row)
+
+
+@app.delete("/api/cubiculos/mantenimientos/{mantenimiento_id}")
+async def eliminar_mantenimiento_cubiculo(mantenimiento_id: int, current_user: dict = Depends(get_current_user)):
+    if current_user.get("rol") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
+
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "DELETE FROM cubiculos_mantenimiento WHERE id = $1 RETURNING id, cubiculo_id, fecha::text as fecha",
+            mantenimiento_id
+        )
+        if not row:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Registro de mantenimiento no encontrado.")
+        
+        await invalidar_caches_disponibilidad()
+        return {"mensaje": "Mantenimiento eliminado exitosamente", "mantenimiento": dict(row)}
 
 
 @app.post("/api/reservas/{reserva_id}/inasistencia")
@@ -1635,7 +1812,17 @@ async def obtener_resumen_dashboard(campus_id: Optional[int] = None, fecha: Opti
                     }
                 campus_id = first_campus["id"]
 
-            total_cub_bd = await conn.fetchval("SELECT COUNT(*) FROM cubiculos WHERE campus_id = $1", campus_id)
+            total_cub_bd = await conn.fetchval(
+                """
+                SELECT COUNT(*) FROM cubiculos cb
+                WHERE cb.campus_id = $1 
+                  AND (cb.estado IS NULL OR cb.estado = 'disponible')
+                  AND cb.id NOT IN (
+                      SELECT cm.cubiculo_id FROM cubiculos_mantenimiento cm WHERE cm.fecha = $2
+                  )
+                """,
+                campus_id, target_fecha
+            )
             if not total_cub_bd or total_cub_bd == 0:
                 row_c = await conn.fetchrow("SELECT cubiculas_fisicos FROM campus WHERE id = $1", campus_id)
                 total_cub_bd = row_c["cubiculas_fisicos"] if row_c else 10
@@ -1768,7 +1955,17 @@ async def consultar_disponibilidad(campus_id: int, fecha: str, request: Request)
                     "bloques": resultado
                 }
 
-            capacidad_campus = await conn.fetchval("SELECT COUNT(*) FROM cubiculos WHERE campus_id = $1", campus_id)
+            capacidad_campus = await conn.fetchval(
+                """
+                SELECT COUNT(*) FROM cubiculos cb
+                WHERE cb.campus_id = $1 
+                  AND (cb.estado IS NULL OR cb.estado = 'disponible')
+                  AND cb.id NOT IN (
+                      SELECT cm.cubiculo_id FROM cubiculos_mantenimiento cm WHERE cm.fecha = $2
+                  )
+                """,
+                campus_id, fecha_parsed
+            )
             if not capacidad_campus or capacidad_campus == 0:
                 row_c = await conn.fetchrow("SELECT cubiculas_fisicos FROM campus WHERE id = $1", campus_id)
                 capacidad_campus = row_c["cubiculas_fisicos"] if row_c else 10
@@ -2089,6 +2286,10 @@ async def crear_reserva(
                     SELECT cb.id, cb.codigo 
                     FROM cubiculos cb
                     WHERE cb.campus_id = $1 
+                      AND (cb.estado IS NULL OR cb.estado = 'disponible')
+                      AND cb.id NOT IN (
+                          SELECT cm.cubiculo_id FROM cubiculos_mantenimiento cm WHERE cm.fecha = $2
+                      )
                       AND cb.id NOT IN (
                           SELECT r.cubiculo_id 
                           FROM reservas r 
@@ -2751,6 +2952,10 @@ async def procesar_edicion_reserva(
                 SELECT cb.id, cb.codigo 
                 FROM cubiculos cb
                 WHERE cb.campus_id = $1 
+                  AND (cb.estado IS NULL OR cb.estado = 'disponible')
+                  AND cb.id NOT IN (
+                      SELECT cm.cubiculo_id FROM cubiculos_mantenimiento cm WHERE cm.fecha = $2
+                  )
                   AND cb.id NOT IN (
                       SELECT r.cubiculo_id 
                       FROM reservas r 
