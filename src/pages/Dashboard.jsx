@@ -117,7 +117,44 @@ export default function Dashboard() {
     if (activeTab === "cms" && cmsAnuncios.length === 0 && cmsTarjetas.length === 0) {
       fetchCMS();
     }
+    if (activeTab === "sanciones") {
+      fetchSancionados();
+    }
   }, [activeTab]);
+
+  const [sancionados, setSancionados] = useState([]);
+  const [cargandoSancionados, setCargandoSancionados] = useState(false);
+  const [busquedaSancionados, setBusquedaSancionados] = useState("");
+
+  const fetchSancionados = async () => {
+    setCargandoSancionados(true);
+    try {
+      const data = await apiGet("/api/admin/sancionados");
+      setSancionados(data || []);
+    } catch {
+      setSancionados([]);
+    } finally {
+      setCargandoSancionados(false);
+    }
+  };
+
+  const handleLevantarSancion = (estudiante) => {
+    setConfirmModal({
+      open: true,
+      titulo: "⚖️ Levantar Sanción Disciplinaria",
+      mensaje: `¿Estás seguro de que deseas levantar la sanción y justificar las inasistencias de ${estudiante.nombre} (${estudiante.rut})? El estudiante podrá volver a reservar inmediatamente.`,
+      onConfirm: async () => {
+        try {
+          const resp = await apiPost("/api/admin/sancionados/levantar", { rut: estudiante.rut });
+          setToastNotificacion({ tipo: "exito", texto: resp.mensaje || "Sanción levantada con éxito." });
+          await fetchSancionados();
+          if (activeTab === "historial") fetchHistorial();
+        } catch (err) {
+          setToastNotificacion({ tipo: "error", texto: err.message || "Error al levantar la sanción." });
+        }
+      },
+    });
+  };
 
   const [metricas, setMetricas] = useState(null);
   const [cargandoMetricas, setCargandoMetricas] = useState(false);
@@ -1009,6 +1046,7 @@ export default function Dashboard() {
               {[
                 { id: "monitoreo", label: "Monitoreo y Bloques", icon: "📊" },
                 { id: "metricas", label: "Métricas y Análisis", icon: "📈" },
+                { id: "sanciones", label: "Sanciones y Disciplina", icon: "⚖️" },
                 { id: "calendario", label: "Calendario y Bloqueos", icon: "📅" },
                 { id: "sedes", label: "Sedes y Cubículos", icon: "🏛️" },
                 { id: "cms", label: "Portal Inicio (CMS)", icon: "🖼️" },
@@ -1023,6 +1061,7 @@ export default function Dashboard() {
                       if (tab.id === "cms") fetchCMS();
                       if (tab.id === "calendario") fetchDiasBloqueados();
                       if (tab.id === "historial") fetchHistorial();
+                      if (tab.id === "sanciones") fetchSancionados();
                     }}
                     className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${isSelected
                       ? "bg-white text-[#00629B] font-bold shadow-[0_2px_8px_-2px_rgba(15,23,42,0.18)] ring-1 ring-slate-200/70"
@@ -2654,6 +2693,179 @@ export default function Dashboard() {
                   Cerrar gráficos
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {(activeTab === "sanciones") && (
+          <div className={`${CARD} p-6 md:p-8 mb-8 space-y-7 animate-fadeIn`}>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+              <div className="space-y-1.5">
+                <span className={EYEBROW}>⚖️ Asistencia y Disciplina</span>
+                <h2 className={SECTION_TITLE}>Estudiantes Sancionados y Penalizaciones</h2>
+                <p className="text-xs text-slate-500 max-w-2xl leading-relaxed">
+                  Supervisa a los estudiantes con inasistencias acumuladas y suspensiones temporales activas. Puedes levantar sanciones justificando sus inasistencias directamente.
+                </p>
+              </div>
+              <button onClick={fetchSancionados} className={BTN_GHOST}>
+                🔄 Actualizar
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="p-4 rounded-2xl bg-rose-50/70 border border-rose-200/80 shadow-xs flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center text-xl shrink-0">
+                  🚫
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold text-rose-600 uppercase tracking-wider">Cuentas Suspendidas</p>
+                  <p className="text-2xl font-extrabold text-rose-950">
+                    {sancionados.filter((s) => s.suspendido).length}
+                  </p>
+                  <p className="text-[10px] text-rose-700">Bloqueados temporalmente (≥ 2 inasistencias)</p>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200/80 shadow-xs flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center text-xl shrink-0">
+                  ⚠️
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold text-amber-700 uppercase tracking-wider">En Advertencia</p>
+                  <p className="text-2xl font-extrabold text-amber-950">
+                    {sancionados.filter((s) => !s.suspendido).length}
+                  </p>
+                  <p className="text-[10px] text-amber-800">1 inasistencia registrada</p>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-slate-50/80 border border-slate-200/80 shadow-xs flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-xl bg-slate-200/70 text-slate-700 flex items-center justify-center text-xl shrink-0">
+                  👥
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold text-slate-600 uppercase tracking-wider">Total Con Inasistencias</p>
+                  <p className="text-2xl font-extrabold text-slate-900">
+                    {sancionados.length}
+                  </p>
+                  <p className="text-[10px] text-slate-500">Estudiantes en el registro disciplinario</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              <div className="relative flex-1 max-w-md">
+                <input
+                  type="text"
+                  placeholder="Buscar estudiante por nombre o RUT..."
+                  value={busquedaSancionados}
+                  onChange={(e) => setBusquedaSancionados(e.target.value)}
+                  className={`${INPUT} pl-9`}
+                />
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">
+                  🔍
+                </span>
+                {busquedaSancionados && (
+                  <button
+                    type="button"
+                    onClick={() => setBusquedaSancionados("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {cargandoSancionados ? (
+                <div className="py-16 text-center text-xs text-[#00629B] font-medium animate-pulse">
+                  Cargando estudiantes sancionados...
+                </div>
+              ) : sancionados.length === 0 ? (
+                <div className="py-14 text-center border border-dashed border-slate-200 rounded-2xl bg-slate-50/60 text-xs text-slate-500 space-y-2">
+                  <span className="text-3xl block">🎉</span>
+                  <p className="font-bold text-slate-700">No hay estudiantes sancionados</p>
+                  <p className="text-[11px] text-slate-400">Todos los estudiantes cuentan con su historial de asistencia al día.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-xs">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-100 bg-slate-50/75 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                        <th className="py-3 px-4">Estudiante</th>
+                        <th className="py-3 px-4">RUT</th>
+                        <th className="py-3 px-4 text-center">Inasistencias</th>
+                        <th className="py-3 px-4">Estado Disciplinario</th>
+                        <th className="py-3 px-4">Última Inasistencia</th>
+                        <th className="py-3 px-4 text-right">Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {sancionados
+                        .filter((s) => {
+                          if (!busquedaSancionados.trim()) return true;
+                          const q = busquedaSancionados.toLowerCase();
+                          return (
+                            (s.nombre || "").toLowerCase().includes(q) ||
+                            (s.rut || "").toLowerCase().includes(q)
+                          );
+                        })
+                        .map((est) => (
+                          <tr key={est.rut} className="hover:bg-slate-50/70 transition-colors">
+                            <td className="py-3.5 px-4 font-bold text-slate-900">
+                              {est.nombre}
+                            </td>
+                            <td className="py-3.5 px-4 font-mono text-[11px] text-slate-600">
+                              {est.rut}
+                            </td>
+                            <td className="py-3.5 px-4 text-center">
+                              <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                                est.suspendido
+                                  ? "bg-rose-100 text-rose-800"
+                                  : "bg-amber-100 text-amber-800"
+                              }`}>
+                                {est.total_inasistencias}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              {est.suspendido ? (
+                                <div className="space-y-0.5">
+                                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-rose-50 text-rose-700 border border-rose-200">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+                                    Suspendido ({est.dias_restantes}d restantes)
+                                  </span>
+                                  {est.fecha_desbloqueo && (
+                                    <p className="text-[10px] text-slate-500">
+                                      Hasta el {est.fecha_desbloqueo}
+                                    </p>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-200">
+                                  ⚠️ Advertencia (1 falta)
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-3.5 px-4 text-slate-500 text-[11px]">
+                              {est.ultima_inasistencia || "Reciente"}
+                            </td>
+                            <td className="py-3.5 px-4 text-right">
+                              <button
+                                type="button"
+                                onClick={() => handleLevantarSancion(est)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-semibold text-xs cursor-pointer shadow-xs transition-all"
+                                title="Justificar inasistencias y levantar sanción"
+                              >
+                                <span>🕊️</span> Quitar sanción
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         )}

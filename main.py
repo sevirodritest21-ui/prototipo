@@ -773,6 +773,11 @@ class CrearMantenimientoCubiculoRequest(BaseModel):
     motivo: Optional[str] = "Mantenimiento / Fuera de servicio"
 
 
+class LevantarSancionRequest(BaseModel):
+    rut: str
+    motivo: Optional[str] = "Sanción perdonada / justificada por administrador"
+
+
 class LoginRequest(BaseModel):
     email: str
     password: str
@@ -1430,6 +1435,69 @@ async def consultar_sancion_usuario(
 
     async with pool.acquire() as conn:
         return await verificar_sancion_usuario(conn, rut_target)
+
+
+@app.get("/api/admin/sancionados")
+async def listar_estudiantes_sancionados(current_user: dict = Depends(get_current_user)):
+    if current_user.get("rol") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
+
+    async with pool.acquire() as conn:
+        filas = await conn.fetch(
+            """
+            SELECT 
+                h.rut,
+                MAX(h.nombre) as nombre,
+                COUNT(h.id) as total_inasistencias,
+                MAX(h.fecha_registro) as ultima_fecha_registro,
+                MAX(h.fecha) as ultima_fecha
+            FROM historial_reservas h
+            WHERE h.estado = 'inasistencia'
+            GROUP BY h.rut
+            ORDER BY COUNT(h.id) DESC, MAX(h.fecha_registro) DESC
+            """
+        )
+
+        resultado = []
+        for f in filas:
+            sancion = await verificar_sancion_usuario(conn, f["rut"])
+            resultado.append({
+                "rut": f["rut"],
+                "nombre": f["nombre"],
+                "total_inasistencias": sancion.get("total_inasistencias", f["total_inasistencias"]),
+                "suspendido": sancion.get("suspendido", False),
+                "dias_restantes": sancion.get("dias_restantes", 0),
+                "fecha_desbloqueo": sancion.get("fecha_desbloqueo"),
+                "ultima_inasistencia": str(f["ultima_fecha"]),
+                "mensaje": sancion.get("mensaje", "")
+            })
+
+        return resultado
+
+
+@app.post("/api/admin/sancionados/levantar")
+async def levantar_sancion_estudiante(data: LevantarSancionRequest, current_user: dict = Depends(get_current_user)):
+    if current_user.get("rol") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
+
+    rut_limpio = str(data.rut).replace(".", "").replace("-", "").replace(" ", "").upper().strip()
+    if not rut_limpio:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="RUT inválido.")
+
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE historial_reservas 
+            SET estado = 'justificada'
+            WHERE REPLACE(REPLACE(REPLACE(UPPER(rut), '.', ''), '-', ''), ' ', '') = $1 
+              AND estado = 'inasistencia'
+            """,
+            rut_limpio
+        )
+        return {
+            "mensaje": f"Sanción levantada con éxito para el RUT {data.rut}. Las inasistencias acumuladas han sido justificadas.",
+            "rut": data.rut
+        }
 
 
 @app.get("/api/cms/anuncios")
