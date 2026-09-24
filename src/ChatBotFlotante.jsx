@@ -2,22 +2,48 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { apiPost, API_URL } from './services/api';
-
-// Importar el logo desde la carpeta assets
 import logoUCT from './assets/logoredondo.png';
-
-// Generar sessionId determinista por RUT sin persistencia cruzada
 const obtenerSessionId = (rut) => {
   if (!rut) return `anon_${Date.now()}`;
   const rutLimpio = String(rut).replace(/\./g, '').trim().toUpperCase();
   return `session_rut_${rutLimpio}`;
 };
 
+const detectarPreguntaConfirmacion = (texto) => {
+  if (!texto) return { esPregunta: false, esCancelar: false };
+  const t = texto.toLowerCase();
+
+  // Ignorar mensaje de bienvenida / presentación inicial
+  if (t.includes("soy tu asistente") || t.includes("¿qué te gustaría gestionar hoy?")) {
+    return { esPregunta: false, esCancelar: false };
+  }
+
+  const esCancelar = (
+    /¿(deseas|confirmas|estás seguro de|quieres) (cancelar|eliminar|anular|liberar)/i.test(t) ||
+    /¿(deseas que cancele|procedo a cancelar|procedo a eliminar)/i.test(t) ||
+    /para confirmar la cancelación/i.test(t) ||
+    /(deseas|seguro de) (cancelar|eliminar) tu reserva/i.test(t)
+  );
+
+  const esConfirmarReserva = (
+    /¿(deseas|confirmas|estás seguro de|quieres) (confirmar|agendar|reservar|crear)/i.test(t) ||
+    /¿(procedo a agendar|procedo a reservar|procedo a crear)/i.test(t) ||
+    /¿deseas que confirme la reserva/i.test(t) ||
+    /para confirmar tu reserva/i.test(t) ||
+    /¿los datos son correctos/i.test(t)
+  );
+
+  return {
+    esPregunta: esCancelar || esConfirmarReserva,
+    esCancelar: esCancelar
+  };
+};
+
 const extraerDatosReserva = (texto) => {
   if (!texto) return null;
 
   const esConfirmada = /reserva\s+(creada|confirmada|agendada|registrada|exitosa)|confirmada con éxito|agendado con éxito/i.test(texto);
-  const esPreguntaConfirmar = /¿deseas confirmar|para confirmar|¿confirmas|deseas que confirme|¿estás seguro de (cancelar|eliminar)|¿deseas cancelar/i.test(texto);
+  const { esPregunta: esPreguntaConfirmar, esCancelar: esPreguntaCancelar } = detectarPreguntaConfirmacion(texto);
   const esCancelada = /reserva\s+(cancelada|eliminada)|cancelada con éxito|eliminada con éxito/i.test(texto);
 
   if (!esConfirmada && !esPreguntaConfirmar && !esCancelada) {
@@ -48,8 +74,17 @@ const extraerDatosReserva = (texto) => {
   const idMatch = texto.match(/reserva\s*(?:id|#|n[úu]mero)?\s*:?\s*(\d+)/i) || texto.match(/#(\d+)/);
   if (idMatch) id = idMatch[1];
 
+  let tipo = "pendiente_confirmacion";
+  if (esConfirmada) {
+    tipo = "confirmada";
+  } else if (esCancelada) {
+    tipo = "cancelada";
+  } else if (esPreguntaCancelar) {
+    tipo = "pendiente_cancelacion";
+  }
+
   return {
-    tipo: esConfirmada ? "confirmada" : esCancelada ? "cancelada" : "pendiente_confirmacion",
+    tipo,
     id,
     campus,
     cubiculo,
@@ -155,9 +190,9 @@ export default function ChatbotFlotante() {
         email: user.email,
       };
 
-      const data = await apiPost('/api/chat', payload, { 
+      const data = await apiPost('/api/chat', payload, {
         signal: controller.signal,
-        timeout: 120000 
+        timeout: 120000
       });
       clearTimeout(timeoutId);
 
@@ -259,7 +294,7 @@ export default function ChatbotFlotante() {
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
-      } catch {}
+      } catch { }
     }
 
     const recognition = new SpeechRecognition();
@@ -296,14 +331,14 @@ export default function ChatbotFlotante() {
     recognitionRef.current = recognition;
     try {
       recognition.start();
-    } catch {}
+    } catch { }
   };
 
   const stopListening = () => {
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
-      } catch {}
+      } catch { }
     }
     setEscuchandoVoz(false);
   };
@@ -354,8 +389,8 @@ export default function ChatbotFlotante() {
   return (
     <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
       {isChatOpen && (
-        <div className="mb-4 w-[calc(100vw-2rem)] sm:w-[400px] h-[540px] rounded-3xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl shadow-[0_20px_60px_-15px_rgba(0,98,155,0.3)] dark:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)] border border-sky-100 dark:border-slate-800 flex flex-col overflow-hidden transition-all duration-300 origin-bottom-right">
-          <div className="bg-gradient-to-r from-[#004B75] via-[#00629B] to-[#007AB8] p-4 text-white flex justify-between items-center shadow-md relative border-b-2 border-[#FFC20E]">
+        <div className="mb-4 w-[calc(100vw-2rem)] sm:w-[400px] h-[495px] max-h-[calc(100vh-6.5rem)] rounded-3xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl shadow-[0_20px_60px_-15px_rgba(0,98,155,0.3)] dark:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)] border border-sky-100 dark:border-slate-800 flex flex-col overflow-hidden transition-all duration-300 origin-bottom-right">
+          <div className="bg-gradient-to-r from-[#004B75] via-[#00629B] to-[#007AB8] dark:from-slate-900 dark:via-sky-950 dark:to-slate-900 p-4 text-white flex justify-between items-center shadow-md relative border-b-2 border-[#FFC20E]">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 p-1 flex items-center justify-center shrink-0 shadow-inner">
                 <img src={logoUCT} alt="UCT" className="w-full h-full object-contain" />
@@ -407,7 +442,8 @@ export default function ChatbotFlotante() {
           ) : (
             <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-gradient-to-b from-sky-50/30 via-slate-50/50 to-white/80 dark:from-slate-950/70 dark:via-slate-900/80 dark:to-slate-950/90 backdrop-blur-md">
               {mensajes.map((msg, index) => {
-                let cardData = msg.esBot && msg.texto !== 'Escribiendo...' ? extraerDatosReserva(msg.texto) : null;
+                const esMensajeBienvenida = index === 0 && (msg.texto || '').includes('asistente de biblioteca');
+                let cardData = msg.esBot && msg.texto !== 'Escribiendo...' && !esMensajeBienvenida ? extraerDatosReserva(msg.texto) : null;
 
                 if (cardData && cardData.tipo === 'cancelada' && !cardData.campus && !cardData.fecha) {
                   for (let i = index - 1; i >= 0; i--) {
@@ -433,33 +469,67 @@ export default function ChatbotFlotante() {
 
                 return (
                   <div key={msg.id} className={`flex flex-col ${msg.esBot ? 'items-start' : 'items-end'}`}>
-                    <div className={`max-w-[88%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-line backdrop-blur-md transition-all ${
-                      msg.esBot
-                        ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-tl-sm border border-slate-200/70 dark:border-slate-700/80 shadow-[0_4px_16px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_16px_rgba(0,0,0,0.3)]'
-                        : 'bg-gradient-to-r from-[#00629B] to-[#007AB8] text-white rounded-tr-sm shadow-[0_4px_16px_rgba(0,98,155,0.25)] border border-sky-400/30'
-                    } ${msg.texto === 'Escribiendo...' ? 'text-slate-400 italic bg-white/50 dark:bg-slate-800/50 dark:text-slate-400 animate-pulse' : ''}`}>
+                    <div className={`max-w-[88%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-line backdrop-blur-md transition-all ${msg.esBot
+                      ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-tl-sm border border-slate-200/70 dark:border-slate-700/80 shadow-[0_4px_16px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_16px_rgba(0,0,0,0.3)]'
+                      : 'bg-gradient-to-r from-[#00629B] to-[#007AB8] text-white rounded-tr-sm shadow-[0_4px_16px_rgba(0,98,155,0.25)] border border-sky-400/30'
+                      } ${msg.texto === 'Escribiendo...' ? 'text-slate-400 italic bg-white/50 dark:bg-slate-800/50 dark:text-slate-400 animate-pulse' : ''}`}>
                       {msg.texto}
                     </div>
 
+                    {(() => {
+                      const esUltimo = index === mensajes.length - 1;
+                      if (!esUltimo || !msg.esBot || msg.texto === 'Escribiendo...') return null;
+
+                      const { esPregunta, esCancelar } = detectarPreguntaConfirmacion(msg.texto);
+                      const tieneBotonesEnCard = cardData && (cardData.tipo === 'pendiente_cancelacion' || cardData.tipo === 'pendiente_confirmacion');
+
+                      if (esPregunta && !tieneBotonesEnCard) {
+                        return (
+                          <div className="flex items-center gap-2 mt-2 pt-1 animate-fadeIn">
+                            <button
+                              type="button"
+                              onClick={() => enviarMensajeTexto(esCancelar ? "Sí, deseo cancelar la reserva" : "Sí, confirmo la reserva")}
+                              disabled={cargandoBot}
+                              className={`py-2 px-4 text-white rounded-xl font-bold text-xs shadow-md active:scale-95 transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5 ${esCancelar ? "bg-rose-600 hover:bg-rose-700" : "bg-emerald-600 hover:bg-emerald-700"
+                                }`}
+                            >
+                              <span>{esCancelar ? "🗑️" : "✓"}</span>
+                              <span>{esCancelar ? "Sí, cancelar" : "Sí, confirmar"}</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => enviarMensajeTexto(esCancelar ? "No, no deseo cancelarla" : "No, deseo cancelar la solicitud")}
+                              disabled={cargandoBot}
+                              className="py-2 px-4 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-xl font-semibold text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                            >
+                              No
+                            </button>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+
                     {cardData && (
-                      <div className={`max-w-[90%] mt-2 rounded-2xl border p-3.5 shadow-lg shadow-sky-950/5 text-xs space-y-2.5 backdrop-blur-lg ${
-                        cardData.tipo === 'cancelada'
-                          ? 'border-rose-200/90 bg-rose-50/40 dark:bg-rose-950/40 dark:border-rose-900/70'
-                          : 'border-sky-200/80 bg-white/90 dark:bg-slate-800/95 dark:border-slate-700'
-                      }`}>
+                      <div className={`max-w-[90%] mt-2 rounded-2xl border p-3.5 shadow-lg shadow-sky-950/5 text-xs space-y-2.5 backdrop-blur-lg ${cardData.tipo === 'cancelada' || cardData.tipo === 'pendiente_cancelacion'
+                        ? 'border-rose-200/90 bg-rose-50/40 dark:bg-rose-950/40 dark:border-rose-900/70'
+                        : 'border-sky-200/80 bg-white/90 dark:bg-slate-800/95 dark:border-slate-700'
+                        }`}>
                         <div className="flex items-center justify-between border-b pb-2 border-slate-100 dark:border-slate-700/60">
-                          <span className={`font-bold flex items-center gap-1.5 ${
-                            cardData.tipo === 'confirmada' ? 'text-emerald-700 dark:text-emerald-400' : cardData.tipo === 'cancelada' ? 'text-rose-600 dark:text-rose-400' : 'text-amber-700 dark:text-amber-400'
-                          }`}>
-                            <span>{cardData.tipo === 'confirmada' ? '✅' : cardData.tipo === 'cancelada' ? '🗑️' : '⚡'}</span>
-                            <span>{cardData.tipo === 'confirmada' ? 'Reserva Confirmada' : cardData.tipo === 'cancelada' ? 'Reserva Cancelada' : 'Confirmar Reserva'}</span>
+                          <span className={`font-bold flex items-center gap-1.5 ${cardData.tipo === 'confirmada'
+                            ? 'text-emerald-700 dark:text-emerald-400'
+                            : cardData.tipo === 'cancelada' || cardData.tipo === 'pendiente_cancelacion'
+                              ? 'text-rose-600 dark:text-rose-400'
+                              : 'text-amber-700 dark:text-amber-400'
+                            }`}>
+                            <span>{cardData.tipo === 'confirmada' ? '✅' : (cardData.tipo === 'cancelada' || cardData.tipo === 'pendiente_cancelacion') ? '🗑️' : '⚡'}</span>
+                            <span>{cardData.tipo === 'confirmada' ? 'Reserva Confirmada' : cardData.tipo === 'cancelada' ? 'Reserva Cancelada' : cardData.tipo === 'pendiente_cancelacion' ? 'Confirmar Cancelación' : 'Confirmar Reserva'}</span>
                           </span>
-                          <span className={`text-[10px] uppercase font-black px-2 py-0.5 rounded-full border ${
-                            cardData.tipo === 'cancelada'
-                              ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/70 dark:text-rose-300 dark:border-rose-800'
-                              : 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/70 dark:text-amber-300 dark:border-amber-800'
-                          }`}>
-                            {cardData.tipo === 'cancelada' ? 'Liberada' : 'UCT'}
+                          <span className={`text-[10px] uppercase font-black px-2 py-0.5 rounded-full border ${cardData.tipo === 'cancelada' || cardData.tipo === 'pendiente_cancelacion'
+                            ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/70 dark:text-rose-300 dark:border-rose-800'
+                            : 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/70 dark:text-amber-300 dark:border-amber-800'
+                            }`}>
+                            {cardData.tipo === 'cancelada' ? 'Liberada' : cardData.tipo === 'pendiente_cancelacion' ? 'Por cancelar' : 'UCT'}
                           </span>
                         </div>
 
@@ -473,11 +543,10 @@ export default function ChatbotFlotante() {
                             </p>
                           </div>
                         ) : (
-                          <div className={`grid grid-cols-2 gap-2 text-[11px] p-2.5 rounded-xl border ${
-                            cardData.tipo === 'cancelada'
-                              ? 'bg-white/80 border-rose-100 dark:bg-slate-900/80 dark:border-rose-900/50'
-                              : 'bg-slate-50/80 border-slate-100 dark:bg-slate-900/80 dark:border-slate-700/70'
-                          }`}>
+                          <div className={`grid grid-cols-2 gap-2 text-[11px] p-2.5 rounded-xl border ${cardData.tipo === 'cancelada'
+                            ? 'bg-white/80 border-rose-100 dark:bg-slate-900/80 dark:border-rose-900/50'
+                            : 'bg-slate-50/80 border-slate-100 dark:bg-slate-900/80 dark:border-slate-700/70'
+                            }`}>
                             <div>
                               <p className="text-slate-400 dark:text-slate-400 font-medium">Sede / Campus:</p>
                               <p className="font-bold text-slate-800 dark:text-slate-100">{cardData.campus || (cardData.tipo === 'cancelada' ? "Liberada" : "Sede seleccionada")}</p>
@@ -497,23 +566,44 @@ export default function ChatbotFlotante() {
                           </div>
                         )}
 
+                        {cardData.tipo === 'pendiente_cancelacion' && (
+                          <div className="flex items-center gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => enviarMensajeTexto("Sí, deseo cancelar la reserva")}
+                              disabled={cargandoBot}
+                              className="flex-1 py-2 px-3 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white rounded-xl font-bold text-xs transition-all shadow-sm cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
+                            >
+                              <span>🗑️</span> Sí, cancelar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => enviarMensajeTexto("No, no deseo cancelarla")}
+                              disabled={cargandoBot}
+                              className="py-2 px-4 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-200 rounded-xl font-semibold text-xs transition-all cursor-pointer disabled:opacity-50"
+                            >
+                              No
+                            </button>
+                          </div>
+                        )}
+
                         {cardData.tipo === 'pendiente_confirmacion' && (
                           <div className="flex items-center gap-2 pt-1">
                             <button
                               type="button"
                               onClick={() => enviarMensajeTexto("Sí, confirmo la reserva")}
                               disabled={cargandoBot}
-                              className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs transition-all shadow-sm cursor-pointer disabled:opacity-50"
+                              className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl font-bold text-xs transition-all shadow-sm cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
                             >
-                              ✓ Sí, Confirmar
+                              <span>✓</span> Sí, confirmar
                             </button>
                             <button
                               type="button"
                               onClick={() => enviarMensajeTexto("No, deseo cancelar la solicitud")}
                               disabled={cargandoBot}
-                              className="py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-200 rounded-xl font-semibold text-xs transition-all cursor-pointer disabled:opacity-50"
+                              className="py-2 px-4 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-200 rounded-xl font-semibold text-xs transition-all cursor-pointer disabled:opacity-50"
                             >
-                              ✕ Cancelar
+                              No
                             </button>
                           </div>
                         )}
@@ -575,7 +665,7 @@ export default function ChatbotFlotante() {
                   key={idx}
                   type="button"
                   onClick={() => enviarMensajeTexto(chip.texto)}
-                  className="px-2.5 py-1 bg-sky-50/60 hover:bg-sky-100/70 border border-sky-200/70 hover:border-[#FFC20E] rounded-full text-[11px] font-semibold text-slate-700 hover:text-sky-900 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:border-slate-700 dark:hover:border-[#FFC20E] dark:text-slate-200 dark:hover:text-white whitespace-nowrap transition-all cursor-pointer shadow-2xs"
+                  className="px-2.5 py-1 bg-sky-50/60 hover:bg-sky-100/70 border border-sky-200/70 hover:border-[#FFC20E] rounded-full text-[11px] font-semibold text-slate-700 hover:text-sky-900 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:border-slate-700 dark:hover:border-[#FFC20E] dark:text-slate-200 dark:hover:text-white whitespace-nowrap active:scale-95 transition-all cursor-pointer shadow-2xs"
                 >
                   {chip.label}
                 </button>
@@ -640,11 +730,10 @@ export default function ChatbotFlotante() {
                   onTouchEnd={handleMicMouseUp}
                   disabled={cargandoBot}
                   title={escuchandoVoz ? "Soltar o presionar para enviar" : "Mantén presionado o presiona para hablar"}
-                  className={`relative p-2.5 rounded-2xl transition-all duration-200 flex items-center justify-center cursor-pointer ${
-                    escuchandoVoz
-                      ? "bg-rose-500 text-white scale-110 shadow-[0_0_24px_rgba(244,63,94,0.7)] ring-4 ring-rose-400/40"
-                      : "bg-slate-100 hover:bg-sky-50 text-slate-700 hover:text-sky-700 border border-slate-200 hover:border-sky-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-slate-700 shadow-sm hover:scale-105 active:scale-95"
-                  } disabled:opacity-40 disabled:cursor-not-allowed`}
+                  className={`relative p-2.5 rounded-2xl transition-all duration-200 flex items-center justify-center cursor-pointer ${escuchandoVoz
+                    ? "bg-rose-500 text-white scale-110 shadow-[0_0_24px_rgba(244,63,94,0.7)] ring-4 ring-rose-400/40"
+                    : "bg-slate-100 hover:bg-sky-50 text-slate-700 hover:text-sky-700 border border-slate-200 hover:border-sky-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-slate-700 shadow-sm hover:scale-105 active:scale-95"
+                    } disabled:opacity-40 disabled:cursor-not-allowed`}
                 >
                   <svg className={`w-5 h-5 transition-transform ${escuchandoVoz ? "scale-110" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m-4 0h8m-4-8a3 3 0 003-3V5a3 3 0 00-6 0v6a3 3 0 003 3z" />

@@ -208,14 +208,14 @@ export default function Reglamento() {
             {horarios.map((h, i) => (
               <div
                 key={i}
-                className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm flex flex-col justify-between gap-5 hover:shadow-md transition-shadow"
+                className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-xs flex flex-col justify-between gap-5 hover:shadow-md hover:border-slate-300 transition-all"
               >
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-50 text-xl border border-sky-100">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 text-xl border border-sky-100 shadow-2xs">
                       {h.icono}
                     </span>
-                    <span className="rounded px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider bg-slate-100 text-slate-600 border border-slate-200">
+                    <span className="rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-700 border border-slate-200">
                       Presencial
                     </span>
                   </div>
@@ -223,7 +223,7 @@ export default function Reglamento() {
                     <h3 className="font-serif text-lg font-bold text-slate-900">
                       {h.sede}
                     </h3>
-                    <p className="text-[13px] font-medium text-[#00629B]">
+                    <p className="text-[13px] font-semibold text-[#00629B]">
                       {h.campus}
                     </p>
                   </div>
@@ -233,10 +233,10 @@ export default function Reglamento() {
                   {h.bloques.map((b, bi) => (
                     <div
                       key={bi}
-                      className="rounded-lg bg-slate-50 border border-slate-200 px-3.5 py-2.5 flex items-center justify-between text-[13px]"
+                      className="rounded-xl bg-slate-50 border border-slate-200/80 px-4 py-2.5 flex items-center justify-between text-[13px]"
                     >
                       <span className="font-medium text-slate-700">{b.dias}:</span>
-                      <span className="rounded-md bg-white px-2.5 py-1 font-bold text-[#00629B] border border-slate-200/80 shadow-xs tabular-nums">
+                      <span className="rounded-lg bg-white px-3 py-1 font-bold text-[#00629B] border border-slate-200 shadow-2xs tabular-nums">
                         {b.horas}
                       </span>
                     </div>
@@ -250,7 +250,7 @@ export default function Reglamento() {
         <section className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
-              <span className="flex h-7 w-7 items-center justify-center rounded-md bg-[#FFC20E] text-slate-900 shadow-sm">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#FFC20E] text-slate-900 shadow-xs">
                 <IconDoc className="w-4 h-4" />
               </span>
               <div>
@@ -267,7 +267,7 @@ export default function Reglamento() {
               <button
                 type="button"
                 onClick={() => setCategoriaAbierta(categoriaAbierta !== null ? null : 0)}
-                className="text-[12px] font-medium text-[#00629B] bg-sky-50 hover:bg-sky-100 border border-sky-200 px-3 py-1.5 rounded-md transition-colors cursor-pointer"
+                className="text-[12px] font-semibold text-[#00629B] bg-sky-50 hover:bg-sky-100 border border-sky-200 px-3.5 py-1.5 rounded-xl transition-all cursor-pointer shadow-2xs"
               >
                 {categoriaAbierta !== null ? "Contraer todo" : "Expandir todo"}
               </button>
@@ -280,19 +280,19 @@ export default function Reglamento() {
               return (
                 <div
                   key={cat.id}
-                  className={`rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden transition-all duration-200 ${
+                  className={`rounded-2xl border bg-white shadow-xs overflow-hidden transition-all duration-200 ${
                     estaAbierto
-                      ? "border-l-4 border-l-[#00629B] shadow-md"
-                      : "hover:border-slate-300"
+                      ? "border-[#00629B]/30 border-l-4 border-l-[#00629B] shadow-sm"
+                      : "border-slate-200 hover:border-slate-300"
                   }`}
                 >
                   <button
                     type="button"
                     onClick={() => setCategoriaAbierta(estaAbierto ? null : idx)}
-                    className="w-full p-5 sm:p-6 text-left flex items-start sm:items-center justify-between gap-4 cursor-pointer select-none hover:bg-slate-50/40"
+                    className="w-full p-5 sm:p-6 text-left flex items-start sm:items-center justify-between gap-4 cursor-pointer select-none hover:bg-slate-50/50 transition-colors"
                   >
                     <div className="flex items-start sm:items-center gap-4">
-                      <div className="w-10 h-10 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center text-xl shrink-0">
+                      <div className="w-11 h-11 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center text-xl shrink-0 shadow-2xs">
                         {cat.icono}
                       </div>
                       <div>
@@ -300,7 +300,7 @@ export default function Reglamento() {
                           <h3 className="font-serif text-base sm:text-lg font-bold text-slate-900 leading-snug">
                             {cat.titulo}
                           </h3>
-                          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded border uppercase tracking-wider ${cat.colorBadge}`}>
+                          <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border uppercase tracking-wider ${cat.colorBadge}`}>
                             {cat.badge}
                           </span>
                         </div>
@@ -310,8 +310,8 @@ export default function Reglamento() {
                       </div>
                     </div>
 
-                    <span className={`flex h-7 w-7 items-center justify-center rounded-md bg-slate-100 text-slate-600 shrink-0 transition-transform duration-200 ${
-                      estaAbierto ? "rotate-180 bg-[#00629B] text-white" : ""
+                    <span className={`flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-slate-600 shrink-0 transition-transform duration-200 ${
+                      estaAbierto ? "rotate-180 bg-[#00629B] text-white shadow-xs" : ""
                     }`}>
                       <IconChevron className="w-4 h-4" />
                     </span>
@@ -323,22 +323,22 @@ export default function Reglamento() {
                         {cat.puntos.map((punto, pIdx) => (
                           <div
                             key={pIdx}
-                            className="rounded-lg bg-slate-50 border border-slate-200/80 p-4 space-y-2 flex flex-col justify-between"
+                            className="rounded-xl bg-slate-50/80 border border-slate-200/80 p-4.5 space-y-3 flex flex-col justify-between hover:bg-slate-50 transition-colors"
                           >
                             <div>
-                              <h4 className="text-[13px] font-semibold text-slate-900 flex items-center gap-2">
-                                <span className="h-1.5 w-1.5 rounded-full bg-[#00629B]" />
+                              <h4 className="text-[13px] font-bold text-slate-900 flex items-center gap-2">
+                                <span className="h-2 w-2 rounded-full bg-[#00629B] shrink-0" />
                                 {punto.titulo}
                               </h4>
-                              <p className="text-[13px] text-slate-600 mt-1.5 leading-relaxed">
+                              <p className="text-[13px] text-slate-600 mt-2 leading-relaxed">
                                 {punto.detalle}
                               </p>
                             </div>
 
                             {punto.alerta && (
-                              <div className="mt-2 text-[12px] font-medium text-amber-900 bg-amber-50 border border-amber-200/80 rounded-md px-3 py-2 flex items-start gap-2">
+                              <div className="mt-2 text-[12px] font-medium text-amber-950 bg-amber-50/90 border border-amber-200 rounded-xl px-3.5 py-2.5 flex items-start gap-2 shadow-2xs">
                                 <IconAlert className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-                                <span>{punto.alerta}</span>
+                                <span className="leading-snug">{punto.alerta}</span>
                               </div>
                             )}
                           </div>
@@ -352,9 +352,9 @@ export default function Reglamento() {
           </div>
         </section>
 
-        <section className="rounded-xl bg-[#00629B] p-7 md:p-8 text-white shadow-md flex flex-col md:flex-row items-center justify-between gap-6 border-b-2 border-[#FFC20E]">
+        <section className="rounded-2xl bg-gradient-to-r from-[#004B75] via-[#00629B] to-[#007AB8] p-7 md:p-8 text-white shadow-md flex flex-col md:flex-row items-center justify-between gap-6 border-b-4 border-[#FFC20E]">
           <div className="space-y-2 max-w-2xl">
-            <span className="bg-[#FFC20E] text-slate-900 font-bold text-[10px] px-2.5 py-0.5 rounded uppercase tracking-wider">
+            <span className="bg-[#FFC20E] text-slate-950 font-extrabold text-[10px] px-3 py-1 rounded-full uppercase tracking-wider shadow-xs inline-block">
               ¿Dudas sobre el reglamento o una sanción?
             </span>
             <h3 className="font-serif text-2xl font-bold tracking-tight text-white">
@@ -367,7 +367,7 @@ export default function Reglamento() {
 
           <button
             onClick={() => window.dispatchEvent(new CustomEvent("open-chat"))}
-            className="inline-flex items-center gap-2 rounded-md bg-[#FFC20E] px-5 py-2.5 text-[13px] font-semibold text-slate-900 transition-colors hover:bg-[#FFCA28] shadow-sm cursor-pointer whitespace-nowrap self-stretch sm:self-auto text-center"
+            className="inline-flex items-center gap-2 rounded-xl bg-[#FFC20E] hover:bg-[#EDB100] active:scale-95 px-5 py-3 text-[13px] font-bold text-slate-950 transition-all shadow-sm cursor-pointer whitespace-nowrap self-stretch sm:self-auto text-center justify-center"
           >
             <IconChat className="w-4 h-4" /> Abrir Asistente IA
           </button>

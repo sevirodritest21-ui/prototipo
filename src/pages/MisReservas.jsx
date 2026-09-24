@@ -94,6 +94,13 @@ export default function MisReservas() {
   const [editBloques, setEditBloques] = useState([]);
   const [cargandoEditBloques, setCargandoEditBloques] = useState(false);
   const [confirmModal, setConfirmModal] = useState({ open: false, reserva: null, onConfirm: null });
+  const [modalIncidencia, setModalIncidencia] = useState({
+    open: false,
+    reserva: null,
+    categoria: "electricidad",
+    descripcion: "",
+    enviando: false
+  });
   const [toastNotificacion, setToastNotificacion] = useState({ tipo: "", texto: "" });
 
   useEffect(() => {
@@ -332,6 +339,61 @@ export default function MisReservas() {
       }
     } catch (err) {
       setToastNotificacion({ tipo: "error", texto: "No se pudo conectar con el servidor." });
+    }
+  };
+
+  const handleAbrirModalIncidencia = (reserva) => {
+    setModalIncidencia({
+      open: true,
+      reserva,
+      categoria: "electricidad",
+      descripcion: "",
+      enviando: false
+    });
+  };
+
+  const handleEnviarIncidencia = async (e) => {
+    e.preventDefault();
+    if (!modalIncidencia.descripcion.trim()) {
+      setToastNotificacion({ tipo: "error", texto: "Por favor describe el problema del cubículo." });
+      return;
+    }
+    setModalIncidencia((prev) => ({ ...prev, enviando: true }));
+    try {
+      const token = localStorage.getItem("auth_token") || localStorage.getItem("token");
+      const body = {
+        cubiculo_id: modalIncidencia.reserva?.cubiculo_id || null,
+        reserva_id: modalIncidencia.reserva?.id ? parseInt(modalIncidencia.reserva.id, 10) : null,
+        estudiante_rut: user?.rut || modalIncidencia.reserva?.rut || "",
+        estudiante_nombre: user?.nombre || modalIncidencia.reserva?.nombre || "",
+        categoria: modalIncidencia.categoria,
+        descripcion: modalIncidencia.descripcion.trim()
+      };
+      const res = await fetch(`${API_URL}/api/incidencias`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setToastNotificacion({
+          tipo: "exito",
+          texto: data.mensaje || "Reporte de incidencia enviado con éxito."
+        });
+        setModalIncidencia({ open: false, reserva: null, categoria: "electricidad", descripcion: "", enviando: false });
+      } else {
+        setToastNotificacion({
+          tipo: "error",
+          texto: data.detail || "Error al enviar el reporte de incidencia."
+        });
+        setModalIncidencia((prev) => ({ ...prev, enviando: false }));
+      }
+    } catch (err) {
+      setToastNotificacion({ tipo: "error", texto: "No se pudo conectar con el servidor." });
+      setModalIncidencia((prev) => ({ ...prev, enviando: false }));
     }
   };
 
@@ -583,26 +645,46 @@ export default function MisReservas() {
                                 <button
                                   type="button"
                                   onClick={() => abrirModalEdicion(res)}
-                                  className="w-full py-2.5 px-3 bg-[#00629B] hover:bg-[#004B75] text-white text-[13px] font-semibold rounded-md shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC20E]"
+                                  className="w-full py-2.5 px-3 bg-[#00629B] hover:bg-[#004B75] text-white text-[13px] font-semibold rounded-lg shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC20E]"
                                 >
                                   <IconEdit className="w-3.5 h-3.5" /> Modificar
                                 </button>
+                                <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCancelarReserva(res)}
+                                    className="w-full py-2 px-2.5 border border-rose-200 bg-white hover:bg-rose-50 text-rose-700 text-[11px] font-medium rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1"
+                                  >
+                                    <IconTrash className="w-3.5 h-3.5" /> Cancelar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAbrirModalIncidencia(res)}
+                                    className="w-full py-2 px-2 border border-amber-200 bg-amber-50/70 hover:bg-amber-100 text-amber-800 text-[11px] font-medium rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1"
+                                    title="Reportar avería o problemas del cubículo"
+                                  >
+                                    <IconAlert className="w-3.5 h-3.5 text-amber-600" /> Incidencia
+                                  </button>
+                                </div>
+                              </>
+                            ) : (
+                              <div className="grid grid-cols-2 gap-1.5">
                                 <button
                                   type="button"
                                   onClick={() => handleCancelarReserva(res)}
-                                  className="w-full py-2 px-3 border border-rose-200 bg-white hover:bg-rose-50 text-rose-700 text-[12px] font-medium rounded-md transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                                  className="w-full py-2 px-2.5 border border-rose-200 bg-white hover:bg-rose-50 text-rose-700 text-[11px] font-medium rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1"
                                 >
-                                  <IconTrash className="w-3.5 h-3.5" /> Cancelar cupo
+                                  <IconTrash className="w-3.5 h-3.5" /> Desvincularme
                                 </button>
-                              </>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => handleCancelarReserva(res)}
-                                className="w-full py-2.5 px-3 border border-rose-200 bg-white hover:bg-rose-50 text-rose-700 text-[12px] font-medium rounded-md transition-colors cursor-pointer flex items-center justify-center gap-1.5"
-                              >
-                                <IconTrash className="w-3.5 h-3.5" /> Desvincularme
-                              </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleAbrirModalIncidencia(res)}
+                                  className="w-full py-2 px-2 border border-amber-200 bg-amber-50/70 hover:bg-amber-100 text-amber-800 text-[11px] font-medium rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1"
+                                  title="Reportar avería o problemas del cubículo"
+                                >
+                                  <IconAlert className="w-3.5 h-3.5 text-amber-600" /> Incidencia
+                                </button>
+                              </div>
                             )}
                           </div>
                         </div>
@@ -709,9 +791,9 @@ export default function MisReservas() {
       </main>
 
       {modalEdicionOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/50 p-4 backdrop-blur-[2px]">
-          <div className="my-8 w-full max-w-lg overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl">
-            <div className="bg-[#00629B] px-6 py-4 text-white flex items-start justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-[2px] animate-fadeIn">
+          <div className="w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl">
+            <div className="bg-[#00629B] px-6 py-4 text-white flex items-start justify-between shrink-0">
               <div>
                 <h3 className="font-serif text-xl text-white">Editar reserva</h3>
                 <p className="mt-0.5 text-[13px] text-sky-200/90">
@@ -727,9 +809,10 @@ export default function MisReservas() {
                 <IconClose />
               </button>
             </div>
-            <div className="h-[2px] bg-gradient-to-r from-[#FFC20E] via-[#00A3E0] to-[#00629B]" />
+            <div className="h-[2px] bg-gradient-to-r from-[#FFC20E] via-[#00A3E0] to-[#00629B] shrink-0" />
 
-            <form onSubmit={handleGuardarEdicion} className="space-y-5 px-6 py-5">
+            <form onSubmit={handleGuardarEdicion} className="flex flex-col flex-1 overflow-hidden">
+              <div className="space-y-5 px-6 py-5 overflow-y-auto flex-1">
               <div className="rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-3 text-[13px]">
                 <div className="flex items-center justify-between">
                   <span className="flex items-center gap-1.5 text-slate-500"><IconLock className="w-3.5 h-3.5" /> Titular</span>
@@ -911,8 +994,9 @@ export default function MisReservas() {
                   </div>
                 )}
               </div>
+              </div>
 
-              <div className="flex items-center justify-end gap-2 border-t border-slate-200 pt-4">
+              <div className="sticky bottom-0 bg-white border-t border-slate-200 px-6 py-3.5 flex items-center justify-end gap-2 shrink-0 shadow-xs">
                 <button
                   type="button"
                   onClick={() => setModalEdicionOpen(false)}
@@ -1014,6 +1098,88 @@ export default function MisReservas() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {modalIncidencia.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/50 p-4 backdrop-blur-[2px]">
+          <div className="my-8 w-full max-w-lg overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl">
+            <div className="bg-amber-600 px-6 py-4 text-white flex items-start justify-between">
+              <div>
+                <h3 className="font-serif text-xl text-white flex items-center gap-2">
+                  <IconAlert className="w-5 h-5 text-amber-200" /> Reportar problema en cubículo
+                </h3>
+                <p className="mt-0.5 text-[13px] text-amber-100">
+                  Cubículo {modalIncidencia.reserva?.cubiculo_codigo} • {modalIncidencia.reserva?.campus}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalIncidencia({ open: false, reserva: null, categoria: "electricidad", descripcion: "", enviando: false })}
+                className="cursor-pointer rounded-md p-1.5 text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+                title="Cerrar"
+              >
+                <IconClose />
+              </button>
+            </div>
+            <div className="h-[2px] bg-gradient-to-r from-amber-400 via-amber-500 to-amber-700" />
+
+            <form onSubmit={handleEnviarIncidencia} className="p-6 space-y-4">
+              <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-[12px] text-amber-900 leading-relaxed">
+                Informa al personal técnico y bibliotecario sobre desperfectos físicos o técnicos para que puedan revisarlo o ponerlo en mantenimiento.
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1.5">
+                  Tipo de problema / Categoría
+                </label>
+                <select
+                  value={modalIncidencia.categoria}
+                  onChange={(e) => setModalIncidencia((prev) => ({ ...prev, categoria: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-xs focus:border-[#00629B] focus:outline-none focus:ring-1 focus:ring-[#00629B]"
+                >
+                  <option value="electricidad">⚡ Enchufes / Electricidad / Iluminación</option>
+                  <option value="mobiliario">🪑 Sillas / Mesa / Mobiliario dañado</option>
+                  <option value="limpieza">🧹 Limpieza / Higiene / Residuos</option>
+                  <option value="tecnologia">🖥️ Pantalla / Conexión HDMI / Monitor</option>
+                  <option value="clima">❄️ Climatización / Ventilación / Ruido</option>
+                  <option value="otro">📌 Otro problema técnico</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1.5">
+                  Descripción del problema
+                </label>
+                <textarea
+                  rows={4}
+                  required
+                  placeholder="Ej: El enchufe de la pared izquierda no tiene corriente y una de las sillas tiene la rueda rota..."
+                  value={modalIncidencia.descripcion}
+                  onChange={(e) => setModalIncidencia((prev) => ({ ...prev, descripcion: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-300 bg-white p-3 text-sm text-slate-800 shadow-xs focus:border-[#00629B] focus:outline-none focus:ring-1 focus:ring-[#00629B]"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setModalIncidencia({ open: false, reserva: null, categoria: "electricidad", descripcion: "", enviando: false })}
+                  className="cursor-pointer rounded-md border border-slate-300 bg-white px-4 py-2 text-[13px] font-medium text-slate-700 transition hover:bg-slate-50"
+                  disabled={modalIncidencia.enviando}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={modalIncidencia.enviando}
+                  className="cursor-pointer rounded-md bg-amber-600 hover:bg-amber-700 px-5 py-2 text-[13px] font-semibold text-white shadow-xs transition disabled:opacity-50"
+                >
+                  {modalIncidencia.enviando ? "Enviando reporte..." : "Enviar reporte"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

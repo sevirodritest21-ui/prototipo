@@ -289,11 +289,22 @@ async def startup():
                 estado VARCHAR(30) DEFAULT 'completada',
                 fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
+            DELETE FROM historial_reservas
+            WHERE reserva_id IS NOT NULL
+              AND id NOT IN (
+                  SELECT MIN(id)
+                  FROM historial_reservas
+                  WHERE reserva_id IS NOT NULL
+                  GROUP BY reserva_id
+              );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_historial_reservas_unique_reserva_id 
+            ON historial_reservas (reserva_id) 
+            WHERE reserva_id IS NOT NULL;
             INSERT INTO historial_reservas (reserva_id, nombre, rut, campus_id, fecha, hora, estado)
             SELECT id, nombre, rut, campus_id, fecha, hora, 'activa'
             FROM reservas r
             WHERE NOT EXISTS (
-                SELECT 1 FROM historial_reservas h WHERE h.reserva_id = r.id AND h.estado = 'activa'
+                SELECT 1 FROM historial_reservas h WHERE h.reserva_id = r.id
             );
             UPDATE historial_reservas
             SET estado = 'cancelada'
@@ -365,6 +376,21 @@ async def startup():
                 UNIQUE (cubiculo_id, fecha)
             );
             CREATE INDEX IF NOT EXISTS idx_cubiculos_mantenimiento_fecha ON cubiculos_mantenimiento (fecha);
+
+            CREATE TABLE IF NOT EXISTS incidencias_cubiculos (
+                id SERIAL PRIMARY KEY,
+                cubiculo_id INT NOT NULL REFERENCES cubiculos(id) ON DELETE CASCADE,
+                reserva_id INT,
+                estudiante_rut VARCHAR(20),
+                estudiante_nombre VARCHAR(100),
+                categoria VARCHAR(50) DEFAULT 'otro',
+                descripcion TEXT NOT NULL,
+                estado VARCHAR(20) DEFAULT 'pendiente',
+                solucion TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_incidencias_cubiculos_estado ON incidencias_cubiculos (estado);
+            CREATE INDEX IF NOT EXISTS idx_incidencias_cubiculos_cubiculo ON incidencias_cubiculos (cubiculo_id);
         """)
 
 
@@ -471,10 +497,15 @@ async def verificar_sancion_usuario(conn, rut: str) -> dict:
 
     rows = await conn.fetch(
         """
-        SELECT id, fecha, hora, fecha_registro 
-        FROM historial_reservas 
-        WHERE REPLACE(REPLACE(REPLACE(UPPER(rut), '.', ''), '-', ''), ' ', '') = $1 
-          AND estado = 'inasistencia'
+        WITH inasistencias_unicas AS (
+            SELECT DISTINCT ON (COALESCE(reserva_id, id)) id, reserva_id, fecha, hora, fecha_registro
+            FROM historial_reservas
+            WHERE REPLACE(REPLACE(REPLACE(UPPER(rut), '.', ''), '-', ''), ' ', '') = $1 
+              AND estado = 'inasistencia'
+            ORDER BY COALESCE(reserva_id, id), fecha_registro DESC, id DESC
+        )
+        SELECT id, reserva_id, fecha, hora, fecha_registro
+        FROM inasistencias_unicas
         ORDER BY fecha_registro DESC, id DESC
         """,
         rut_limpio
@@ -778,6 +809,20 @@ class LevantarSancionRequest(BaseModel):
     motivo: Optional[str] = "Sanción perdonada / justificada por administrador"
 
 
+class CrearIncidenciaRequest(BaseModel):
+    cubiculo_id: Optional[int] = None
+    reserva_id: Optional[int] = None
+    estudiante_rut: Optional[str] = None
+    estudiante_nombre: Optional[str] = None
+    categoria: str = "otro"
+    descripcion: str
+
+
+class ActualizarEstadoIncidenciaRequest(BaseModel):
+    estado: str
+    solucion: Optional[str] = None
+
+
 class LoginRequest(BaseModel):
     email: str
     password: str
@@ -912,6 +957,23 @@ async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] =
         if row is None:
             raise credentials_exception
         return dict(row)
+
+
+async def get_current_user_optional(credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)) -> Optional[dict]:
+    if not credentials or not credentials.credentials:
+        return None
+    try:
+        if await is_token_blacklisted(credentials.credentials):
+            return None
+        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")
+        if not email:
+            return None
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow("SELECT id, email, nombre, rut, rol FROM usuarios WHERE email = $1", email)
+            return dict(row) if row else None
+    except Exception:
+        return None
 
 
 # --- Endpoints de Autenticación ---
@@ -1351,7 +1413,7 @@ async def marcar_inasistencia_reserva(reserva_id: int, current_user: dict = Depe
                 reserva_id
             )
             if not res:
-                h_row = await conn.fetchrow("SELECT id, estado, rut FROM historial_reservas WHERE reserva_id = $1", reserva_id)
+                h_row = await conn.fetchrow("SELECT id, estado, rut FROM historial_reservas WHERE reserva_id = $1 LIMIT 1", reserva_id)
                 if h_row and h_row["estado"] == "inasistencia":
                     sancion = await verificar_sancion_usuario(conn, h_row["rut"])
                     return {
@@ -1360,7 +1422,13 @@ async def marcar_inasistencia_reserva(reserva_id: int, current_user: dict = Depe
                         "estado": "inasistencia",
                         "total_inasistencias": sancion.get("total_inasistencias", 0),
                         "suspendido": sancion.get("suspendido", False),
-                        "mensaje": "La reserva ya había sido registrada como inasistencia."
+                        "fecha_desbloqueo": sancion.get("fecha_desbloqueo"),
+                        "mensaje": "La reserva ya había sido registrada como inasistencia.",
+                        "sancion": {
+                            "suspendido": sancion.get("suspendido", False),
+                            "inasistencias_periodo": sancion.get("total_inasistencias", 0),
+                            "fecha_desbloqueo": sancion.get("fecha_desbloqueo")
+                        }
                     }
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"No se encontró la reserva activa ID {reserva_id}.")
 
@@ -1370,15 +1438,7 @@ async def marcar_inasistencia_reserva(reserva_id: int, current_user: dict = Depe
             fecha_res = res["fecha"]
             hora_res = str(res["hora"])
 
-            await conn.execute(
-                """
-                INSERT INTO historial_reservas (reserva_id, nombre, rut, campus_id, fecha, hora, estado, fecha_registro)
-                VALUES ($1, $2, $3, $4, $5, $6, 'inasistencia', NOW())
-                ON CONFLICT (id) DO NOTHING
-                """,
-                reserva_id, nombre_estudiante, rut_estudiante, campus_id, fecha_res, hora_res
-            )
-            await conn.execute(
+            res_upd = await conn.execute(
                 """
                 UPDATE historial_reservas
                 SET estado = 'inasistencia', fecha_registro = NOW()
@@ -1386,7 +1446,28 @@ async def marcar_inasistencia_reserva(reserva_id: int, current_user: dict = Depe
                 """,
                 reserva_id
             )
+            if res_upd == "UPDATE 0":
+                await conn.execute(
+                    """
+                    INSERT INTO historial_reservas (reserva_id, nombre, rut, campus_id, fecha, hora, estado, fecha_registro)
+                    VALUES ($1, $2, $3, $4, $5, $6, 'inasistencia', NOW())
+                    ON CONFLICT (reserva_id) DO UPDATE SET estado = 'inasistencia', fecha_registro = NOW()
+                    """,
+                    reserva_id, nombre_estudiante, rut_estudiante, campus_id, fecha_res, hora_res
+                )
+            else:
+                await conn.execute(
+                    """
+                    DELETE FROM historial_reservas
+                    WHERE reserva_id = $1
+                      AND id NOT IN (
+                          SELECT MIN(id) FROM historial_reservas WHERE reserva_id = $1
+                      )
+                    """,
+                    reserva_id
+                )
 
+            await conn.execute("DELETE FROM reserva_acompanantes WHERE reserva_id = $1", reserva_id)
             await conn.execute("DELETE FROM reservas WHERE id = $1", reserva_id)
 
             sancion = await verificar_sancion_usuario(conn, rut_estudiante)
@@ -1408,7 +1489,12 @@ async def marcar_inasistencia_reserva(reserva_id: int, current_user: dict = Depe
                 "total_inasistencias": total_inasistencias,
                 "suspendido": suspendido,
                 "fecha_desbloqueo": sancion.get("fecha_desbloqueo"),
-                "mensaje": mensaje
+                "mensaje": mensaje,
+                "sancion": {
+                    "suspendido": suspendido,
+                    "inasistencias_periodo": total_inasistencias,
+                    "fecha_desbloqueo": sancion.get("fecha_desbloqueo")
+                }
             }
 
 
@@ -1448,13 +1534,13 @@ async def listar_estudiantes_sancionados(current_user: dict = Depends(get_curren
             SELECT 
                 h.rut,
                 MAX(h.nombre) as nombre,
-                COUNT(h.id) as total_inasistencias,
+                COUNT(DISTINCT COALESCE(h.reserva_id, h.id)) as total_inasistencias,
                 MAX(h.fecha_registro) as ultima_fecha_registro,
                 MAX(h.fecha) as ultima_fecha
             FROM historial_reservas h
             WHERE h.estado = 'inasistencia'
             GROUP BY h.rut
-            ORDER BY COUNT(h.id) DESC, MAX(h.fecha_registro) DESC
+            ORDER BY COUNT(DISTINCT COALESCE(h.reserva_id, h.id)) DESC, MAX(h.fecha_registro) DESC
             """
         )
 
@@ -1498,6 +1584,162 @@ async def levantar_sancion_estudiante(data: LevantarSancionRequest, current_user
             "mensaje": f"Sanción levantada con éxito para el RUT {data.rut}. Las inasistencias acumuladas han sido justificadas.",
             "rut": data.rut
         }
+
+
+@app.post("/api/incidencias", status_code=status.HTTP_201_CREATED)
+async def reportar_incidencia(
+    data: CrearIncidenciaRequest,
+    current_user: Optional[dict] = Depends(get_current_user_optional)
+):
+    if not data.descripcion or not data.descripcion.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="La descripción de la incidencia es requerida.")
+
+    async with pool.acquire() as conn:
+        cid = data.cubiculo_id
+        est_rut = data.estudiante_rut
+        est_nombre = data.estudiante_nombre
+
+        if current_user:
+            if not est_rut:
+                est_rut = current_user.get("rut")
+            if not est_nombre:
+                est_nombre = current_user.get("nombre")
+
+        if data.reserva_id:
+            row_res = await conn.fetchrow(
+                "SELECT cubiculo_id, rut, nombre FROM reservas WHERE id = $1",
+                data.reserva_id
+            )
+            if row_res:
+                if not cid:
+                    cid = row_res["cubiculo_id"]
+                if not est_rut:
+                    est_rut = row_res["rut"]
+                if not est_nombre:
+                    est_nombre = row_res["nombre"]
+            else:
+                row_h = await conn.fetchrow(
+                    "SELECT rut, nombre FROM historial_reservas WHERE reserva_id = $1 OR id = $1 LIMIT 1",
+                    data.reserva_id
+                )
+                if row_h:
+                    if not est_rut:
+                        est_rut = row_h["rut"]
+                    if not est_nombre:
+                        est_nombre = row_h["nombre"]
+
+        if not cid:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Debe indicar el cubículo asociado al problema.")
+
+        cub_existe = await conn.fetchrow("SELECT id, codigo FROM cubiculos WHERE id = $1", cid)
+        if not cub_existe:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="El cubículo indicado no existe.")
+
+        row = await conn.fetchrow(
+            """
+            INSERT INTO incidencias_cubiculos (
+                cubiculo_id, reserva_id, estudiante_rut, estudiante_nombre, categoria, descripcion, estado
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, 'pendiente')
+            RETURNING id, cubiculo_id, reserva_id, estudiante_rut, estudiante_nombre, categoria, descripcion, estado, created_at
+            """,
+            cid,
+            data.reserva_id,
+            est_rut,
+            est_nombre,
+            data.categoria or "otro",
+            data.descripcion.strip()
+        )
+        return {
+            "mensaje": "Reporte de incidencia registrado correctamente. Nuestro equipo lo revisará a la brevedad.",
+            "incidencia": dict(row)
+        }
+
+
+@app.get("/api/admin/incidencias")
+async def listar_incidencias(
+    estado: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    if current_user.get("rol") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
+
+    async with pool.acquire() as conn:
+        query = """
+            SELECT 
+                i.id,
+                i.cubiculo_id,
+                cb.codigo AS cubiculo_codigo,
+                c.id AS campus_id,
+                c.nombre AS campus_nombre,
+                i.reserva_id,
+                i.estudiante_rut,
+                i.estudiante_nombre,
+                i.categoria,
+                i.descripcion,
+                i.estado,
+                i.solucion,
+                i.created_at
+            FROM incidencias_cubiculos i
+            JOIN cubiculos cb ON i.cubiculo_id = cb.id
+            JOIN campus c ON cb.campus_id = c.id
+        """
+        params = []
+        if estado and estado != "todos":
+            query += " WHERE i.estado = $1"
+            params.append(estado)
+
+        query += " ORDER BY i.created_at DESC"
+
+        filas = await conn.fetch(query, *params)
+        return [
+            {
+                "id": f["id"],
+                "cubiculo_id": f["cubiculo_id"],
+                "cubiculo_codigo": f["cubiculo_codigo"],
+                "campus_id": f["campus_id"],
+                "campus_nombre": f["campus_nombre"],
+                "reserva_id": f["reserva_id"],
+                "estudiante_rut": f["estudiante_rut"],
+                "estudiante_nombre": f["estudiante_nombre"],
+                "categoria": f["categoria"],
+                "descripcion": f["descripcion"],
+                "estado": f["estado"],
+                "solucion": f["solucion"],
+                "created_at": f["created_at"].strftime("%Y-%m-%d %H:%M:%S") if f["created_at"] else ""
+            }
+            for f in filas
+        ]
+
+
+@app.put("/api/admin/incidencias/{incidencia_id}/estado")
+async def actualizar_estado_incidencia(
+    incidencia_id: int,
+    data: ActualizarEstadoIncidenciaRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    if current_user.get("rol") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
+
+    estados_validos = ["pendiente", "en_revision", "resuelta"]
+    if data.estado not in estados_validos:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Estado inválido. Opciones: {', '.join(estados_validos)}")
+
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            UPDATE incidencias_cubiculos
+            SET estado = $1, solucion = $2
+            WHERE id = $3
+            RETURNING id, cubiculo_id, estado, solucion
+            """,
+            data.estado,
+            data.solucion,
+            incidencia_id
+        )
+        if not row:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incidencia no encontrada.")
+        return {"mensaje": "Estado de incidencia actualizado correctamente.", "incidencia": dict(row)}
 
 
 @app.get("/api/cms/anuncios")
@@ -3177,7 +3419,7 @@ async def consultar_reservas(data: EsquemaConsulta, request: Request, credential
 
             reservas_usuario = await conn.fetch(
                 """
-                SELECT r.id, r.nombre, r.rut, r.fecha, r.hora, c.nombre AS campus_nombre, r.campus_id, cb.codigo AS cubiculo_codigo,
+                SELECT r.id, r.nombre, r.rut, r.fecha, r.hora, c.nombre AS campus_nombre, r.campus_id, r.cubiculo_id, cb.codigo AS cubiculo_codigo,
                        (CASE WHEN REPLACE(REPLACE(UPPER(r.rut), '.', ''), '-', '') = $1 THEN true ELSE false END) AS es_titular
                 FROM reservas r
                 LEFT JOIN campus c ON r.campus_id = c.id
@@ -3215,6 +3457,7 @@ async def consultar_reservas(data: EsquemaConsulta, request: Request, credential
                         "fecha": r_fecha.strftime("%Y-%m-%d"),
                         "hora": r_hora.strftime("%H:%M"),
                         "campus_id": r["campus_id"],
+                        "cubiculo_id": r["cubiculo_id"],
                         "campus": r["campus_nombre"] or "Sin asignación",
                         "cubiculo_codigo": r["cubiculo_codigo"] or "Sin asignación",
                         "activa": True,

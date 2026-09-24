@@ -54,15 +54,15 @@ export default function PaginaInicio() {
           <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
             <Link
               to="/reservar"
-              className="px-6 py-3 bg-[#00A3E0] hover:bg-[#0082B3] text-white font-bold text-sm rounded shadow transition-all text-center"
+              className="px-6 py-3 bg-[#00A3E0] hover:bg-[#0082B3] text-white font-bold text-sm rounded shadow-sm hover:shadow-md transition-all text-center flex items-center justify-center gap-2"
             >
-              Reservar Cubículo
+              <span>📅</span> Reservar Cubículo
             </Link>
             <button
               onClick={() => window.dispatchEvent(new CustomEvent("open-chat"))}
-              className="px-6 py-3 bg-[#FFC20E] hover:bg-[#689B00] text-white font-bold text-sm rounded shadow transition-all cursor-pointer text-center"
+              className="px-6 py-3 bg-[#FFC20E] hover:bg-[#E5AC00] text-slate-900 font-extrabold text-sm rounded shadow-sm hover:shadow-md transition-all cursor-pointer text-center flex items-center justify-center gap-2"
             >
-              Asistente IA
+              <span>🤖</span> Asistente IA
             </button>
           </div>
         </div>
@@ -70,7 +70,7 @@ export default function PaginaInicio() {
 
       <main className="mx-auto max-w-7xl px-6 py-10">
 
-        <div className="relative mb-10 overflow-hidden rounded-2xl shadow-xl border-l-8 border-[#00A3E0]">
+        <div className="relative mb-10 overflow-hidden rounded-2xl shadow-xl border border-slate-200/80">
           <div
             className="flex transition-transform duration-700 ease-in-out"
             style={{ transform: `translateX(-${currentSlide * 100}%)` }}
@@ -78,19 +78,23 @@ export default function PaginaInicio() {
             {slides.map((slide, idx) => (
               <div
                 key={slide.id || idx}
-                className="w-full shrink-0 p-6 md:p-8 text-white flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative"
-                style={{ backgroundColor: slide.color_fondo || "#fde50dff" }}
+                className="w-full shrink-0 p-7 md:p-9 text-white flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative overflow-hidden"
+                style={{
+                  background: slide.color_fondo && slide.color_fondo !== "#f0ce0fff" && slide.color_fondo !== "#fde50dff"
+                    ? slide.color_fondo
+                    : "linear-gradient(135deg, #004B75 0%, #00629B 55%, #0082B3 100%)"
+                }}
               >
-                <div className="space-y-2 max-w-3xl">
+                <div className="space-y-2.5 max-w-3xl relative z-10">
                   <div className="flex items-center gap-2">
-                    <span className="bg-[#00A3E0] text-white text-[10px] font-black px-2.5 py-0.5 rounded uppercase tracking-wider">
-                      {slide.badge || "ANUNCIO"}
+                    <span className="bg-[#FFC20E] text-slate-900 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-xs">
+                      {slide.badge || "SERVICIO UCT"}
                     </span>
                   </div>
-                  <h2 className="font-serif text-xl md:text-3xl font-black text-white tracking-tight leading-snug">
+                  <h2 className="font-serif text-xl md:text-3xl font-black text-white tracking-tight leading-snug drop-shadow-xs">
                     {slide.titulo}
                   </h2>
-                  <p className="text-xs md:text-sm text-slate-200 leading-relaxed">
+                  <p className="text-xs md:text-sm text-sky-100/90 leading-relaxed max-w-2xl">
                     {slide.subtitulo}
                   </p>
                 </div>
@@ -99,14 +103,14 @@ export default function PaginaInicio() {
                   slide.boton_link === "open-chat" ? (
                     <button
                       onClick={() => handleBotonClick(slide.boton_link)}
-                      className="px-6 py-3 bg-[#00A3E0] hover:bg-[#0082B3] text-white font-bold text-xs uppercase tracking-wider rounded-full shadow-lg transition-all cursor-pointer whitespace-nowrap"
+                      className="px-6 py-3 bg-[#FFC20E] hover:bg-[#E5AC00] text-slate-900 font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-lg transition-all cursor-pointer whitespace-nowrap relative z-10 shrink-0"
                     >
                       {slide.boton_texto}
                     </button>
                   ) : (
                     <Link
                       to={slide.boton_link || "/reservar"}
-                      className="px-6 py-3 bg-[#00A3E0] hover:bg-[#0082B3] text-white font-bold text-xs uppercase tracking-wider rounded-full shadow-lg transition-all text-center whitespace-nowrap"
+                      className="px-6 py-3 bg-[#FFC20E] hover:bg-[#E5AC00] text-slate-900 font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-lg transition-all text-center whitespace-nowrap relative z-10 shrink-0"
                     >
                       {slide.boton_texto}
                     </Link>

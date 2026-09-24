@@ -120,11 +120,54 @@ export default function Dashboard() {
     if (activeTab === "sanciones") {
       fetchSancionados();
     }
+    if (activeTab === "incidencias" || activeTab === "sedes") {
+      fetchIncidencias();
+    }
   }, [activeTab]);
 
   const [sancionados, setSancionados] = useState([]);
   const [cargandoSancionados, setCargandoSancionados] = useState(false);
   const [busquedaSancionados, setBusquedaSancionados] = useState("");
+
+  const [incidencias, setIncidencias] = useState([]);
+  const [cargandoIncidencias, setCargandoIncidencias] = useState(false);
+  const [filtroEstadoIncidencia, setFiltroEstadoIncidencia] = useState("todos");
+  const [busquedaIncidencia, setBusquedaIncidencia] = useState("");
+
+  const fetchIncidencias = async () => {
+    setCargandoIncidencias(true);
+    try {
+      const data = await apiGet("/api/admin/incidencias");
+      setIncidencias(data || []);
+    } catch {
+      setIncidencias([]);
+    } finally {
+      setCargandoIncidencias(false);
+    }
+  };
+
+  const handleCambiarEstadoIncidencia = async (incidenciaId, nuevoEstado) => {
+    try {
+      await apiPut(`/api/admin/incidencias/${incidenciaId}/estado`, {
+        estado: nuevoEstado,
+        solucion: nuevoEstado === "resuelta" ? "Incidencia revisada y resuelta por administración." : null
+      });
+      setToastNotificacion({ tipo: "exito", texto: `Incidencia marcada como ${nuevoEstado === "resuelta" ? "resuelta" : nuevoEstado}.` });
+      fetchIncidencias();
+    } catch (err) {
+      setToastNotificacion({ tipo: "error", texto: err.message || "Error al actualizar la incidencia." });
+    }
+  };
+
+  const handleMantenimientoDesdeIncidencia = async (inc) => {
+    const cubEncontrado = cubiculosCampus.find((c) => c.id === inc.cubiculo_id) || {
+      id: inc.cubiculo_id,
+      codigo: inc.cubiculo_codigo,
+      campus_id: inc.campus_id,
+      campus_nombre: inc.campus_nombre
+    };
+    handleAbrirModalMantenimiento(cubEncontrado);
+  };
 
   const fetchSancionados = async () => {
     setCargandoSancionados(true);
@@ -506,18 +549,21 @@ export default function Dashboard() {
     setEliminandoReservaId(reservaId);
     try {
       const resp = await apiPost(`/api/reservas/${reservaId}/inasistencia`);
-      const reservasActualizadas = reservasBloque.filter((r) => r.id !== reservaId);
+      const reservasActualizadas = reservasBloque.filter((r) => r.id !== reservaId && String(r.id) !== String(reservaId));
       setReservasBloque(reservasActualizadas);
       await fetchResumen();
+      await fetchSancionados();
       if (activeTab === "historial") {
         await fetchHistorial();
       }
       if (reservasActualizadas.length === 0) {
         setBloqueSeleccionado(null);
       }
-      const detalleSancion = resp.sancion?.suspendido
-        ? ` Alumno sancionado por 3 días (${resp.sancion.inasistencias_periodo}/2 inasistencias).`
-        : ` Inasistencias registradas: ${resp.sancion?.inasistencias_periodo || 1}/2.`;
+      const totalInasistencias = resp.total_inasistencias ?? resp.sancion?.inasistencias_periodo ?? 1;
+      const suspendido = resp.suspendido ?? resp.sancion?.suspendido ?? false;
+      const detalleSancion = suspendido
+        ? ` Alumno sancionado por 3 días (${totalInasistencias}/2 inasistencias).`
+        : ` Inasistencias registradas: ${totalInasistencias}/2.`;
       setToastNotificacion({
         tipo: "exito",
         texto: `Reserva eliminada y registrada como inasistencia.${detalleSancion}`
@@ -1041,10 +1087,11 @@ export default function Dashboard() {
           <div className="h-[3px] bg-gradient-to-r from-[#FFC20E] via-[#00A3E0] to-[#00629B]" />
 
           {/* Navegación por pestañas */}
-          <div className="p-3 bg-white">
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none rounded-2xl bg-slate-100/70 p-1.5">
+          <div className="p-3 bg-white border-t border-slate-100">
+            <div className="flex flex-wrap items-center gap-1.5 rounded-2xl bg-slate-100/80 p-1.5 border border-slate-200/50">
               {[
                 { id: "monitoreo", label: "Monitoreo y Bloques", icon: "📊" },
+                { id: "incidencias", label: "Incidencias de Cubículos", icon: "⚠️" },
                 { id: "metricas", label: "Métricas y Análisis", icon: "📈" },
                 { id: "sanciones", label: "Sanciones y Disciplina", icon: "⚖️" },
                 { id: "calendario", label: "Calendario y Bloqueos", icon: "📅" },
@@ -1053,6 +1100,7 @@ export default function Dashboard() {
                 { id: "historial", label: "Historial de Registros", icon: "📜" }
               ].map((tab) => {
                 const isSelected = activeTab === tab.id;
+                const totalPendientes = tab.id === "incidencias" ? incidencias.filter(i => i.estado === "pendiente").length : 0;
                 return (
                   <button
                     key={tab.id}
@@ -1062,14 +1110,20 @@ export default function Dashboard() {
                       if (tab.id === "calendario") fetchDiasBloqueados();
                       if (tab.id === "historial") fetchHistorial();
                       if (tab.id === "sanciones") fetchSancionados();
+                      if (tab.id === "incidencias") fetchIncidencias();
                     }}
-                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${isSelected
-                      ? "bg-white text-[#00629B] font-bold shadow-[0_2px_8px_-2px_rgba(15,23,42,0.18)] ring-1 ring-slate-200/70"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-white/70"
+                    className={`flex items-center gap-2 px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap cursor-pointer active:scale-98 ${isSelected
+                      ? "bg-white text-[#00629B] font-bold shadow-[0_2px_8px_-2px_rgba(15,23,42,0.18)] ring-1 ring-slate-200/80"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-white/80"
                       }`}
                   >
                     <span className="text-sm">{tab.icon}</span>
                     <span>{tab.label}</span>
+                    {totalPendientes > 0 && (
+                      <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-rose-500 text-white">
+                        {totalPendientes}
+                      </span>
+                    )}
                   </button>
                 );
               })}
@@ -1241,13 +1295,16 @@ export default function Dashboard() {
               </span>
             </div>
 
-            <div className="rounded-2xl border border-slate-200/80 bg-slate-50/60 p-5 space-y-3">
-              <h3 className="text-xs font-bold text-slate-800 flex items-center gap-2">
-                <span className="w-5 h-5 rounded-lg bg-[#00629B] text-white text-[10px] font-bold flex items-center justify-center">1</span>
-                Registrar nueva sede
-              </h3>
-              <form onSubmit={handleCrearCampus} className="flex flex-col sm:flex-row gap-3">
-                <div className="flex-1">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="rounded-2xl border border-sky-100 bg-white p-5 space-y-3.5 shadow-xs">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <h3 className="text-xs font-bold text-slate-800 flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-lg bg-[#00629B] text-white text-[11px] font-bold flex items-center justify-center shadow-xs">1</span>
+                    Registrar nueva sede
+                  </h3>
+                  <span className="text-[10px] font-bold text-[#00629B] bg-sky-50 px-2 py-0.5 rounded-full border border-sky-100">Campus</span>
+                </div>
+                <form onSubmit={handleCrearCampus} className="space-y-3">
                   <input
                     type="text"
                     value={nuevoCampusNombre}
@@ -1255,162 +1312,163 @@ export default function Dashboard() {
                     placeholder="Nombre de la nueva sede (ej: Campus San Miguel)..."
                     className={INPUT}
                   />
+                  <button
+                    type="submit"
+                    disabled={creandoCampus || !nuevoCampusNombre.trim()}
+                    className={`${BTN_PRIMARY} w-full`}
+                  >
+                    {creandoCampus ? "Guardando..." : "➕ Añadir sede institucional"}
+                  </button>
+                </form>
+              </div>
+
+              <div className="rounded-2xl border border-amber-100 bg-white p-5 space-y-3.5 shadow-xs">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <h3 className="text-xs font-bold text-slate-800 flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-lg bg-[#FFC20E] text-slate-950 text-[11px] font-bold flex items-center justify-center shadow-xs">2</span>
+                    Crear cubículo y asignar sede
+                  </h3>
+                  <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">Cubículo</span>
                 </div>
-                <button
-                  type="submit"
-                  disabled={creandoCampus || !nuevoCampusNombre.trim()}
-                  className={BTN_PRIMARY}
-                >
-                  {creandoCampus ? "Guardando..." : "➕ Añadir sede"}
-                </button>
-              </form>
+                <form onSubmit={handleCrearCubiculo} className="space-y-3">
+                  <div className="flex flex-col sm:flex-row gap-2.5">
+                    <select
+                      value={campusDestinoCubiculo}
+                      onChange={(e) => setCampusDestinoCubiculo(e.target.value)}
+                      className={`${INPUT} sm:w-1/2 font-semibold cursor-pointer`}
+                    >
+                      {campus.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          🏛️ {c.nombre}
+                        </option>
+                      ))}
+                    </select>
+
+                    <input
+                      type="text"
+                      value={nuevoCodigoCubiculo}
+                      onChange={(e) => setNuevoCodigoCubiculo(e.target.value)}
+                      placeholder="Código (ej: CUB-01)..."
+                      className={`${INPUT} sm:w-1/2`}
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={creandoCubiculo || !nuevoCodigoCubiculo.trim() || !campusDestinoCubiculo}
+                    className={`${BTN_ACCENT} w-full`}
+                  >
+                    {creandoCubiculo ? "Añadiendo..." : "🚪 Crear cubículo"}
+                  </button>
+                </form>
+              </div>
             </div>
 
-            <div className="rounded-2xl border border-slate-200/80 bg-slate-50/60 p-5 space-y-3">
-              <h3 className="text-xs font-bold text-slate-800 flex items-center gap-2">
-                <span className="w-5 h-5 rounded-lg bg-[#00629B] text-white text-[10px] font-bold flex items-center justify-center">2</span>
-                Crear cubículo y asignar sede
-              </h3>
-              <form onSubmit={handleCrearCubiculo} className="flex flex-col sm:flex-row gap-3">
-                <div className="w-full sm:w-1/3">
-                  <select
-                    value={campusDestinoCubiculo}
-                    onChange={(e) => setCampusDestinoCubiculo(e.target.value)}
-                    className={`${INPUT} font-semibold cursor-pointer`}
-                  >
-                    {campus.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        🏛️ {c.nombre}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="flex-1">
-                  <input
-                    type="text"
-                    value={nuevoCodigoCubiculo}
-                    onChange={(e) => setNuevoCodigoCubiculo(e.target.value)}
-                    placeholder="Código del cubículo (ej: CUB01-SF, CUB02-JP)..."
-                    className={INPUT}
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={creandoCubiculo || !nuevoCodigoCubiculo.trim() || !campusDestinoCubiculo}
-                  className={BTN_ACCENT}
-                >
-                  {creandoCubiculo ? "Añadiendo..." : "🚪 Crear cubículo"}
-                </button>
-              </form>
-
-              <div className="pt-2">
-                {cargandoCubiculosCampus ? (
-                  <div className="flex flex-wrap gap-2">
-                    {[1, 2, 3, 4, 5, 6].map((i) => (
-                      <div key={i} className="relative h-8 w-24 overflow-hidden rounded-xl bg-slate-100 border border-slate-200">
-                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/80 to-transparent animate-shimmer" />
-                      </div>
-                    ))}
-                  </div>
-                ) : cubiculosCampus.length > 0 ? (
-                  <div>
-                    <p className="text-[11px] font-semibold text-slate-500 mb-2.5">
-                      Cubículos en {campus.find((c) => String(c.id) === String(campusDestinoCubiculo))?.nombre || "la sede"} ({cubiculosCampus.length}):
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {cubiculosCampus.map((cb) => (
-                        editingCubiculoId === cb.id ? (
-                          <div
-                            key={cb.id}
-                            className="flex items-center gap-1.5 bg-white border border-[#00629B] ring-4 ring-[#00629B]/10 rounded-xl px-2 py-1.5 shadow-xs"
-                          >
-                            <input
-                              type="text"
-                              value={editCubiculoCodigoVal}
-                              onChange={(e) => setEditCubiculoCodigoVal(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") handleGuardarEditCubiculo(cb.id);
-                                if (e.key === "Escape") setEditingCubiculoId(null);
-                              }}
-                              className="w-24 px-2 py-0.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 outline-none uppercase"
-                              autoFocus
-                            />
-                            <button
-                              type="button"
-                              onClick={() => handleGuardarEditCubiculo(cb.id)}
-                              className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold cursor-pointer transition-colors"
-                              title="Guardar código"
-                            >
-                              ✓
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setEditingCubiculoId(null)}
-                              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold cursor-pointer transition-colors"
-                              title="Cancelar"
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        ) : (
-                          <div
-                            key={cb.id}
-                            className={`group flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 rounded-xl text-xs font-semibold shadow-xs transition-all ${
-                              cb.en_mantenimiento
-                                ? "bg-amber-50/90 border border-amber-300 text-amber-900"
-                                : "bg-white border border-slate-200 hover:border-[#00629B]/40 text-slate-800"
-                            }`}
-                          >
-                            <span>{cb.en_mantenimiento ? "⚠️" : "🚪"} {cb.codigo}</span>
-                            {cb.en_mantenimiento && (
-                              <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-200/80 text-amber-800 px-1.5 py-0.5 rounded">
-                                Mantenimiento
-                              </span>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => handleAbrirModalMantenimiento(cb)}
-                              className={`p-1 rounded-lg cursor-pointer transition-colors ${
-                                cb.en_mantenimiento
-                                  ? "text-amber-600 hover:text-amber-800 hover:bg-amber-100"
-                                  : "text-slate-400 hover:text-amber-600 hover:bg-amber-50"
-                              }`}
-                              title="Gestionar días de mantenimiento"
-                            >
-                              🛠️
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditingCubiculoId(cb.id);
-                                setEditCubiculoCodigoVal(cb.codigo);
-                              }}
-                              className="text-slate-400 hover:text-[#00629B] hover:bg-sky-50 p-1 rounded-lg cursor-pointer transition-colors"
-                              title="Modificar código del cubículo"
-                            >
-                              ✏️
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleEliminarCubiculoModal(cb.id, cb.codigo)}
-                              className="text-rose-400 hover:text-rose-600 hover:bg-rose-50 p-1 rounded-lg cursor-pointer transition-colors"
-                              title="Eliminar cubículo"
-                            >
-                              🗑️
-                            </button>
-                          </div>
-                        )
-                      ))}
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs space-y-3">
+              {cargandoCubiculosCampus ? (
+                <div className="flex flex-wrap gap-2">
+                  {[1, 2, 3, 4, 5, 6].map((i) => (
+                    <div key={i} className="relative h-8 w-24 overflow-hidden rounded-xl bg-slate-100 border border-slate-200">
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/80 to-transparent animate-shimmer" />
                     </div>
-                  </div>
-                ) : (
-                  <p className="text-[11px] font-medium text-slate-400">
-                    No hay cubículos registrados en {campus.find((c) => String(c.id) === String(campusDestinoCubiculo))?.nombre || "esta sede"}.
+                  ))}
+                </div>
+              ) : cubiculosCampus.length > 0 ? (
+                <div>
+                  <p className="text-[11px] font-semibold text-slate-500 mb-2.5">
+                    Cubículos en {campus.find((c) => String(c.id) === String(campusDestinoCubiculo))?.nombre || "la sede"} ({cubiculosCampus.length}):
                   </p>
-                )}
-              </div>
+                  <div className="flex flex-wrap gap-2">
+                    {cubiculosCampus.map((cb) => (
+                      editingCubiculoId === cb.id ? (
+                        <div
+                          key={cb.id}
+                          className="flex items-center gap-1.5 bg-white border border-[#00629B] ring-4 ring-[#00629B]/10 rounded-xl px-2 py-1.5 shadow-xs"
+                        >
+                          <input
+                            type="text"
+                            value={editCubiculoCodigoVal}
+                            onChange={(e) => setEditCubiculoCodigoVal(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleGuardarEditCubiculo(cb.id);
+                              if (e.key === "Escape") setEditingCubiculoId(null);
+                            }}
+                            className="w-24 px-2 py-0.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 outline-none uppercase"
+                            autoFocus
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleGuardarEditCubiculo(cb.id)}
+                            className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold cursor-pointer transition-colors"
+                            title="Guardar código"
+                          >
+                            ✓
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingCubiculoId(null)}
+                            className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold cursor-pointer transition-colors"
+                            title="Cancelar"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <div
+                          key={cb.id}
+                          className={`group flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 rounded-xl text-xs font-semibold shadow-xs transition-all ${
+                            cb.en_mantenimiento
+                              ? "bg-amber-50/90 border border-amber-300 text-amber-900"
+                              : "bg-white border border-slate-200 hover:border-[#00629B]/40 text-slate-800"
+                          }`}
+                        >
+                          <span>{cb.en_mantenimiento ? "⚠️" : "🚪"} {cb.codigo}</span>
+                          {cb.en_mantenimiento && (
+                            <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-200/80 text-amber-800 px-1.5 py-0.5 rounded">
+                              Mantenimiento
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleAbrirModalMantenimiento(cb)}
+                            className={`p-1 rounded-lg cursor-pointer transition-colors ${
+                              cb.en_mantenimiento
+                                ? "text-amber-600 hover:text-amber-800 hover:bg-amber-100"
+                                : "text-slate-400 hover:text-amber-600 hover:bg-amber-50"
+                            }`}
+                            title="Gestionar días de mantenimiento"
+                          >
+                            🛠️
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingCubiculoId(cb.id);
+                              setEditCubiculoCodigoVal(cb.codigo);
+                            }}
+                            className="text-slate-400 hover:text-[#00629B] hover:bg-sky-50 p-1 rounded-lg cursor-pointer transition-colors"
+                            title="Modificar código del cubículo"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleEliminarCubiculoModal(cb.id, cb.codigo)}
+                            className="text-rose-400 hover:text-rose-600 hover:bg-rose-50 p-1 rounded-lg cursor-pointer transition-colors"
+                            title="Eliminar cubículo"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      )
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[11px] font-medium text-slate-400">
+                  No hay cubículos registrados en {campus.find((c) => String(c.id) === String(campusDestinoCubiculo))?.nombre || "esta sede"}.
+                </p>
+              )}
             </div>
 
             <div className="pt-2 space-y-3">
@@ -1860,44 +1918,44 @@ export default function Dashboard() {
                   </div>
 
                   <div className="lg:col-span-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className={`${CARD} p-5 flex flex-col justify-between group hover:border-[#00629B]/30 transition-all`}>
+                    <div className={`${CARD} p-5 flex flex-col justify-between group hover:border-[#00629B]/30 hover:shadow-md transition-all`}>
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Agendadas</span>
-                        <span className="w-8 h-8 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sm">📋</span>
+                        <span className="w-8 h-8 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sm shadow-2xs">📋</span>
                       </div>
                       <div className="my-3">
                         <span className="text-3xl font-extrabold text-[#00629B] tracking-tight">{resumen.total_reservas_dia}</span>
-                        <p className="text-[11px] text-slate-500 mt-1">Reservas activas para hoy</p>
+                        <p className="text-[11px] text-slate-500 mt-1 font-medium">Reservas activas para hoy</p>
                       </div>
-                      <span className="text-[10px] font-bold text-sky-800 bg-sky-50 border border-sky-100 px-2 py-1 rounded-lg w-fit">
+                      <span className="text-[10px] font-bold text-sky-800 bg-sky-50 border border-sky-100 px-2.5 py-1 rounded-lg w-fit">
                         Confirmadas
                       </span>
                     </div>
 
-                    <div className={`${CARD} p-5 flex flex-col justify-between group hover:border-emerald-300 transition-all`}>
+                    <div className={`${CARD} p-5 flex flex-col justify-between group hover:border-emerald-300 hover:shadow-md transition-all`}>
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Disponibles</span>
-                        <span className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-sm">🟢</span>
+                        <span className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-sm shadow-2xs">🟢</span>
                       </div>
                       <div className="my-3">
                         <span className="text-3xl font-extrabold text-emerald-600 tracking-tight">{resumen.cupos_disponibles_dia}</span>
-                        <p className="text-[11px] text-slate-500 mt-1">Cupos libres de reserva</p>
+                        <p className="text-[11px] text-slate-500 mt-1 font-medium">Cupos libres de reserva</p>
                       </div>
-                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-100 px-2 py-1 rounded-lg w-fit">
+                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-lg w-fit">
                         Para agendar
                       </span>
                     </div>
 
-                    <div className={`${CARD} p-5 flex flex-col justify-between group hover:border-slate-300 transition-all`}>
+                    <div className={`${CARD} p-5 flex flex-col justify-between group hover:border-amber-300 hover:shadow-md transition-all`}>
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Capacidad</span>
-                        <span className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-sm">🏢</span>
+                        <span className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-sm shadow-2xs">🏢</span>
                       </div>
                       <div className="my-3">
                         <span className="text-3xl font-extrabold text-slate-900 tracking-tight">{resumen.cubiculas_fisicos}</span>
-                        <p className="text-[11px] text-slate-500 mt-1">Cubículos en la sede</p>
+                        <p className="text-[11px] text-slate-500 mt-1 font-medium">Cubículos en la sede</p>
                       </div>
-                      <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-100 px-2 py-1 rounded-lg w-fit">
+                      <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-100 px-2.5 py-1 rounded-lg w-fit">
                         Simultáneos
                       </span>
                     </div>
@@ -2319,9 +2377,9 @@ export default function Dashboard() {
                     </div>
 
                     {totalHistorial > 0 && (
-                      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 text-xs text-slate-600">
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 pb-2 border-t border-slate-100 text-xs text-slate-600">
                         <div className="flex items-center gap-2">
-                          <span>Mostrar</span>
+                          <span className="font-medium">Mostrar</span>
                           <select
                             value={limiteHistorial}
                             onChange={(e) => {
@@ -2330,20 +2388,20 @@ export default function Dashboard() {
                               setPaginaHistorial(1);
                               fetchHistorial(1, nuevoLim);
                             }}
-                            className="px-2 py-1 bg-white border border-slate-200 rounded-lg font-semibold text-slate-700 outline-none cursor-pointer"
+                            className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl font-bold text-slate-800 outline-none cursor-pointer shadow-2xs hover:border-slate-300"
                           >
                             <option value={10}>10</option>
                             <option value={25}>25</option>
                             <option value={50}>50</option>
                             <option value={100}>100</option>
                           </select>
-                          <span>por página</span>
-                          <span className="text-slate-400 ml-1">
+                          <span className="font-medium">por página</span>
+                          <span className="text-slate-400 ml-2 font-mono text-[11px]">
                             ({(paginaHistorial - 1) * limiteHistorial + 1} - {Math.min(paginaHistorial * limiteHistorial, totalHistorial)} de {totalHistorial})
                           </span>
                         </div>
 
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-2">
                           <button
                             type="button"
                             disabled={paginaHistorial <= 1 || cargandoHistorial}
@@ -2352,11 +2410,11 @@ export default function Dashboard() {
                               setPaginaHistorial(prev);
                               fetchHistorial(prev, limiteHistorial);
                             }}
-                            className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
+                            className="px-3.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shadow-2xs"
                           >
                             ◀ Anterior
                           </button>
-                          <span className="px-3 py-1.5 font-bold text-slate-700">
+                          <span className="px-3 py-1.5 font-bold text-[#00629B] bg-sky-50 rounded-xl border border-sky-100 font-mono text-xs">
                             {paginaHistorial} / {Math.max(1, Math.ceil(totalHistorial / limiteHistorial))}
                           </span>
                           <button
@@ -2367,7 +2425,7 @@ export default function Dashboard() {
                               setPaginaHistorial(sig);
                               fetchHistorial(sig, limiteHistorial);
                             }}
-                            className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
+                            className="px-3.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shadow-2xs"
                           >
                             Siguiente ▶
                           </button>
@@ -2859,6 +2917,201 @@ export default function Dashboard() {
                               >
                                 <span>🕊️</span> Quitar sanción
                               </button>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {(activeTab === "incidencias") && (
+          <div className={`${CARD} p-6 md:p-8 mb-8 space-y-7 animate-fadeIn`}>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+              <div className="space-y-1.5">
+                <span className={EYEBROW}>⚠️ Mesa de Ayuda y Mantenimiento</span>
+                <h2 className={SECTION_TITLE}>Reporte de Incidencias en Cubículos</h2>
+                <p className="text-xs text-slate-500 max-w-2xl leading-relaxed">
+                  Problemas técnicos, mobiliario o fallas físicas reportadas por los estudiantes en sus cubículos. Puedes actualizar el estado de cada reporte o programar mantenimiento directo del cubículo.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={fetchIncidencias}
+                  disabled={cargandoIncidencias}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <svg className={`w-3.5 h-3.5 ${cargandoIncidencias ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  <span>Actualizar</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              <div className="relative flex-1 max-w-md">
+                <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                  🔍
+                </span>
+                <input
+                  type="text"
+                  placeholder="Buscar por cubículo, sede, alumno o descripción..."
+                  value={busquedaIncidencia}
+                  onChange={(e) => setBusquedaIncidencia(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#00629B]/20 focus:border-[#00629B] transition-all"
+                />
+              </div>
+
+              <div className="flex items-center gap-1.5 bg-slate-100/80 p-1 rounded-xl">
+                {[
+                  { id: "todos", label: "Todas" },
+                  { id: "pendiente", label: "Pendientes" },
+                  { id: "en_revision", label: "En revisión" },
+                  { id: "resuelta", label: "Resueltas" }
+                ].map((f) => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => setFiltroEstadoIncidencia(f.id)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                      filtroEstadoIncidencia === f.id
+                        ? "bg-white text-[#00629B] shadow-xs"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {cargandoIncidencias ? (
+                <div className="p-8 text-center text-slate-400 text-xs flex items-center justify-center gap-2">
+                  <span className="animate-spin text-base">⏳</span> Cargando incidencias...
+                </div>
+              ) : incidencias.length === 0 ? (
+                <div className="p-12 text-center border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
+                  <span className="text-3xl block mb-2">🎉</span>
+                  <p className="text-sm font-semibold text-slate-700">No hay incidencias registradas</p>
+                  <p className="text-xs text-slate-400 mt-1">Todos los cubículos están operando sin reportes de fallas.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-semibold uppercase text-[10px] tracking-wider">
+                        <th className="py-3 px-4">Cubículo / Sede</th>
+                        <th className="py-3 px-4">Categoría</th>
+                        <th className="py-3 px-4">Descripción del problema</th>
+                        <th className="py-3 px-4">Reportado por</th>
+                        <th className="py-3 px-4">Estado</th>
+                        <th className="py-3 px-4 text-right">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                      {incidencias
+                        .filter((inc) => {
+                          if (filtroEstadoIncidencia !== "todos" && inc.estado !== filtroEstadoIncidencia) {
+                            return false;
+                          }
+                          const q = busquedaIncidencia.toLowerCase();
+                          if (!q) return true;
+                          return (
+                            (inc.cubiculo_codigo || "").toLowerCase().includes(q) ||
+                            (inc.campus_nombre || "").toLowerCase().includes(q) ||
+                            (inc.descripcion || "").toLowerCase().includes(q) ||
+                            (inc.estudiante_nombre || "").toLowerCase().includes(q) ||
+                            (inc.estudiante_rut || "").toLowerCase().includes(q) ||
+                            (inc.categoria || "").toLowerCase().includes(q)
+                          );
+                        })
+                        .map((inc) => (
+                          <tr key={inc.id} className="hover:bg-slate-50/70 transition-colors">
+                            <td className="py-3.5 px-4">
+                              <span className="font-mono font-bold text-slate-900 bg-sky-50 text-[#00629B] px-2 py-0.5 rounded border border-sky-200/60">
+                                {inc.cubiculo_codigo}
+                              </span>
+                              <p className="text-[11px] text-slate-500 mt-0.5">{inc.campus_nombre}</p>
+                              {inc.reserva_id && (
+                                <p className="text-[10px] text-slate-400">Pase #{inc.reserva_id}</p>
+                              )}
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-slate-700 capitalize">
+                                {inc.categoria === "electricidad" && "⚡ Electricidad"}
+                                {inc.categoria === "mobiliario" && "🪑 Mobiliario"}
+                                {inc.categoria === "limpieza" && "🧹 Limpieza"}
+                                {inc.categoria === "tecnologia" && "🖥️ Tecnología"}
+                                {inc.categoria === "clima" && "❄️ Climatización"}
+                                {inc.categoria === "otro" && "📌 Otro"}
+                                {!["electricidad", "mobiliario", "limpieza", "tecnologia", "clima", "otro"].includes(inc.categoria) && inc.categoria}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4 max-w-xs sm:max-w-sm">
+                              <p className="text-slate-800 text-[12px] font-medium leading-relaxed">
+                                {inc.descripcion}
+                              </p>
+                              <p className="text-[10px] text-slate-400 mt-1">
+                                {inc.created_at || "Fecha no registrada"}
+                              </p>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <p className="font-semibold text-slate-900">{inc.estudiante_nombre || "Estudiante"}</p>
+                              <p className="font-mono text-[11px] text-slate-500">{inc.estudiante_rut || "Sin RUT"}</p>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                inc.estado === "pendiente"
+                                  ? "bg-rose-50 text-rose-700 border border-rose-200"
+                                  : inc.estado === "en_revision"
+                                  ? "bg-amber-50 text-amber-800 border border-amber-200"
+                                  : "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                              }`}>
+                                {inc.estado === "pendiente" && "⚠️ Pendiente"}
+                                {inc.estado === "en_revision" && "🔧 En revisión"}
+                                {inc.estado === "resuelta" && "✅ Resuelta"}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4 text-right">
+                              <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                                {inc.estado !== "resuelta" && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleMantenimientoDesdeIncidencia(inc)}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-900 font-semibold text-[11px] cursor-pointer shadow-xs transition"
+                                      title="Poner cubículo en mantenimiento"
+                                    >
+                                      <span>🛠️</span> Mantención
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCambiarEstadoIncidencia(inc.id, "resuelta")}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-semibold text-[11px] cursor-pointer shadow-xs transition"
+                                      title="Marcar como resuelta"
+                                    >
+                                      <span>✅</span> Resolver
+                                    </button>
+                                  </>
+                                )}
+                                {inc.estado === "resuelta" && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCambiarEstadoIncidencia(inc.id, "en_revision")}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 font-medium text-[11px] cursor-pointer transition"
+                                    title="Reabrir incidencia"
+                                  >
+                                    <span>🔄</span> Reabrir
+                                  </button>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         ))}

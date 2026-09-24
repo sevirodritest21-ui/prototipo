@@ -975,33 +975,44 @@ export default function FormularioReserva() {
                           disabled={deshabilitado}
                           onClick={() => !deshabilitado && setFormData((prev) => ({ ...prev, hora: b.hora }))}
                           className={`
-                          flex flex-col justify-between rounded-lg border p-3 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC20E] focus-visible:ring-offset-2
+                          flex flex-col justify-between rounded-xl border p-3.5 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC20E] focus-visible:ring-offset-2
                           ${deshabilitado
-                              ? "cursor-not-allowed border-slate-200 bg-slate-100/80 text-slate-400 opacity-60"
+                              ? "cursor-not-allowed border-slate-200/90 bg-slate-100/70 text-slate-400 opacity-70"
                               : esSeleccionado
                                 ? "cursor-pointer border-[#00629B] bg-[#00629B] text-white shadow-md shadow-[#00629B]/25 ring-1 ring-[#00629B]"
-                                : "cursor-pointer border-slate-200 bg-white text-slate-700 hover:border-[#00629B]/50 hover:bg-sky-50/30"
+                                : "cursor-pointer border-slate-200 bg-white text-slate-700 hover:border-[#00629B]/60 hover:bg-sky-50/40 hover:shadow-xs"
                             }
                         `}
-                          title={esPasado ? "Este bloque ya ha finalizado el día de hoy" : b.agotado ? "Sin cupos disponibles" : "Disponible para agendar"}
+                          title={esPasado ? "Horario ya transcurrido el día de hoy" : b.agotado ? "Sin cubículos disponibles para este bloque" : "Disponible para agendar"}
                         >
-                          <span className="flex items-center justify-between">
-                            <span className="text-[14px] font-semibold tabular-nums tracking-tight">{b.rango}</span>
+                          <span className="flex items-center justify-between gap-1.5">
+                            <span className="text-[14px] font-bold tabular-nums tracking-tight">{b.rango}</span>
                             {esSeleccionado ? (
                               <IconCheck className="w-4 h-4 text-[#FFC20E]" />
+                            ) : esPasado ? (
+                              <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-200 text-slate-600">
+                                Pasado
+                              </span>
+                            ) : b.agotado ? (
+                              <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-rose-100 text-rose-700">
+                                Lleno
+                              </span>
                             ) : (
-                              <span className={`h-1.5 w-1.5 rounded-full ${esPasado ? "bg-slate-300" : b.agotado ? "bg-rose-400" : "bg-emerald-600"}`} />
+                              <span className="h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-emerald-100" />
                             )}
                           </span>
-                          <span className={`mt-2 text-[12px] font-medium ${esPasado
+                          <span className={`mt-2.5 text-[11px] font-semibold flex items-center justify-between ${esPasado
                               ? "text-slate-400"
                               : b.agotado
-                                ? "text-rose-500"
+                                ? "text-rose-600"
                                 : esSeleccionado
                                   ? "text-sky-100"
                                   : "text-slate-500"
                             }`}>
-                            {esPasado ? "Finalizado" : b.agotado ? "Sin cupos" : `${b.disponibles} disponibles`}
+                            <span>{esPasado ? "No disponible" : b.agotado ? "0 cupos" : `${b.disponibles} cubículos`}</span>
+                            {!esPasado && !b.agotado && !esSeleccionado && (
+                              <span className="text-emerald-700 font-bold text-[10px] uppercase">Libre</span>
+                            )}
                           </span>
                         </button>
                       );
