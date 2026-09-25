@@ -1635,6 +1635,11 @@ async def reportar_incidencia(
         if not cub_existe:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="El cubículo indicado no existe.")
 
+        est_rut_limpio = html.escape(est_rut.strip()) if est_rut else None
+        est_nombre_limpio = html.escape(est_nombre.strip()) if est_nombre else None
+        cat_limpia = html.escape((data.categoria or "otro").strip())
+        desc_limpia = html.escape(data.descripcion.strip())
+
         row = await conn.fetchrow(
             """
             INSERT INTO incidencias_cubiculos (
@@ -1645,10 +1650,10 @@ async def reportar_incidencia(
             """,
             cid,
             data.reserva_id,
-            est_rut,
-            est_nombre,
-            data.categoria or "otro",
-            data.descripcion.strip()
+            est_rut_limpio,
+            est_nombre_limpio,
+            cat_limpia,
+            desc_limpia
         )
         return {
             "mensaje": "Reporte de incidencia registrado correctamente. Nuestro equipo lo revisará a la brevedad.",
@@ -1725,6 +1730,7 @@ async def actualizar_estado_incidencia(
     if data.estado not in estados_validos:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Estado inválido. Opciones: {', '.join(estados_validos)}")
 
+    solucion_limpia = html.escape(data.solucion.strip()) if data.solucion else None
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
@@ -1734,7 +1740,7 @@ async def actualizar_estado_incidencia(
             RETURNING id, cubiculo_id, estado, solucion
             """,
             data.estado,
-            data.solucion,
+            solucion_limpia,
             incidencia_id
         )
         if not row:
@@ -1998,6 +2004,8 @@ async def eliminar_campus_por_id(campus_id: int, current_user: dict = Depends(ge
 
 @app.get("/api/dashboard/metricas")
 async def obtener_metricas_dashboard(campus_id: Optional[int] = None, current_user: dict = Depends(get_current_user)):
+    if current_user.get("rol") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
     try:
         async with pool.acquire() as conn:
             filas_pico = await conn.fetch(
@@ -2107,6 +2115,8 @@ async def obtener_metricas_dashboard(campus_id: Optional[int] = None, current_us
 
 @app.get("/api/dashboard/resumen")
 async def obtener_resumen_dashboard(campus_id: Optional[int] = None, fecha: Optional[str] = None, current_user: dict = Depends(get_current_user)):
+    if current_user.get("rol") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
     try:
         target_fecha = datetime.strptime(fecha.strip(), "%Y-%m-%d").date() if fecha and fecha.strip() else date.today()
 
@@ -3024,8 +3034,12 @@ async def obtener_historial_reservas(
     busqueda: Optional[str] = None,
     limite: Optional[int] = None,
     limit: Optional[int] = None,
-    offset: int = 0
+    offset: int = 0,
+    current_user: dict = Depends(get_current_user)
 ):
+    if current_user.get("rol") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
+
     lim = limit if limit is not None else (limite if limite is not None else 50)
     lim = max(1, min(lim, 10000))
     off = max(0, offset)
