@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
 import { useCmsAnunciosQuery, useCmsTarjetasQuery } from "./services/queries";
+import logoChatbot from "./assets/logoredondo.png";
 
 export default function PaginaInicio() {
   const { user } = useAuth();
@@ -13,18 +14,24 @@ export default function PaginaInicio() {
   const tutorialSteps = [
     {
       paso: 1,
+      titulo: "Toca el Asistente IA",
+      desc: "Presiona el botón flotante del chatbot para agendar o consultar.",
+      tipo: "chatbot"
+    },
+    {
+      paso: 2,
       titulo: "Elige Fecha y Campus",
       desc: "Selecciona tu sede, fecha y horario de estudio.",
       icono: "📍"
     },
     {
-      paso: 2,
+      paso: 3,
       titulo: "Selecciona Cubículo",
       desc: "Revisa capacidad, pantallas y disponibilidad.",
       icono: "🚪"
     },
     {
-      paso: 3,
+      paso: 4,
       titulo: "Confirma tu Espacio",
       desc: "Agrega compañeros y asegura tu reserva al instante.",
       icono: "✅"
@@ -226,20 +233,39 @@ export default function PaginaInicio() {
               <div className="absolute -bottom-6 -right-2 sm:-bottom-8 sm:right-0 md:-right-6 w-44 sm:w-52 md:w-56 bg-[#0F172A] rounded-[2.2rem] p-2.5 shadow-2xl border-2 border-slate-700 z-20 hidden sm:block">
                 <div className="w-14 h-1.5 bg-slate-800 rounded-full mx-auto mb-2.5" />
                 <div className="bg-white rounded-[1.6rem] p-3.5 text-slate-800 flex flex-col justify-between h-56 sm:h-64 shadow-inner text-left overflow-hidden relative">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-2">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-1.5">
                     <div className="flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-full bg-[#00A3E0]" />
                       <span className="text-[10px] font-extrabold text-slate-800 uppercase tracking-wider">¿Cómo reservar?</span>
                     </div>
                     <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-[#FFC20E] text-slate-950">
-                      Paso {tutorialSteps[tutorialStep].paso}/3
+                      Paso {tutorialSteps[tutorialStep].paso}/{tutorialSteps.length}
                     </span>
                   </div>
 
                   <div className="flex-1 flex flex-col items-center justify-center text-center px-1 py-1">
-                    <div className="w-12 h-12 rounded-2xl bg-[#00A3E0]/10 text-[#00A3E0] flex items-center justify-center text-2xl mb-2.5 shadow-xs">
-                      {tutorialSteps[tutorialStep].icono}
-                    </div>
+                    {tutorialSteps[tutorialStep].tipo === "chatbot" ? (
+                      <div
+                        className="relative inline-flex items-center justify-center my-1.5 cursor-pointer group"
+                        onClick={() => window.dispatchEvent(new CustomEvent("open-chat"))}
+                      >
+                        <span className="absolute -inset-2 rounded-full bg-[#00A3E0]/25 animate-ping pointer-events-none" />
+                        <div className="w-13 h-13 rounded-full bg-white border-2 border-[#FFC20E] shadow-md p-1 relative z-10 overflow-hidden ring-4 ring-[#00629B]/15 group-hover:scale-105 transition-transform">
+                          <img
+                            src={logoChatbot}
+                            alt="Chatbot UCT"
+                            className="w-full h-full object-cover scale-125 rounded-full"
+                          />
+                        </div>
+                        <div className="absolute -bottom-1 -right-2.5 text-2xl z-20 transform -rotate-12 animate-bounce pointer-events-none drop-shadow-md">
+                          👆
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="w-12 h-12 rounded-2xl bg-[#00A3E0]/10 text-[#00A3E0] flex items-center justify-center text-2xl mb-1.5 shadow-xs">
+                        {tutorialSteps[tutorialStep].icono}
+                      </div>
+                    )}
                     <h3 className="text-xs font-black text-slate-900 leading-tight mb-1">
                       {tutorialSteps[tutorialStep].titulo}
                     </h3>
@@ -255,13 +281,21 @@ export default function PaginaInicio() {
                           key={idx}
                           onClick={() => setTutorialStep(idx)}
                           aria-label={`Paso ${idx + 1}`}
-                          className={`h-1.5 rounded-full transition-all cursor-pointer ${idx === tutorialStep ? "w-5 bg-[#00A3E0]" : "w-1.5 bg-slate-200 hover:bg-slate-300"
-                            }`}
+                          className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                            idx === tutorialStep ? "w-5 bg-[#00A3E0]" : "w-1.5 bg-slate-200 hover:bg-slate-300"
+                          }`}
                         />
                       ))}
                     </div>
 
-                    {tutorialStep === 2 ? (
+                    {tutorialStep === 0 ? (
+                      <button
+                        onClick={() => window.dispatchEvent(new CustomEvent("open-chat"))}
+                        className="w-full py-1.5 bg-[#FFC20E] hover:bg-[#E5AC00] text-slate-950 font-black text-[10px] uppercase tracking-wider rounded-lg text-center shadow-xs cursor-pointer transition-colors"
+                      >
+                        ¡Abrir Chatbot!
+                      </button>
+                    ) : tutorialStep === tutorialSteps.length - 1 ? (
                       <Link
                         to="/reservar"
                         className="w-full py-1.5 bg-[#FFC20E] hover:bg-[#E5AC00] text-slate-950 font-black text-[10px] uppercase tracking-wider rounded-lg text-center shadow-xs block transition-colors"
@@ -365,7 +399,7 @@ export default function PaginaInicio() {
         </div>
       </section>
 
-      <footer className="bg-slate-900 text-white py-8 px-6 text-center text-xs border-t border-slate-800">
+      <footer className="bg-slate-900 text-white py-8 px-6 text-xs border-t border-slate-800">
         <div className="mx-auto max-w-7xl flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <span className="font-serif font-bold text-white tracking-tight">
@@ -373,6 +407,15 @@ export default function PaginaInicio() {
             </span>
             <span className="text-slate-500">|</span>
             <span className="text-slate-400">Universidad Católica de Temuco</span>
+          </div>
+          <div className="flex items-center gap-4 text-slate-400">
+            <Link to="/preguntas-frecuentes" className="hover:text-[#FFC20E] transition-colors">
+              Preguntas Frecuentes
+            </Link>
+            <span>•</span>
+            <Link to="/reglamento" className="hover:text-[#FFC20E] transition-colors">
+              Reglamento
+            </Link>
           </div>
           <p className="text-slate-400">© {new Date().getFullYear()} Dirección de Bibliotecas — Todos los derechos reservados</p>
         </div>
