@@ -109,6 +109,8 @@ export default function FormularioReserva() {
   const [editBloques, setEditBloques] = useState([]);
   const [cargandoEditBloques, setCargandoEditBloques] = useState(false);
   const [confirmModal, setConfirmModal] = useState({ open: false, titulo: "", mensaje: "", onConfirm: null });
+  const [modalConfirmacionReservaOpen, setModalConfirmacionReservaOpen] = useState(false);
+  const [cargandoEnvioReserva, setCargandoEnvioReserva] = useState(false);
   const [toastNotificacion, setToastNotificacion] = useState({ tipo: "", texto: "" });
 
   useEffect(() => {
@@ -534,6 +536,11 @@ export default function FormularioReserva() {
       }
     }
 
+    setModalConfirmacionReservaOpen(true);
+  };
+
+  const handleConfirmarYCrearReserva = async () => {
+    setCargandoEnvioReserva(true);
     const acompanantesPayload = tieneAcompanantes
       ? listAcompanantes.filter((ac) => ac.nombre.trim() !== "")
       : [];
@@ -558,6 +565,7 @@ export default function FormularioReserva() {
         setBloquesHorarios([]);
         setTieneAcompanantes(false);
         setListAcompanantes([]);
+        setModalConfirmacionReservaOpen(false);
         const rutGuardado = isEstudiante ? user.rut : formData.rut;
         setFormData({
           nombre: isEstudiante ? user.nombre : "",
@@ -577,6 +585,8 @@ export default function FormularioReserva() {
     } catch (error) {
       console.error(error);
       setToastNotificacion({ tipo: "error", texto: "No se pudo conectar con el servidor" });
+    } finally {
+      setCargandoEnvioReserva(false);
     }
   };
 
@@ -932,91 +942,213 @@ export default function FormularioReserva() {
               </div>
 
               <div className="mt-6">
-                <div className="flex items-end justify-between mb-2">
-                  <label className="text-[13px] font-medium text-slate-700">
-                    Bloque horario
-                  </label>
+                <div className="flex items-end justify-between mb-3">
+                  <div>
+                    <label className="text-[13px] font-bold text-slate-800 flex items-center gap-1.5">
+                      <IconClock className="w-4 h-4 text-[#00629B]" />
+                      Línea de tiempo de horarios
+                    </label>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Haz clic en la barra cronológica o en las tarjetas para seleccionar tu bloque.
+                    </p>
+                  </div>
                   {formData.campus_id && formData.fecha && !cargandoHorarios && bloquesHorarios.length > 0 && (
-                    <span className="text-[12px] font-medium text-slate-500">
-                      {bloquesHorarios.filter((b) => !b.agotado).length} de {bloquesHorarios.length} bloques con cupo
+                    <span className="text-[11px] font-bold text-[#00629B] bg-sky-50 px-2.5 py-1 rounded-full border border-sky-100 whitespace-nowrap">
+                      {bloquesHorarios.filter((b) => !b.agotado && !(b.pasado || calcularEsBloquePasado(formData.fecha, b.hora))).length} de {bloquesHorarios.length} bloques libres
                     </span>
                   )}
                 </div>
 
                 {!formData.campus_id || !formData.fecha ? (
-                  <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50/60 px-5 py-8 text-center">
-                    <IconCalendar className="w-5 h-5 mx-auto text-slate-400" />
+                  <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/60 px-5 py-8 text-center">
+                    <IconCalendar className="w-6 h-6 mx-auto text-slate-400" />
                     <p className="mt-2 text-[14px] font-medium text-slate-700">Elige una sede y un día</p>
-                    <p className="mt-0.5 text-[13px] text-slate-500">Con esos datos calculamos los cupos reales de cada bloque.</p>
+                    <p className="mt-0.5 text-[13px] text-slate-500">Con esos datos calculamos los cupos reales de cada bloque en tiempo real.</p>
                   </div>
                 ) : cargandoHorarios ? (
-                  <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-                    {[1, 2, 3, 4, 5, 6].map((i) => (
-                      <div
-                        key={i}
-                        className="relative h-[68px] overflow-hidden rounded-md border border-slate-200 bg-white p-3"
-                      >
-                        <div className="h-3.5 w-20 rounded bg-slate-200/80" />
-                        <div className="mt-3 h-2.5 w-16 rounded bg-slate-200/60" />
-                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-slate-100/70 to-transparent animate-shimmer" />
-                      </div>
-                    ))}
+                  <div className="space-y-3">
+                    <div className="h-9 w-full rounded-xl bg-slate-200/60 animate-pulse" />
+                    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                      {[1, 2, 3, 4, 5, 6].map((i) => (
+                        <div
+                          key={i}
+                          className="relative h-24 overflow-hidden rounded-xl border border-slate-200 bg-white p-3.5"
+                        >
+                          <div className="h-4 w-24 rounded bg-slate-200/80" />
+                          <div className="mt-3 h-2 w-full rounded bg-slate-200/60" />
+                          <div className="mt-2.5 h-3 w-16 rounded bg-slate-200/50" />
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-slate-100/70 to-transparent animate-shimmer" />
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-                    {bloquesHorarios.map((b) => {
-                      const esPasado = b.pasado || calcularEsBloquePasado(formData.fecha, b.hora);
-                      const deshabilitado = b.agotado || esPasado || isAdmin;
-                      const esSeleccionado = formData.hora === b.hora && !esPasado;
-                      return (
-                        <button
-                          key={b.hora}
-                          type="button"
-                          disabled={deshabilitado}
-                          onClick={() => !deshabilitado && setFormData((prev) => ({ ...prev, hora: b.hora }))}
-                          className={`
-                          flex flex-col justify-between rounded-xl border p-3.5 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC20E] focus-visible:ring-offset-2
-                          ${deshabilitado
-                              ? "cursor-not-allowed border-slate-200/90 bg-slate-100/70 text-slate-400 opacity-70"
-                              : esSeleccionado
-                                ? "cursor-pointer border-[#00629B] bg-[#00629B] text-white shadow-md shadow-[#00629B]/25 ring-1 ring-[#00629B]"
-                                : "cursor-pointer border-slate-200 bg-white text-slate-700 hover:border-[#00629B]/60 hover:bg-sky-50/40 hover:shadow-xs"
-                            }
-                        `}
-                          title={esPasado ? "Horario ya transcurrido el día de hoy" : b.agotado ? "Sin cubículos disponibles para este bloque" : "Disponible para agendar"}
-                        >
-                          <span className="flex items-center justify-between gap-1.5">
-                            <span className="text-[14px] font-bold tabular-nums tracking-tight">{b.rango}</span>
-                            {esSeleccionado ? (
-                              <IconCheck className="w-4 h-4 text-[#FFC20E]" />
-                            ) : esPasado ? (
-                              <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-200 text-slate-600">
-                                Pasado
-                              </span>
-                            ) : b.agotado ? (
-                              <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-rose-100 text-rose-700">
-                                Lleno
-                              </span>
-                            ) : (
-                              <span className="h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-emerald-100" />
-                            )}
+                  <div className="space-y-4">
+                    <div className="rounded-xl border border-slate-200 bg-white p-3 sm:p-4 shadow-xs">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2.5">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                          Jornada diaria ({bloquesHorarios[0]?.hora || "08"}:00 - {parseInt(bloquesHorarios[bloquesHorarios.length - 1]?.hora || "19", 10) + 1}:00 hrs)
+                        </span>
+                        <div className="flex flex-wrap items-center gap-2.5 text-[10px] font-semibold text-slate-500">
+                          <span className="inline-flex items-center gap-1">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500" /> Libre
                           </span>
-                          <span className={`mt-2.5 text-[11px] font-semibold flex items-center justify-between ${esPasado
-                              ? "text-slate-400"
-                              : b.agotado
-                                ? "text-rose-600"
+                          <span className="inline-flex items-center gap-1">
+                            <span className="w-2 h-2 rounded-full bg-[#FFC20E] ring-1 ring-[#00629B]" /> Tu selección
+                          </span>
+                          <span className="inline-flex items-center gap-1">
+                            <span className="w-2 h-2 rounded-full bg-rose-400" /> Lleno
+                          </span>
+                          <span className="inline-flex items-center gap-1">
+                            <span className="w-2 h-2 rounded-full bg-slate-300" /> Pasado
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-flow-col auto-cols-fr gap-1 sm:gap-1.5 h-8 p-1 rounded-lg bg-slate-50 border border-slate-200/80">
+                        {bloquesHorarios.map((b) => {
+                          const esPasado = b.pasado || calcularEsBloquePasado(formData.fecha, b.hora);
+                          const deshabilitado = b.agotado || esPasado || isAdmin;
+                          const esSeleccionado = formData.hora === b.hora && !esPasado;
+                          return (
+                            <button
+                              key={b.hora}
+                              type="button"
+                              disabled={deshabilitado}
+                              onClick={() => !deshabilitado && setFormData((prev) => ({ ...prev, hora: b.hora }))}
+                              title={`${b.rango} — ${esPasado ? "Pasado" : b.agotado ? "Sin cupos" : `${b.disponibles} disponibles`}`}
+                              className={`h-full rounded-md text-[10px] sm:text-[11px] font-bold transition-all flex items-center justify-center cursor-pointer select-none ${
+                                esSeleccionado
+                                  ? "bg-[#FFC20E] text-slate-950 font-black shadow-md ring-2 ring-[#00629B] scale-105 z-10"
+                                  : esPasado
+                                  ? "bg-slate-200/70 text-slate-400 cursor-not-allowed"
+                                  : b.agotado
+                                  ? "bg-rose-100 text-rose-700 cursor-not-allowed"
+                                  : "bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-200 hover:border-emerald-400 hover:scale-105 active:scale-95 shadow-2xs"
+                              }`}
+                            >
+                              <span className="truncate">{b.hora}h</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {bloquesHorarios.map((b) => {
+                        const esPasado = b.pasado || calcularEsBloquePasado(formData.fecha, b.hora);
+                        const deshabilitado = b.agotado || esPasado || isAdmin;
+                        const esSeleccionado = formData.hora === b.hora && !esPasado;
+                        const totalCap = campusSeleccionado?.cubiculas_fisicos || 5;
+                        const pctCupos = Math.min(100, Math.max(0, (b.disponibles / totalCap) * 100));
+
+                        return (
+                          <button
+                            key={b.hora}
+                            type="button"
+                            disabled={deshabilitado}
+                            onClick={() => !deshabilitado && setFormData((prev) => ({ ...prev, hora: b.hora }))}
+                            className={`
+                              relative flex flex-col justify-between rounded-xl border p-4 text-left transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC20E] focus-visible:ring-offset-2
+                              ${deshabilitado
+                                ? "cursor-not-allowed border-slate-200 bg-slate-50/80 text-slate-400 opacity-60"
                                 : esSeleccionado
-                                  ? "text-sky-100"
-                                  : "text-slate-500"
-                            }`}>
-                            <span>{esPasado ? "No disponible" : b.agotado ? "0 cupos" : `${b.disponibles} cubículos`}</span>
-                            {!esPasado && !b.agotado && !esSeleccionado && (
-                              <span className="text-emerald-700 font-bold text-[10px] uppercase">Libre</span>
-                            )}
+                                  ? "cursor-pointer border-[#00629B] bg-gradient-to-br from-[#00629B] to-[#004D7A] text-white shadow-lg shadow-[#00629B]/25 ring-2 ring-[#FFC20E] scale-[1.01]"
+                                  : "cursor-pointer border-slate-200 bg-white text-slate-800 hover:border-[#00629B]/70 hover:shadow-md hover:-translate-y-0.5"
+                                }
+                            `}
+                            title={esPasado ? "Horario ya transcurrido el día de hoy" : b.agotado ? "Sin cubículos disponibles para este bloque" : "Disponible para agendar"}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <span className={`text-[10px] font-bold uppercase tracking-wider block ${esSeleccionado ? "text-sky-200" : "text-slate-400"}`}>
+                                  Bloque horario
+                                </span>
+                                <span className="text-[15px] font-extrabold tabular-nums tracking-tight">
+                                  {b.rango}
+                                </span>
+                              </div>
+
+                              {esSeleccionado ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#FFC20E] text-slate-950 font-black text-[10px] uppercase tracking-wider shadow-xs animate-fadeIn">
+                                  <IconCheck className="w-3 h-3 text-slate-950" />
+                                  Elegido
+                                </span>
+                              ) : esPasado ? (
+                                <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-200 text-slate-600">
+                                  Pasado
+                                </span>
+                              ) : b.agotado ? (
+                                <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-100 text-rose-700">
+                                  Lleno
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                  Libre
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="mt-3.5 space-y-1.5">
+                              <div className="flex items-center justify-between text-[11px] font-medium">
+                                <span className={esSeleccionado ? "text-sky-100" : "text-slate-500"}>
+                                  Disponibilidad
+                                </span>
+                                <span className={`font-bold tabular-nums ${
+                                  esSeleccionado
+                                    ? "text-[#FFC20E]"
+                                    : esPasado
+                                    ? "text-slate-400"
+                                    : b.agotado
+                                    ? "text-rose-600"
+                                    : "text-emerald-700"
+                                }`}>
+                                  {esPasado ? "No aplica" : b.agotado ? "0 cupos" : `${b.disponibles} de ${totalCap} libres`}
+                                </span>
+                              </div>
+
+                              <div className={`h-1.5 w-full rounded-full overflow-hidden ${esSeleccionado ? "bg-white/20" : "bg-slate-100"}`}>
+                                <div
+                                  className={`h-full rounded-full transition-all duration-300 ${
+                                    esSeleccionado
+                                      ? "bg-[#FFC20E]"
+                                      : esPasado
+                                      ? "bg-slate-300"
+                                      : b.agotado
+                                      ? "bg-rose-400"
+                                      : "bg-emerald-500"
+                                  }`}
+                                  style={{ width: `${deshabilitado && !b.agotado ? 0 : b.agotado ? 100 : pctCupos}%` }}
+                                />
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {formData.hora && !calcularEsBloquePasado(formData.fecha, formData.hora) && (
+                      <div className="flex items-center justify-between p-3.5 rounded-xl bg-sky-50 border border-sky-200 text-slate-800 shadow-xs animate-fadeIn">
+                        <div className="flex items-center gap-3">
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#00629B] text-[#FFC20E] shadow-xs">
+                            <IconClock className="w-5 h-5" />
                           </span>
-                        </button>
-                      );
-                    })}
+                          <div>
+                            <p className="text-xs font-extrabold text-slate-900 leading-tight">
+                              Bloque seleccionado: <span className="text-[#00629B]">{formData.hora}:00 - {parseInt(formData.hora, 10) + 1}:00 hrs</span>
+                            </p>
+                            <p className="text-[11px] text-slate-600 mt-0.5">
+                              {campusSeleccionado?.nombre || "Campus"} · {formData.fecha}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FFC20E] text-slate-950 font-black text-[10px] uppercase tracking-wider shadow-xs">
+                          <IconCheck className="w-3.5 h-3.5 text-slate-950" />
+                          Listo para reservar
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1414,6 +1546,128 @@ export default function FormularioReserva() {
               >
                 Cancelar reserva
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalConfirmacionReservaOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/60 p-4 backdrop-blur-[2px] animate-fadeIn">
+          <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl animate-scaleUp">
+            <div className="bg-[#00629B] px-6 py-5 text-white flex items-start justify-between">
+              <div>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/15 text-[11px] font-semibold text-sky-100 uppercase tracking-wider mb-1.5">
+                  Confirmación de reserva
+                </span>
+                <h3 className="font-serif text-xl font-bold text-white">Resumen de tu solicitud</h3>
+                <p className="mt-0.5 text-xs text-sky-200/90">
+                  Verifica que los datos sean correctos antes de agendar.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalConfirmacionReservaOpen(false)}
+                className="cursor-pointer rounded-lg p-1.5 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+                title="Cerrar"
+              >
+                <IconClose />
+              </button>
+            </div>
+            <div className="h-[3px] bg-gradient-to-r from-[#FFC20E] via-[#00A3E0] to-[#00629B]" />
+
+            <div className="p-6 space-y-4">
+              <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4 space-y-3 text-xs sm:text-[13px]">
+                <div className="flex items-center justify-between py-1 border-b border-slate-200/70">
+                  <span className="text-slate-500 flex items-center gap-1.5 font-medium">
+                    <IconPin className="w-4 h-4 text-[#00629B]" /> Sede / Campus
+                  </span>
+                  <strong className="font-bold text-slate-900 text-right">{campusSeleccionado?.nombre || "Sede"}</strong>
+                </div>
+
+                <div className="flex items-center justify-between py-1 border-b border-slate-200/70">
+                  <span className="text-slate-500 flex items-center gap-1.5 font-medium">
+                    <IconCalendar className="w-4 h-4 text-[#00629B]" /> Fecha
+                  </span>
+                  <strong className="font-bold tabular-nums text-slate-900">{formData.fecha}</strong>
+                </div>
+
+                <div className="flex items-center justify-between py-1 border-b border-slate-200/70">
+                  <span className="text-slate-500 flex items-center gap-1.5 font-medium">
+                    <IconClock className="w-4 h-4 text-[#00629B]" /> Bloque Horario
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-sky-100 text-[#00629B] font-bold tabular-nums text-xs">
+                    {formData.hora}:00 - {parseInt(formData.hora, 10) + 1}:00 hrs
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between py-1 border-b border-slate-200/70">
+                  <span className="text-slate-500 flex items-center gap-1.5 font-medium">
+                    <IconUser className="w-4 h-4 text-[#00629B]" /> Titular
+                  </span>
+                  <div className="text-right">
+                    <p className="font-bold text-slate-900">{formData.nombre}</p>
+                    <p className="text-[11px] text-slate-500 tabular-nums">RUT: {formData.rut}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start justify-between py-1">
+                  <span className="text-slate-500 flex items-center gap-1.5 font-medium mt-0.5">
+                    <IconUsers className="w-4 h-4 text-[#00629B]" /> Modalidad
+                  </span>
+                  <div className="text-right">
+                    <span className="font-semibold text-slate-900">
+                      {tieneAcompanantes && listAcompanantes.length > 0
+                        ? `Grupal (${listAcompanantes.length + 1} personas)`
+                        : "Individual"}
+                    </span>
+                    {tieneAcompanantes && listAcompanantes.length > 0 && (
+                      <ul className="mt-1 space-y-0.5 text-[11px] text-slate-600">
+                        {listAcompanantes.map((ac, idx) => (
+                          <li key={idx}>
+                            + {ac.nombre} {ac.rut ? `(${ac.rut})` : ""}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3.5 flex items-start gap-2.5 text-xs text-amber-900">
+                <span className="text-base leading-none">⚠️</span>
+                <p className="leading-relaxed">
+                  <strong>Recordatorio:</strong> Dispones de <strong>15 minutos de tolerancia</strong> para presentarte al cubículo. En caso contrario, se registrará una inasistencia sujeta a suspensión de reservas.
+                </p>
+              </div>
+
+              <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2.5 pt-2">
+                <button
+                  type="button"
+                  disabled={cargandoEnvioReserva}
+                  onClick={() => setModalConfirmacionReservaOpen(false)}
+                  className="w-full sm:w-auto cursor-pointer rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Modificar datos
+                </button>
+                <button
+                  type="button"
+                  disabled={cargandoEnvioReserva}
+                  onClick={handleConfirmarYCrearReserva}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-[#00629B] px-6 py-2.5 text-xs font-bold text-white shadow-md shadow-[#00629B]/25 hover:bg-[#004B75] transition-all cursor-pointer disabled:opacity-60 active:scale-98"
+                >
+                  {cargandoEnvioReserva ? (
+                    <>
+                      <div className="w-3.5 h-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                      Agendando cubículo...
+                    </>
+                  ) : (
+                    <>
+                      <IconCheck className="w-4 h-4 text-[#FFC20E]" />
+                      Confirmar y Agendar
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
