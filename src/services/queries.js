@@ -77,3 +77,13 @@ export function useCmsTarjetasQuery() {
     }
   });
 }
+
+export function useCmsFaqsQuery() {
+  return useQuery({
+    queryKey: ["cms", "faqs"],
+    queryFn: async () => {
+      const data = await apiGet("/api/cms/faqs");
+      return Array.isArray(data) ? data : [];
+    }
+  });
+}

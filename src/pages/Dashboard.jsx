@@ -84,19 +84,29 @@ export default function Dashboard() {
     icono: "📚", titulo: "", descripcion: "", link_texto: "Ir al Formulario →", link_url: "/reservar", orden: 0
   });
 
+  const [cmsFaqs, setCmsFaqs] = useState([]);
+  const [modalFaqOpen, setModalFaqOpen] = useState(false);
+  const [faqEdit, setFaqEdit] = useState(null);
+  const [formFaq, setFormFaq] = useState({
+    pregunta: "", respuesta: "", categoria: "Reservas", orden: 0
+  });
+
   const fetchCMS = async () => {
     setCargandoCMS(true);
     try {
-      const [anunciosData, tarjetasData] = await Promise.all([
+      const [anunciosData, tarjetasData, faqsData] = await Promise.all([
         apiGet("/api/cms/anuncios"),
-        apiGet("/api/cms/tarjetas")
+        apiGet("/api/cms/tarjetas"),
+        apiGet("/api/cms/faqs")
       ]);
       setCmsAnuncios(anunciosData || []);
       setCmsTarjetas(tarjetasData || []);
+      setCmsFaqs(faqsData || []);
       queryClient.invalidateQueries({ queryKey: ["cms"] });
     } catch {
       setCmsAnuncios([]);
       setCmsTarjetas([]);
+      setCmsFaqs([]);
     } finally {
       setCargandoCMS(false);
     }
@@ -942,7 +952,57 @@ export default function Dashboard() {
     });
   };
 
-  // Handler para Guardar Cambios de la Edición (PUT)
+  const handleAbrirCrearFaq = () => {
+    setFaqEdit(null);
+    setFormFaq({
+      pregunta: "", respuesta: "", categoria: "Reservas", orden: cmsFaqs.length + 1
+    });
+    setModalFaqOpen(true);
+  };
+
+  const handleAbrirEditarFaq = (faq) => {
+    setFaqEdit(faq);
+    setFormFaq({
+      pregunta: faq.pregunta, respuesta: faq.respuesta, categoria: faq.categoria || "General", orden: faq.orden || 0
+    });
+    setModalFaqOpen(true);
+  };
+
+  const handleGuardarFaq = async (e) => {
+    e.preventDefault();
+    if (!formFaq.pregunta.trim() || !formFaq.respuesta.trim()) return;
+    try {
+      if (faqEdit) {
+        await apiPut(`/api/cms/faqs/${faqEdit.id}`, formFaq);
+        setToastNotificacion({ tipo: "exito", texto: "Pregunta frecuente actualizada exitosamente." });
+      } else {
+        await apiPost("/api/cms/faqs", formFaq);
+        setToastNotificacion({ tipo: "exito", texto: "Pregunta frecuente creada exitosamente." });
+      }
+      setModalFaqOpen(false);
+      await fetchCMS();
+    } catch (err) {
+      setToastNotificacion({ tipo: "error", texto: err.message || "Error al guardar la pregunta" });
+    }
+  };
+
+  const handleEliminarFaq = (id, pregunta) => {
+    setConfirmModal({
+      open: true,
+      titulo: "Eliminar Pregunta Frecuente",
+      mensaje: `¿Estás seguro de eliminar la pregunta '${pregunta}'?`,
+      onConfirm: async () => {
+        try {
+          await apiDelete(`/api/cms/faqs/${id}`);
+          setToastNotificacion({ tipo: "exito", texto: "Pregunta frecuente eliminada exitosamente." });
+          await fetchCMS();
+        } catch (err) {
+          setToastNotificacion({ tipo: "error", texto: err.message || "Error al eliminar pregunta" });
+        }
+      }
+    });
+  };
+
   const handleGuardarEdicionCampus = async (e) => {
     e.preventDefault();
     if (!campusAEditar || !editNombre.trim()) return;
@@ -1097,6 +1157,7 @@ export default function Dashboard() {
                 { id: "calendario", label: "Calendario y Bloqueos", icon: "📅" },
                 { id: "sedes", label: "Sedes y Cubículos", icon: "🏛️" },
                 { id: "cms", label: "Portal Inicio (CMS)", icon: "🖼️" },
+                { id: "faqs", label: "Preguntas Frecuentes", icon: "❓" },
                 { id: "historial", label: "Historial de Registros", icon: "📜" }
               ].map((tab) => {
                 const isSelected = activeTab === tab.id;
@@ -1106,7 +1167,7 @@ export default function Dashboard() {
                     key={tab.id}
                     onClick={() => {
                       setActiveTab(tab.id);
-                      if (tab.id === "cms") fetchCMS();
+                      if (tab.id === "cms" || tab.id === "faqs") fetchCMS();
                       if (tab.id === "calendario") fetchDiasBloqueados();
                       if (tab.id === "historial") fetchHistorial();
                       if (tab.id === "sanciones") fetchSancionados();
@@ -1277,6 +1338,65 @@ export default function Dashboard() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {(activeTab === "faqs") && (
+          <div className={`${CARD} p-6 md:p-8 mb-8 space-y-7 animate-fadeIn`}>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+              <div className="space-y-1.5">
+                <span className={EYEBROW}>❓ Centro de Ayuda & CMS</span>
+                <h2 className={SECTION_TITLE}>Gestión de Preguntas Frecuentes</h2>
+                <p className="text-xs text-slate-500 max-w-2xl leading-relaxed">
+                  Administra las preguntas y respuestas dinámicas visibles para los estudiantes en el portal de Preguntas Frecuentes.
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-[11px] font-semibold text-[#00629B] bg-sky-50 px-3.5 py-1.5 rounded-full border border-sky-100 whitespace-nowrap">
+                  {cmsFaqs.length} preguntas registradas
+                </span>
+                <button type="button" onClick={handleAbrirCrearFaq} className={`${BTN_PRIMARY} px-4 py-2`}>
+                  ➕ Añadir pregunta
+                </button>
+              </div>
+            </div>
+
+            {cargandoCMS ? (
+              <div className="py-12 text-center text-xs text-slate-500">Cargando preguntas frecuentes...</div>
+            ) : cmsFaqs.length === 0 ? (
+              <div className="p-12 bg-slate-50/70 border border-dashed border-slate-200 rounded-2xl text-center text-xs text-slate-500">
+                Aún no hay preguntas frecuentes registradas. Crea la primera con el botón superior.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {cmsFaqs.map((faq) => (
+                  <div
+                    key={faq.id}
+                    className="p-5 rounded-2xl border border-slate-200/80 bg-white flex flex-col justify-between gap-4 shadow-xs hover:shadow-[0_12px_32px_-20px_rgba(15,23,42,0.4)] transition-shadow"
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-900 border border-amber-200">
+                          {faq.categoria || "General"}
+                        </span>
+                        <span className="text-[10px] font-semibold text-slate-400">Orden {faq.orden}</span>
+                      </div>
+                      <h4 className="font-bold text-sm text-slate-900 leading-snug">{faq.pregunta}</h4>
+                      <p className="text-xs text-slate-600 leading-relaxed line-clamp-3">{faq.respuesta}</p>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                      <button type="button" onClick={() => handleAbrirEditarFaq(faq)} className={BTN_GHOST}>
+                        ✏️ Editar
+                      </button>
+                      <button type="button" onClick={() => handleEliminarFaq(faq.id, faq.pregunta)} className={BTN_DANGER}>
+                        🗑️ Eliminar
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -3479,6 +3599,89 @@ export default function Dashboard() {
                     className={`${BTN_PRIMARY} flex-1`}
                   >
                     Guardar tarjeta
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {modalFaqOpen && (
+          <div className={OVERLAY}>
+            <div className={`${MODAL} max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto`}>
+              <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-4">
+                <h3 className="text-lg font-serif font-bold text-slate-900">
+                  {faqEdit ? "Editar pregunta frecuente" : "Crear pregunta frecuente"}
+                </h3>
+                <button
+                  onClick={() => setModalFaqOpen(false)}
+                  className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center text-xs cursor-pointer transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleGuardarFaq} className="space-y-3.5 text-xs">
+                <div>
+                  <label className={LABEL}>Pregunta</label>
+                  <input
+                    type="text"
+                    value={formFaq.pregunta}
+                    onChange={(e) => setFormFaq({ ...formFaq, pregunta: e.target.value })}
+                    className={INPUT}
+                    placeholder="ej: ¿Con cuánta anticipación puedo reservar?"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className={LABEL}>Respuesta</label>
+                  <textarea
+                    value={formFaq.respuesta}
+                    onChange={(e) => setFormFaq({ ...formFaq, respuesta: e.target.value })}
+                    rows={4}
+                    className={INPUT}
+                    placeholder="Escribe la respuesta clara y detallada..."
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={LABEL}>Categoría</label>
+                    <input
+                      type="text"
+                      value={formFaq.categoria}
+                      onChange={(e) => setFormFaq({ ...formFaq, categoria: e.target.value })}
+                      className={INPUT}
+                      placeholder="ej: Reservas, Reglamento, Asistente IA"
+                    />
+                  </div>
+
+                  <div>
+                    <label className={LABEL}>Orden de presentación</label>
+                    <input
+                      type="number"
+                      value={formFaq.orden}
+                      onChange={(e) => setFormFaq({ ...formFaq, orden: parseInt(e.target.value, 10) || 0 })}
+                      className={`${INPUT} w-24`}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-4 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setModalFaqOpen(false)}
+                    className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-semibold hover:bg-slate-50 cursor-pointer transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className={`${BTN_PRIMARY} flex-1`}
+                  >
+                    Guardar pregunta
                   </button>
                 </div>
               </form>

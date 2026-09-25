@@ -357,6 +357,34 @@ async def startup():
             SELECT '👥', 'Trabajo Colaborativo', 'Registra a tus compañeros acompañantes al momento de realizar la reserva de tu espacio.', 'Hasta 10 espacios por bloque', '', 3
             WHERE NOT EXISTS (SELECT 1 FROM tarjetas_cms OFFSET 2);
 
+            CREATE TABLE IF NOT EXISTS faqs_cms (
+                id SERIAL PRIMARY KEY,
+                pregunta VARCHAR(300) NOT NULL,
+                respuesta TEXT NOT NULL,
+                categoria VARCHAR(100) DEFAULT 'General',
+                orden INT DEFAULT 0
+            );
+
+            INSERT INTO faqs_cms (pregunta, respuesta, categoria, orden)
+            SELECT '¿Con cuánta anticipación puedo reservar un cubículo?', 'Puedes reservar cubículos con hasta 7 días de anticipación y un mínimo de 15 minutos antes del bloque deseado, según disponibilidad en cada campus.', 'Reservas', 1
+            WHERE NOT EXISTS (SELECT 1 FROM faqs_cms);
+
+            INSERT INTO faqs_cms (pregunta, respuesta, categoria, orden)
+            SELECT '¿Cuál es el tiempo máximo de reserva por estudiante?', 'Cada estudiante puede reservar hasta un máximo de 2 horas continuas por jornada para asegurar la rotación justa de los espacios de estudio.', 'Reservas', 2
+            WHERE NOT EXISTS (SELECT 1 FROM faqs_cms OFFSET 1);
+
+            INSERT INTO faqs_cms (pregunta, respuesta, categoria, orden)
+            SELECT '¿Puedo reservar a través del asistente virtual (Chatbot)?', 'Sí, puedes abrir el chatbot flotante desde cualquier página del portal y pedirle en lenguaje natural que reserve un cubículo indicando sede, fecha y hora.', 'Asistente IA', 3
+            WHERE NOT EXISTS (SELECT 1 FROM faqs_cms OFFSET 2);
+
+            INSERT INTO faqs_cms (pregunta, respuesta, categoria, orden)
+            SELECT '¿Qué pasa si no puedo asistir a mi reserva?', 'Debes cancelar tu reserva con al menos 30 minutos de anticipación desde la sección Mis Reservas o mediante el Asistente IA para evitar sanciones por inasistencia.', 'Reglamento y Sanciones', 4
+            WHERE NOT EXISTS (SELECT 1 FROM faqs_cms OFFSET 3);
+
+            INSERT INTO faqs_cms (pregunta, respuesta, categoria, orden)
+            SELECT '¿Cuántos acompañantes pueden ingresar al cubículo?', 'Depende de la capacidad de la sala (entre 2 y 8 personas según el cubículo). Puedes registrar a tus compañeros al realizar la solicitud.', 'Reglamento y Sanciones', 5
+            WHERE NOT EXISTS (SELECT 1 FROM faqs_cms OFFSET 4);
+
             CREATE TABLE IF NOT EXISTS dias_bloqueados (
                 id SERIAL PRIMARY KEY,
                 fecha DATE NOT NULL,
@@ -858,6 +886,13 @@ class TarjetaCMSRequest(BaseModel):
     descripcion: Optional[str] = ""
     link_texto: Optional[str] = "Ir al Formulario →"
     link_url: Optional[str] = "/reservar"
+    orden: Optional[int] = 0
+
+
+class FaqCMSRequest(BaseModel):
+    pregunta: str
+    respuesta: str
+    categoria: Optional[str] = "General"
     orden: Optional[int] = 0
 
 
@@ -1862,6 +1897,62 @@ async def eliminar_tarjeta_cms(tarjeta_id: int, current_user: dict = Depends(get
         if result == "DELETE 0":
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tarjeta no encontrada.")
         return {"mensaje": "Tarjeta eliminada exitosamente"}
+
+
+@app.get("/api/cms/faqs")
+async def obtener_faqs_cms():
+    async with pool.acquire() as conn:
+        filas = await conn.fetch("SELECT * FROM faqs_cms ORDER BY orden ASC, id ASC")
+        return [dict(f) for f in filas]
+
+
+@app.post("/api/cms/faqs", status_code=status.HTTP_201_CREATED)
+async def crear_faq_cms(data: FaqCMSRequest, current_user: dict = Depends(get_current_user)):
+    if current_user.get("rol") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
+
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            INSERT INTO faqs_cms (pregunta, respuesta, categoria, orden)
+            VALUES ($1, $2, $3, $4)
+            RETURNING *
+            """,
+            data.pregunta.strip(), data.respuesta.strip(), data.categoria.strip(), data.orden
+        )
+        return dict(row)
+
+
+@app.put("/api/cms/faqs/{faq_id}")
+async def actualizar_faq_cms(faq_id: int, data: FaqCMSRequest, current_user: dict = Depends(get_current_user)):
+    if current_user.get("rol") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
+
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            UPDATE faqs_cms
+            SET pregunta = $1, respuesta = $2, categoria = $3, orden = $4
+            WHERE id = $5
+            RETURNING *
+            """,
+            data.pregunta.strip(), data.respuesta.strip(), data.categoria.strip(), data.orden, faq_id
+        )
+        if not row:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pregunta frecuente no encontrada.")
+        return dict(row)
+
+
+@app.delete("/api/cms/faqs/{faq_id}")
+async def eliminar_faq_cms(faq_id: int, current_user: dict = Depends(get_current_user)):
+    if current_user.get("rol") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
+
+    async with pool.acquire() as conn:
+        result = await conn.execute("DELETE FROM faqs_cms WHERE id = $1", faq_id)
+        if result == "DELETE 0":
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pregunta frecuente no encontrada.")
+        return {"mensaje": "Pregunta frecuente eliminada exitosamente"}
 
 
 @app.get("/api/calendario/bloqueos")

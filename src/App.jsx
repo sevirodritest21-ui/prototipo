@@ -12,6 +12,7 @@ const Login = lazy(() => import("./pages/Login"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const MisReservas = lazy(() => import("./pages/MisReservas"));
 const Reglamento = lazy(() => import("./pages/Reglamento"));
+const PreguntasFrecuentes = lazy(() => import("./pages/PreguntasFrecuentes"));
 
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider, useAuth } from "./context/AuthContext";
@@ -30,6 +31,7 @@ const IconDashboard = (p) => <Icon {...p} path={<><rect x="3" y="3" width="7" he
 const IconList = (p) => <Icon {...p} path={<><path d="M8 6h13M8 12h13M8 18h13" /><path d="M3 6h.01M3 12h.01M3 18h.01" /></>} />;
 const IconCalendar = (p) => <Icon {...p} path={<><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 11h18" /></>} />;
 const IconDoc = (p) => <Icon {...p} path={<><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z" /><path d="M14 3v5h5M9 13h6M9 17h4" /></>} />;
+const IconHelp = (p) => <Icon {...p} path={<><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" /></>} />;
 const IconLogout = (p) => <Icon {...p} path={<><path d="M15 17l5-5-5-5" /><path d="M20 12H9" /><path d="M11 3H6a2 2 0 00-2 2v14a2 2 0 002 2h5" /></>} />;
 const IconLogin = (p) => <Icon {...p} path={<><path d="M10 17l5-5-5-5" /><path d="M15 12H3" /><path d="M13 3h5a2 2 0 012 2v14a2 2 0 01-2 2h-5" /></>} />;
 const IconSun = (p) => (
@@ -116,6 +118,9 @@ function NavBar() {
               <Link to="/reglamento" className={getLinkStyle("/reglamento")}>
                 Reglamento
               </Link>
+              <Link to="/preguntas-frecuentes" className={getLinkStyle("/preguntas-frecuentes")}>
+                Preguntas Frecuentes
+              </Link>
             </div>
 
             <button
@@ -194,6 +199,14 @@ function NavBar() {
                         <IconDoc className="w-4 h-4 text-slate-400" /> Reglamento y horarios
                       </Link>
 
+                      <Link
+                        to="/preguntas-frecuentes"
+                        onClick={() => setDropdownOpen(false)}
+                        className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-slate-700 transition-colors hover:bg-slate-50 hover:text-[#00629B] md:hidden"
+                      >
+                        <IconHelp className="w-4 h-4 text-slate-400" /> Preguntas frecuentes
+                      </Link>
+
                     </div>
 
                     <div className="border-t border-slate-200 py-1">
@@ -256,6 +269,7 @@ export default function App() {
                 <Route path="/reservar" element={<FormularioReserva />} />
                 <Route path="/mis-reservas" element={<MisReservas />} />
                 <Route path="/reglamento" element={<Reglamento />} />
+                <Route path="/preguntas-frecuentes" element={<PreguntasFrecuentes />} />
               </Route>
 
               <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
