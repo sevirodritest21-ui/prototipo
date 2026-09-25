@@ -85,8 +85,8 @@ export default function PaginaInicio() {
           className="absolute inset-0 pointer-events-none opacity-20"
           style={{ backgroundImage: heroPattern }}
         />
-        <div className="mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center relative z-10">
-          <div className="lg:col-span-6 space-y-6">
+        <div className="mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-8 items-center relative z-10">
+          <div className="lg:col-span-5 space-y-6">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/20 backdrop-blur-xs text-white text-xs font-bold uppercase tracking-wider border border-white/30">
               <span className="w-2 h-2 rounded-full bg-[#FFC20E] animate-pulse" />
               Biblioteca UCT — Portal de Reservas
@@ -124,7 +124,7 @@ export default function PaginaInicio() {
             )}
           </div>
 
-          <div className="lg:col-span-6 relative flex justify-center lg:justify-end">
+          <div className="lg:col-span-7 relative flex justify-center lg:justify-end">
             <div className="absolute -top-7 -right-3 sm:-top-9 sm:-right-4 md:-top-11 md:-right-6 z-30 pointer-events-none transform rotate-12">
               <svg
                 viewBox="0 0 100 100"
@@ -165,8 +165,8 @@ export default function PaginaInicio() {
                   </button>
                 </div>
 
-                <div className="relative bg-white rounded-t-lg overflow-hidden min-h-[250px] sm:min-h-[290px] flex flex-col justify-between p-5 sm:p-7 text-slate-800">
-                  <div className="relative z-10 space-y-3">
+                <div className="relative bg-white rounded-t-lg overflow-hidden min-h-[260px] sm:min-h-[300px] flex flex-col justify-between p-5 sm:p-6 text-slate-800">
+                  <div className="relative z-10 space-y-2.5 max-w-full sm:max-w-[62%] md:max-w-[64%]">
                     <div className="flex items-center gap-2">
                       <span className="bg-[#FFC20E] text-slate-950 text-[10px] sm:text-xs font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-xs">
                         {slides[currentSlide]?.badge || "AVISO UCT"}
@@ -176,29 +176,29 @@ export default function PaginaInicio() {
                       </span>
                     </div>
 
-                    <h2 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight leading-snug">
+                    <h2 className="text-base sm:text-xl font-black text-slate-900 tracking-tight leading-snug">
                       {slides[currentSlide]?.titulo}
                     </h2>
 
-                    <p className="text-xs sm:text-sm text-slate-600 leading-relaxed line-clamp-3">
+                    <p className="text-xs sm:text-[13px] text-slate-600 leading-relaxed line-clamp-3">
                       {slides[currentSlide]?.subtitulo}
                     </p>
                   </div>
 
-                  <div className="relative z-10 pt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-100 mt-2">
+                  <div className="relative z-10 pt-3 flex flex-wrap items-center gap-3 border-t border-slate-100 mt-2 max-w-full sm:max-w-[62%] md:max-w-[64%]">
                     <div>
                       {slides[currentSlide]?.boton_texto && (
                         slides[currentSlide]?.boton_link === "open-chat" ? (
                           <button
                             onClick={() => handleBotonClick(slides[currentSlide]?.boton_link)}
-                            className="px-4 py-2 bg-[#00A3E0] hover:bg-[#0082B3] text-white font-extrabold text-xs uppercase tracking-wider rounded-lg shadow-md transition-all cursor-pointer inline-flex items-center gap-1.5"
+                            className="px-3.5 py-1.5 sm:px-4 sm:py-2 bg-[#00A3E0] hover:bg-[#0082B3] text-white font-extrabold text-xs uppercase tracking-wider rounded-lg shadow-md transition-all cursor-pointer inline-flex items-center gap-1.5"
                           >
                             {slides[currentSlide]?.boton_texto}
                           </button>
                         ) : (
                           <Link
                             to={slides[currentSlide]?.boton_link || "/reservar"}
-                            className="px-4 py-2 bg-[#00A3E0] hover:bg-[#0082B3] text-white font-extrabold text-xs uppercase tracking-wider rounded-lg shadow-md transition-all text-center inline-flex items-center gap-1.5"
+                            className="px-3.5 py-1.5 sm:px-4 sm:py-2 bg-[#00A3E0] hover:bg-[#0082B3] text-white font-extrabold text-xs uppercase tracking-wider rounded-lg shadow-md transition-all text-center inline-flex items-center gap-1.5"
                           >
                             {slides[currentSlide]?.boton_texto}
                           </Link>
@@ -206,21 +206,19 @@ export default function PaginaInicio() {
                       )}
                     </div>
 
-                    <div className="flex items-center gap-3">
-                      {slides.length > 1 && (
-                        <div className="flex items-center gap-1.5">
-                          {slides.map((_, idx) => (
-                            <button
-                              key={idx}
-                              onClick={() => setCurrentSlide(idx)}
-                              aria-label={`Slide ${idx + 1}`}
-                              className={`h-2 rounded-full transition-all cursor-pointer ${idx === currentSlide ? "w-6 bg-[#00A3E0]" : "w-2 bg-slate-200 hover:bg-slate-300"
-                                }`}
-                            />
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    {slides.length > 1 && (
+                      <div className="flex items-center gap-1.5">
+                        {slides.map((_, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => setCurrentSlide(idx)}
+                            aria-label={`Slide ${idx + 1}`}
+                            className={`h-2 rounded-full transition-all cursor-pointer ${idx === currentSlide ? "w-5 bg-[#00A3E0]" : "w-1.5 bg-slate-200 hover:bg-slate-300"
+                              }`}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -230,7 +228,7 @@ export default function PaginaInicio() {
               </div>
               <div className="mx-auto w-[92%] h-2 bg-black/30 blur-xs rounded-full" />
 
-              <div className="absolute -bottom-6 -right-2 sm:-bottom-8 sm:right-0 md:-right-6 w-44 sm:w-52 md:w-56 bg-[#0F172A] rounded-[2.2rem] p-2.5 shadow-2xl border-2 border-slate-700 z-20 hidden sm:block">
+              <div className="absolute -bottom-8 -right-2 sm:-bottom-10 sm:-right-4 md:-right-8 lg:-right-10 w-44 sm:w-48 md:w-52 bg-[#0F172A] rounded-[2.2rem] p-2.5 shadow-2xl border-2 border-slate-700 z-20 hidden sm:block">
                 <div className="w-14 h-1.5 bg-slate-800 rounded-full mx-auto mb-2.5" />
                 <div className="bg-white rounded-[1.6rem] p-3.5 text-slate-800 flex flex-col justify-between h-56 sm:h-64 shadow-inner text-left overflow-hidden relative">
                   <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-1.5">
