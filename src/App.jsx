@@ -77,8 +77,8 @@ function NavBar() {
   const getLinkStyle = (path) => {
     const isActive = location.pathname === path;
     return `relative px-1 py-5 text-[14px] transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC20E] focus-visible:ring-offset-2 focus-visible:ring-offset-[#00629B] ${isActive
-        ? "font-semibold text-white after:absolute after:inset-x-0 after:bottom-0 after:h-[3px] after:bg-[#FFC20E] after:content-['']"
-        : "text-sky-100/80 hover:text-white"
+      ? "font-semibold text-white after:absolute after:inset-x-0 after:bottom-0 after:h-[3px] after:bg-[#FFC20E] after:content-['']"
+      : "text-sky-100/80 hover:text-white"
       }`;
   };
 
@@ -138,30 +138,41 @@ function NavBar() {
                 <button
                   type="button"
                   onClick={() => setDropdownOpen((prev) => !prev)}
-                  className="flex cursor-pointer select-none items-center gap-2.5 rounded-md border border-white/15 bg-white/5 py-1.5 pl-1.5 pr-2.5 transition-colors hover:bg-white/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC20E]"
+                  title={`Cuenta: ${user.nombre}`}
+                  aria-label="Menú de usuario"
+                  className="relative flex items-center justify-center p-[2px] rounded-full transition-transform hover:scale-105 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC20E] cursor-pointer shadow-md"
+                  style={{
+                    background: "conic-gradient(from 45deg, #00A3E0 0%, #FFFFFF 33%, #FFC20E 66%, #00A3E0 100%)"
+                  }}
                 >
-                  <span className="flex h-7 w-7 items-center justify-center rounded-md bg-[#FFC20E] text-[13px] font-semibold text-slate-900">
+                  <span className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full bg-[#e3c817] text-[#092396] font-bold text-sm sm:text-base select-none shadow-inner">
                     {userInitial}
                   </span>
-                  <span className="hidden sm:flex flex-col text-left">
-                    <span className="max-w-[130px] truncate text-[13px] font-medium leading-tight text-white">
-                      {user.nombre}
-                    </span>
-                    <span className="text-[11px] leading-tight text-sky-200/90">
-                      {user.rol === "admin" ? "Administrador" : "Estudiante"}
-                    </span>
+                  <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#004D7A] text-white ring-2 ring-white shadow-xs">
+                    <IconChevron className={`w-2 h-2 transition-transform duration-200 ${dropdownOpen ? "rotate-180" : ""}`} />
                   </span>
-                  <IconChevron className={`w-3.5 h-3.5 text-sky-200 transition-transform duration-200 ${dropdownOpen ? "rotate-180" : ""}`} />
                 </button>
 
                 {dropdownOpen && (
-                  <div className="absolute right-0 z-50 mt-2 w-60 overflow-hidden rounded-lg border border-slate-200 bg-white text-slate-800 shadow-xl animate-fadeIn">
-                    <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
-                      <p className="truncate text-[14px] font-semibold text-slate-900">{user.nombre}</p>
-                      <span className="mt-1 inline-flex items-center gap-1.5 text-[12px] text-slate-500">
-                        <span className={`h-1.5 w-1.5 rounded-full ${user.rol === "admin" ? "bg-[#FFC20E]" : "bg-emerald-600"}`} />
-                        {user.rol === "admin" ? "Administrador" : "Estudiante UCT"}
-                      </span>
+                  <div className="absolute right-0 z-50 mt-2 w-64 overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-800 shadow-2xl animate-fadeIn">
+                    <div className="border-b border-slate-100 bg-slate-50/80 px-4 py-3 flex items-center gap-3">
+                      <div
+                        className="relative p-[2px] rounded-full shrink-0 shadow-xs"
+                        style={{
+                          background: "conic-gradient(from 45deg, #00A3E0 0%, #FFFFFF 33%, #FFC20E 66%, #00A3E0 100%)"
+                        }}
+                      >
+                        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#004D7A] text-white font-bold text-base">
+                          {userInitial}
+                        </span>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-bold text-slate-900 leading-tight">{user.nombre}</p>
+                        <span className="mt-0.5 inline-flex items-center gap-1.5 text-xs text-slate-500">
+                          <span className={`h-1.5 w-1.5 rounded-full ${user.rol === "admin" ? "bg-[#FFC20E]" : "bg-emerald-600"}`} />
+                          {user.rol === "admin" ? "Administrador" : "Estudiante UCT"}
+                        </span>
+                      </div>
                     </div>
 
                     <div className="py-1">
