@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import logoRedondo from "../assets/logoredondo.png";
 import logoUct from "../assets/logo.png";
+const loginPattern = "url(\"data:image/svg+xml,%3Csvg width='90' height='90' viewBox='0 0 90 90' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.11' fill-rule='evenodd'%3E%3Cpath d='M16 18h10v10H16zm35 8l3 7h7l-5 4 2 7-5-4-5 4 2-7-5-4h7zm-27 38c0-5 4-8 8-8s8 3 8 8-3 8-8 8-8-3-8-8zm50 10h12v4H74zm-4 6h10v2H70zm12-32a6 6 0 1 0 0-12 6 6 0 0 0 0 12zm-58-4a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm40-20h6v6h-6zm-12 50l3 6h6l-5 4 2 6-5-4-5 4 2-6-5-4h6z'/%3E%3C/g%3E%3C/svg%3E\")";
 
 export default function Login() {
   const { user, loading: authLoading, login } = useAuth();
@@ -81,11 +82,22 @@ export default function Login() {
   const esEstudiante = tipoUsuario === "estudiante";
 
   return (
-    <div className="min-h-screen bg-sky-50 flex items-center justify-center px-4 py-16 relative overflow-hidden font-sans">
+    <div
+      className="min-h-screen flex items-center justify-center px-4 py-16 relative overflow-hidden font-sans border-b-4 border-[#FFC20E]"
+      style={{
+        background: "linear-gradient(180deg, #004D7A 0%, #00629B 25%, #0082B8 55%, #00A3E0 100%)"
+      }}
+    >
+      <div
+        className="absolute inset-0 pointer-events-none opacity-20"
+        style={{ backgroundImage: loginPattern }}
+      />
+      <div className="h-[2px] w-full bg-gradient-to-r from-transparent via-[#FFC20E] to-transparent shadow-xs absolute top-0 left-0 right-0 z-20" />
+
       <button
         type="button"
         onClick={toggleTheme}
-        className="fixed top-4 right-4 z-50 flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white/90 text-slate-700 shadow-md backdrop-blur-md transition hover:bg-white hover:text-slate-950 focus:outline-none dark:border-slate-700 dark:bg-slate-800/90 dark:text-amber-400 dark:hover:bg-slate-800"
+        className="fixed top-4 right-4 z-50 flex h-10 w-10 items-center justify-center rounded-xl border border-white/25 bg-white/10 text-white shadow-md backdrop-blur-md transition hover:bg-white hover:text-slate-950 focus:outline-none"
         title={isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
         aria-label={isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
       >
@@ -99,18 +111,8 @@ export default function Login() {
           </svg>
         )}
       </button>
-      {/* Textura de fondo sutil: retícula fina, sin orbes difusos */}
-      <div
-        className="absolute inset-0 pointer-events-none opacity-[0.35]"
-        style={{
-          backgroundImage:
-            "linear-gradient(to right, rgba(7,89,133,0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(7,89,133,0.05) 1px, transparent 1px)",
-          backgroundSize: "48px 48px",
-        }}
-      />
-      <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-sky-900/10 to-transparent" />
 
-      <div className="w-full max-w-[920px] grid md:grid-cols-[1.05fr_1fr] rounded-2xl overflow-hidden border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04),0_24px_48px_-12px_rgba(15,23,42,0.14)] relative z-10">
+      <div className="w-full max-w-[920px] grid md:grid-cols-[1.05fr_1fr] rounded-2xl overflow-hidden border border-white/20 bg-white shadow-[0_25px_60px_-15px_rgba(0,0,0,0.4)] relative z-10">
 
         {/* Panel institucional izquierdo */}
         <div className="hidden md:flex flex-col justify-between bg-sky-800 text-white p-10 relative overflow-hidden">
