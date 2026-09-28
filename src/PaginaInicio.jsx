@@ -279,9 +279,8 @@ export default function PaginaInicio() {
                           key={idx}
                           onClick={() => setTutorialStep(idx)}
                           aria-label={`Paso ${idx + 1}`}
-                          className={`h-1.5 rounded-full transition-all cursor-pointer ${
-                            idx === tutorialStep ? "w-5 bg-[#00A3E0]" : "w-1.5 bg-slate-200 hover:bg-slate-300"
-                          }`}
+                          className={`h-1.5 rounded-full transition-all cursor-pointer ${idx === tutorialStep ? "w-5 bg-[#00A3E0]" : "w-1.5 bg-slate-200 hover:bg-slate-300"
+                            }`}
                         />
                       ))}
                     </div>

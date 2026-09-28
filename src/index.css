@@ -42,8 +42,16 @@ html.dark body {
 
 html.dark .bg-\[\#F4F6F9\],
 html.dark .bg-\[\#F6F8FB\],
-html.dark .bg-sky-50 {
-  background-color: #0b1120 !important;
+html.dark .bg-sky-50,
+html.dark .bg-sky-50\/70,
+html.dark .bg-sky-50\/80,
+html.dark .bg-sky-50\/90 {
+  background-color: #0d213a !important;
+}
+
+html.dark .border-sky-100,
+html.dark .border-sky-200 {
+  border-color: #1d3d63 !important;
 }
 
 html.dark .bg-white,
@@ -57,10 +65,14 @@ html.dark .bg-white\/50 {
 }
 
 html.dark .bg-slate-50,
+html.dark .bg-slate-50\/50,
 html.dark .bg-slate-50\/60,
 html.dark .bg-slate-50\/70,
 html.dark .bg-slate-50\/80,
-html.dark .bg-slate-100 {
+html.dark .bg-slate-50\/90,
+html.dark .bg-slate-100,
+html.dark .bg-slate-100\/50,
+html.dark .bg-slate-100\/70 {
   background-color: #1a2744 !important;
 }
 
@@ -153,6 +165,20 @@ html.dark .react-datepicker__day--disabled:hover {
   color: #475569 !important;
   background-color: #0f172a !important;
   opacity: 0.35 !important;
+}
+
+html.dark .react-datepicker__navigation-icon::before {
+  border-color: #94a3b8 !important;
+}
+
+html.dark .react-datepicker__navigation:hover .react-datepicker__navigation-icon::before {
+  border-color: #f8fafc !important;
+}
+
+html.dark .react-datepicker__triangle {
+  fill: #0f172a !important;
+  color: #0f172a !important;
+  stroke: #243254 !important;
 }
 
 @keyframes shimmer {
