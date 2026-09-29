@@ -1,4 +1,5 @@
 import os
+import asyncio
 import re
 import json
 import hmac
@@ -9,8 +10,6 @@ from typing import List, Optional, Any, Dict
 from datetime import datetime, date, time, timedelta
 import httpx
 import asyncpg
-import redis.asyncio as aioredis
-from redis.exceptions import RedisError
 from fastapi import FastAPI, HTTPException, status, Depends, Request, Response, BackgroundTasks, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -22,7 +21,7 @@ import holidays
 
 load_dotenv("backend.env")
 
-app = FastAPI(title="API de Reservas y Chatbot UCT (PostgreSQL + Redis)")
+app = FastAPI(title="API de Reservas y Chatbot UCT (PostgreSQL)")
 
 app.add_middleware(
     CORSMiddleware,
@@ -40,7 +39,6 @@ N8N_CREACION_WEBHOOK_URL = os.getenv("N8N_CREACION_WEBHOOK_URL")
 N8N_EDICION_WEBHOOK_URL = os.getenv("N8N_EDICION_WEBHOOK_URL")
 N8N_SECRET_KEY = os.getenv("N8N_SECRET_KEY", "uct_n8n_shared_secret_webhook_2026")
 DATABASE_URL = os.getenv("DATABASE_URL")
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
 SECRET_KEY = os.getenv("SECRET_KEY")
 if not SECRET_KEY or not SECRET_KEY.strip():
@@ -225,7 +223,19 @@ def sanitizar_texto(texto: Optional[str], max_length: int = 500) -> str:
 
 pool: Optional[asyncpg.Pool] = None
 httpx_client: Optional[httpx.AsyncClient] = None
-redis_client: Optional[aioredis.Redis] = None
+tarea_limpieza_bg: Optional[asyncio.Task] = None
+
+async def tarea_limpieza_sesiones_periodica():
+    while True:
+        try:
+            await asyncio.sleep(21600)
+            if pool:
+                async with pool.acquire() as conn:
+                    await conn.execute("DELETE FROM sesiones WHERE updated_at < NOW() - INTERVAL '7 days'")
+        except asyncio.CancelledError:
+            break
+        except Exception:
+            pass
 
 BLOQUES_HORARIOS = [
     {"hora": "09:00", "rango": "09:00 - 10:00"},
@@ -266,7 +276,7 @@ FERIADOS_CHILE = FeriadosChileContainer()
 
 @app.on_event("startup")
 async def startup():
-    global pool, httpx_client, redis_client
+    global pool, httpx_client
     pool = await asyncpg.create_pool(
         DATABASE_URL,
         min_size=5,
@@ -278,14 +288,6 @@ async def startup():
         limits=httpx.Limits(max_keepalive_connections=20, max_connections=100),
         timeout=30.0
     )
-    try:
-        r_client = aioredis.from_url(REDIS_URL, decode_responses=True, socket_connect_timeout=1.5)
-        await r_client.ping()
-        redis_client = r_client
-        print("[REDIS] Conexión con Redis establecida exitosamente.")
-    except Exception as e:
-        redis_client = None
-        print(f"[REDIS] Redis no activo ({e}). Modo Fallback PostgreSQL.")
 
     async with pool.acquire() as conn:
         await conn.execute("""
@@ -437,18 +439,23 @@ async def startup():
             );
             CREATE INDEX IF NOT EXISTS idx_incidencias_cubiculos_estado ON incidencias_cubiculos (estado);
             CREATE INDEX IF NOT EXISTS idx_incidencias_cubiculos_cubiculo ON incidencias_cubiculos (cubiculo_id);
+            CREATE INDEX IF NOT EXISTS idx_sesiones_updated_at ON sesiones (updated_at);
+            DELETE FROM sesiones WHERE updated_at < NOW() - INTERVAL '7 days';
         """)
+
+    global tarea_limpieza_bg
+    tarea_limpieza_bg = asyncio.create_task(tarea_limpieza_sesiones_periodica())
 
 
 @app.on_event("shutdown")
 async def shutdown():
-    global pool, httpx_client, redis_client
+    global pool, httpx_client, tarea_limpieza_bg
+    if tarea_limpieza_bg:
+        tarea_limpieza_bg.cancel()
     if httpx_client:
         await httpx_client.aclose()
     if pool:
         await pool.close()
-    if redis_client:
-        await redis_client.close()
 
 
 rate_limit_fallback_store: Dict[str, List[float]] = {}
@@ -463,13 +470,6 @@ async def blacklist_token(token: str, expires_in_seconds: int = 3600):
     if not token:
         return
     token_hash = get_token_hash(token)
-    r_key = f"token_blacklist:{token_hash}"
-    if redis_client:
-        try:
-            await redis_client.setex(r_key, expires_in_seconds, "1")
-            return
-        except Exception:
-            pass
     token_blacklist_fallback[token_hash] = datetime.utcnow().timestamp() + expires_in_seconds
 
 
@@ -477,14 +477,6 @@ async def is_token_blacklisted(token: str) -> bool:
     if not token:
         return False
     token_hash = get_token_hash(token)
-    r_key = f"token_blacklist:{token_hash}"
-    if redis_client:
-        try:
-            val = await redis_client.get(r_key)
-            if val:
-                return True
-        except Exception:
-            pass
     exp = token_blacklist_fallback.get(token_hash)
     if exp:
         if datetime.utcnow().timestamp() < exp:
@@ -496,22 +488,6 @@ async def is_token_blacklisted(token: str) -> bool:
 
 async def check_rate_limit(key_prefix: str, identifier: str, max_requests: int = 15, window_seconds: int = 60, increment: bool = True) -> bool:
     key = f"{key_prefix}:{identifier}"
-    if redis_client:
-        try:
-            r_key = f"rate_limit:{key}"
-            val = await redis_client.get(r_key)
-            current_count = int(val) if val else 0
-            if current_count >= max_requests:
-                return False
-            if increment:
-                requests = await redis_client.incr(r_key)
-                if requests == 1:
-                    await redis_client.expire(r_key, window_seconds)
-                return requests <= max_requests
-            return True
-        except Exception:
-            pass
-
     now = datetime.utcnow().timestamp()
     timestamps = rate_limit_fallback_store.get(key, [])
     timestamps = [t for t in timestamps if now - t < window_seconds]
@@ -595,22 +571,7 @@ async def verificar_sancion_usuario(conn, rut: str) -> dict:
 
 
 async def invalidar_caches_disponibilidad(campus_id: Optional[int] = None, fecha_str: Optional[str] = None):
-    if not redis_client:
-        return
-    try:
-        if campus_id and fecha_str:
-            await redis_client.delete(
-                f"disponibilidad:{campus_id}:{fecha_str}",
-                f"dashboard:{campus_id}:{fecha_str}"
-            )
-        else:
-            keys = await redis_client.keys("disponibilidad:*")
-            d_keys = await redis_client.keys("dashboard:*")
-            all_keys = keys + d_keys
-            if all_keys:
-                await redis_client.delete(*all_keys)
-    except Exception as e:
-        print(f"⚠️ Error invalidando caché: {e}")
+    pass
 
 
 # --- Esquemas Pydantic ---
@@ -2271,12 +2232,6 @@ async def obtener_resumen_dashboard(campus_id: Optional[int] = None, fecha: Opti
 
             CUPOS_TOTALES_DIARIOS = len(BLOQUES_HORARIOS) * total_cub_bd
 
-            if redis_client:
-                cache_key = f"dashboard:{campus_id}:{target_fecha.strftime('%Y-%m-%d')}"
-                cached_data = await redis_client.get(cache_key)
-                if cached_data:
-                    return json.loads(cached_data)
-
             total_reservas = await conn.fetchval(
                 "SELECT COUNT(*) FROM reservas WHERE campus_id = $1 AND fecha = $2",
                 campus_id, target_fecha
@@ -2316,9 +2271,6 @@ async def obtener_resumen_dashboard(campus_id: Optional[int] = None, fecha: Opti
                 "bloques": desglose_bloques
             }
 
-            if redis_client:
-                await redis_client.setex(f"dashboard:{campus_id}:{target_fecha.strftime('%Y-%m-%d')}", 300, json.dumps(respuesta))
-
             return respuesta
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -2337,11 +2289,6 @@ async def consultar_disponibilidad(campus_id: int, fecha: str, request: Request)
     try:
         fecha_parsed = datetime.strptime(fecha.strip(), "%Y-%m-%d").date()
         fecha_str = fecha_parsed.strftime("%Y-%m-%d")
-
-        if redis_client:
-            cached_data = await redis_client.get(f"disponibilidad:{campus_id}:{fecha_str}")
-            if cached_data:
-                return json.loads(cached_data)
 
         hoy = date.today()
         es_fer, nombre_fer = es_feriado_chile(fecha_parsed)
@@ -2448,9 +2395,6 @@ async def consultar_disponibilidad(campus_id: int, fecha: str, request: Request)
                 "cubiculas_fisicos": capacidad_campus,
                 "bloques": resultado
             }
-
-        if redis_client and not es_hoy:
-            await redis_client.setex(f"disponibilidad:{campus_id}:{fecha_str}", 300, json.dumps(respuesta))
 
         return respuesta
     except Exception as e:
@@ -3256,9 +3200,11 @@ async def limpiar_historial_reservas(current_user: dict = Depends(get_current_us
                    OR (fecha = CURRENT_DATE AND hora::time < CURRENT_TIME)
                 """
             )
+            res_s = await conn.execute("DELETE FROM sesiones WHERE updated_at < NOW() - INTERVAL '7 days'")
             count_h = int(res_h.split(" ")[1]) if " " in res_h else 0
             count_r = int(res_r.split(" ")[1]) if " " in res_r else 0
-            total_limpiado = count_h + count_r
+            count_s = int(res_s.split(" ")[1]) if " " in res_s else 0
+            total_limpiado = count_h + count_r + count_s
             return {
                 "mensaje": f"Historial eliminado con éxito. Se eliminaron {total_limpiado} registros antiguos.",
                 "total_eliminados": total_limpiado
