@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+asyncpg
+httpx
+pydantic
+python-dotenv
+python-jose[cryptography]
+passlib[bcrypt]
+holidays
