@@ -9,13 +9,6 @@ import { useCampusQuery, useDiasBloqueadosQuery, useFeriadosQuery, queryClient }
 
 registerLocale("es", es);
 
-// Feriados oficiales de Chile 2026 (Formato YYYY-MM-DD)
-const FERIADOS_CHILE_2026 = [
-  "2026-01-01", "2026-04-03", "2026-04-04", "2026-05-01",
-  "2026-05-21", "2026-06-21", "2026-06-29", "2026-07-16",
-  "2026-08-15", "2026-09-18", "2026-09-19", "2026-10-12",
-  "2026-10-31", "2026-11-01", "2026-12-08", "2026-12-25"
-];
 
 /* ── Iconografía (solo presentación) ─────────────────────────────── */
 const Icon = ({ path, className = "w-4 h-4" }) => (
@@ -72,7 +65,7 @@ export default function FormularioReserva() {
   const isEstudiante = user?.rol === "estudiante";
 
   const { data: campusList = [] } = useCampusQuery();
-  const { data: feriados = FERIADOS_CHILE_2026 } = useFeriadosQuery();
+  const { data: feriados = [] } = useFeriadosQuery();
   const { data: diasBloqueados = [] } = useDiasBloqueadosQuery();
   const [fechaSeleccionada, setFechaSeleccionada] = useState(null);
 

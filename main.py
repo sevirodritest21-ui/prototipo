@@ -18,6 +18,7 @@ from pydantic import BaseModel, root_validator
 from dotenv import load_dotenv
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+import holidays
 
 load_dotenv("backend.env")
 
@@ -238,12 +239,29 @@ BLOQUES_HORARIOS = [
     {"hora": "17:00", "rango": "17:00 - 18:00"},
 ]
 
-FERIADOS_CHILE = {
-    "2026-01-01", "2026-04-03", "2026-04-04", "2026-05-01",
-    "2026-05-21", "2026-06-21", "2026-06-29", "2026-07-16",
-    "2026-08-15", "2026-09-18", "2026-09-19", "2026-10-12",
-    "2026-10-31", "2026-11-01", "2026-12-08", "2026-12-25"
-}
+def es_feriado_chile(fecha_val: Any) -> tuple[bool, Optional[str]]:
+    try:
+        if isinstance(fecha_val, str):
+            f = datetime.strptime(fecha_val.strip(), "%Y-%m-%d").date()
+        elif isinstance(fecha_val, datetime):
+            f = fecha_val.date()
+        elif isinstance(fecha_val, date):
+            f = fecha_val
+        else:
+            return False, None
+        cl = holidays.country_holidays("CL", language="es", years=f.year)
+        if f in cl:
+            return True, cl.get(f)
+        return False, None
+    except Exception:
+        return False, None
+
+class FeriadosChileContainer(set):
+    def __contains__(self, item):
+        es_fer, _ = es_feriado_chile(item)
+        return es_fer
+
+FERIADOS_CHILE = FeriadosChileContainer()
 
 
 @app.on_event("startup")
@@ -1955,6 +1973,19 @@ async def eliminar_faq_cms(faq_id: int, current_user: dict = Depends(get_current
         return {"mensaje": "Pregunta frecuente eliminada exitosamente"}
 
 
+@app.get("/api/feriados")
+async def obtener_feriados(year: Optional[int] = Query(None)):
+    y = year or date.today().year
+    years = [y - 1, y, y + 1] if not year else [y, y + 1]
+    cl_holidays = holidays.country_holidays("CL", language="es", years=years)
+    lista = [
+        {"fecha": d.strftime("%Y-%m-%d"), "nombre": nombre}
+        for d, nombre in sorted(cl_holidays.items())
+    ]
+    fechas = [item["fecha"] for item in lista]
+    return {"feriados": fechas, "detalles": lista}
+
+
 @app.get("/api/calendario/bloqueos")
 async def obtener_dias_bloqueados(campus_id: Optional[int] = None):
     async with pool.acquire() as conn:
@@ -2313,8 +2344,9 @@ async def consultar_disponibilidad(campus_id: int, fecha: str, request: Request)
                 return json.loads(cached_data)
 
         hoy = date.today()
-        if fecha_parsed < hoy or fecha_parsed.weekday() >= 5 or fecha_str in FERIADOS_CHILE:
-            motivo = "Fecha pasada" if fecha_parsed < hoy else ("Fin de semana (día no hábil)" if fecha_parsed.weekday() >= 5 else "Feriado oficial")
+        es_fer, nombre_fer = es_feriado_chile(fecha_parsed)
+        if fecha_parsed < hoy or fecha_parsed.weekday() >= 5 or es_fer:
+            motivo = "Fecha pasada" if fecha_parsed < hoy else ("Fin de semana (día no hábil)" if fecha_parsed.weekday() >= 5 else f"Feriado oficial ({nombre_fer or 'Feriado'})")
             resultado = [
                 {
                     "hora": b["hora"],
@@ -2597,10 +2629,11 @@ async def crear_reserva(
                 detail=f"No se permite agendar reservas los fines de semana (Sábado o Domingo). La fecha {reserva.fecha} corresponde a un día no hábil."
             )
 
-        if reserva.fecha.strip() in FERIADOS_CHILE:
+        es_fer, nombre_fer = es_feriado_chile(reserva.fecha)
+        if es_fer:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"La fecha {reserva.fecha} corresponde a un feriado oficial no laboral."
+                detail=f"La fecha {reserva.fecha} corresponde a un feriado oficial no laboral ({nombre_fer})."
             )
 
         async with pool.acquire() as conn:
@@ -3318,11 +3351,13 @@ async def procesar_edicion_reserva(
                     detail=f"No se permite trasladar reservas a los fines de semana (Sábado o Domingo). La fecha {nueva_fecha.strftime('%Y-%m-%d')} corresponde a un día no hábil."
                 )
 
-            if data.fecha and data.fecha.strip() in FERIADOS_CHILE:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"La fecha {data.fecha} corresponde a un feriado oficial no laboral."
-                )
+            if data.fecha:
+                es_fer, nombre_fer = es_feriado_chile(data.fecha)
+                if es_fer:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"La fecha {data.fecha} corresponde a un feriado oficial no laboral ({nombre_fer})."
+                    )
 
             nuevo_campus_id = res_existente["campus_id"]
             nuevo_campus_nombre = None

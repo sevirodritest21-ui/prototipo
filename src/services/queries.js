@@ -36,11 +36,16 @@ export function useFeriadosQuery(year = new Date().getFullYear()) {
   return useQuery({
     queryKey: ["feriados", year],
     queryFn: async () => {
-      const res = await fetch(`https://api.feriadosdev.com/api/v1/feriados/${year}`);
-      if (!res.ok) throw new Error("Error al obtener feriados");
-      const resData = await res.json();
-      const lista = resData?.data?.feriados || resData?.feriados || resData;
-      return Array.isArray(lista) ? lista.map((f) => f.fecha) : [];
+      try {
+        const data = await apiGet(`/api/feriados?year=${year}`);
+        const lista = data?.feriados || data?.detalles || data;
+        if (Array.isArray(lista)) {
+          return lista.map((f) => (typeof f === "string" ? f : f.fecha));
+        }
+        return [];
+      } catch {
+        return [];
+      }
     },
     staleTime: 1000 * 60 * 60 * 24
   });
