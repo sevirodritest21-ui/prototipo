@@ -48,7 +48,9 @@ N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL")
 N8N_CANCELACION_WEBHOOK_URL = os.getenv("N8N_CANCELACION_WEBHOOK_URL")
 N8N_CREACION_WEBHOOK_URL = os.getenv("N8N_CREACION_WEBHOOK_URL")
 N8N_EDICION_WEBHOOK_URL = os.getenv("N8N_EDICION_WEBHOOK_URL")
-N8N_SECRET_KEY = os.getenv("N8N_SECRET_KEY", "uct_n8n_shared_secret_webhook_2026")
+N8N_SECRET_KEY = os.getenv("N8N_SECRET_KEY")
+if not N8N_SECRET_KEY or not N8N_SECRET_KEY.strip():
+    raise RuntimeError("CRITICAL ERROR: N8N_SECRET_KEY no está definido en backend.env.")
 DATABASE_URL = os.getenv("DATABASE_URL")
 if DATABASE_URL and (os.path.exists("/.dockerenv") or os.getenv("RUNNING_IN_DOCKER")):
     DATABASE_URL = DATABASE_URL.replace("@localhost:", "@host.docker.internal:").replace("@127.0.0.1:", "@host.docker.internal:")
