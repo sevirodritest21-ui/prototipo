@@ -39,6 +39,11 @@ app.add_middleware(
     allow_private_network=True,
 )
 
+
+@app.get("/api/health")
+async def health_check():
+    return {"status": "ok"}
+
 N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL")
 N8N_CANCELACION_WEBHOOK_URL = os.getenv("N8N_CANCELACION_WEBHOOK_URL")
 N8N_CREACION_WEBHOOK_URL = os.getenv("N8N_CREACION_WEBHOOK_URL")
@@ -240,6 +245,7 @@ async def tarea_limpieza_sesiones_periodica():
             if pool:
                 async with pool.acquire() as conn:
                     await conn.execute("DELETE FROM sesiones WHERE updated_at < NOW() - INTERVAL '7 days'")
+                    await conn.execute("DELETE FROM rate_limits WHERE created_at < NOW() - INTERVAL '1 day'")
         except asyncio.CancelledError:
             break
         except Exception:
@@ -449,6 +455,14 @@ async def startup():
             CREATE INDEX IF NOT EXISTS idx_incidencias_cubiculos_cubiculo ON incidencias_cubiculos (cubiculo_id);
             CREATE INDEX IF NOT EXISTS idx_sesiones_updated_at ON sesiones (updated_at);
             DELETE FROM sesiones WHERE updated_at < NOW() - INTERVAL '7 days';
+
+            CREATE TABLE IF NOT EXISTS rate_limits (
+                id SERIAL PRIMARY KEY,
+                key VARCHAR(255) NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_rate_limits_key_created ON rate_limits (key, created_at);
+            DELETE FROM rate_limits WHERE created_at < NOW() - INTERVAL '1 day';
         """)
 
     global tarea_limpieza_bg
@@ -496,6 +510,24 @@ async def is_token_blacklisted(token: str) -> bool:
 
 async def check_rate_limit(key_prefix: str, identifier: str, max_requests: int = 15, window_seconds: int = 60, increment: bool = True) -> bool:
     key = f"{key_prefix}:{identifier}"
+    if pool:
+        try:
+            async with pool.acquire() as conn:
+                count = await conn.fetchval(
+                    """
+                    SELECT COUNT(*) FROM rate_limits 
+                    WHERE key = $1 AND created_at >= NOW() - ($2 || ' seconds')::INTERVAL
+                    """,
+                    key, str(window_seconds)
+                )
+                if count >= max_requests:
+                    return False
+                if increment:
+                    await conn.execute("INSERT INTO rate_limits (key) VALUES ($1)", key)
+                return True
+        except Exception:
+            pass
+
     now = datetime.utcnow().timestamp()
     timestamps = rate_limit_fallback_store.get(key, [])
     timestamps = [t for t in timestamps if now - t < window_seconds]
@@ -2856,9 +2888,16 @@ async def hablar_con_bot(input_data: MessageInput, request: Request, current_use
                     rut_a_guardar = row_recup["rut"]
                     nombre_a_guardar = row_recup["nombre"]
 
-        mensaje_enriquecido = input_data.message
+        now_dt = datetime.now()
+        fecha_actual = now_dt.strftime("%Y-%m-%d")
+        hora_actual = now_dt.strftime("%H:%M")
+        now_dt_str = f"{fecha_actual} {hora_actual}"
+
+        contexto_fecha = f"[Contexto temporal: Hoy es {fecha_actual} (año {now_dt.year}, mes {now_dt.month:02d}, día {now_dt.day:02d}) y la hora actual es {hora_actual}. Si el usuario pide agendar para 'hoy', 'mañana' o fechas relativas, usa siempre {fecha_actual} como referencia base. No uses fechas pasadas.]"
+
+        mensaje_enriquecido = f"{contexto_fecha}\n{input_data.message}"
         if rut_a_guardar:
-            mensaje_enriquecido = f"[Usuario autenticado: {nombre_a_guardar or 'Estudiante'} | RUT: {rut_a_guardar} | sessionId: {input_data.sessionId}]\n{input_data.message}"
+            mensaje_enriquecido = f"[Usuario autenticado: {nombre_a_guardar or 'Estudiante'} | RUT: {rut_a_guardar} | sessionId: {input_data.sessionId}]\n{contexto_fecha}\n{input_data.message}"
 
         payload = {
             "message": mensaje_enriquecido,
@@ -2866,7 +2905,9 @@ async def hablar_con_bot(input_data: MessageInput, request: Request, current_use
             "sessionId": input_data.sessionId,
             "rut": rut_a_guardar,
             "nombre": nombre_a_guardar,
-            "email": email_a_guardar
+            "email": email_a_guardar,
+            "fecha_actual": fecha_actual,
+            "hora_actual": hora_actual
         }
 
         payload_bytes, headers = generar_headers_webhook_n8n(payload)
@@ -2875,14 +2916,23 @@ async def hablar_con_bot(input_data: MessageInput, request: Request, current_use
         if response.status_code != 200:
             try:
                 err_data = response.json()
-                err_detail = err_data.get("message") or err_data.get("detail") or err_data.get("output") or f"Error {response.status_code} desde el servicio n8n."
+                raw_err = str(err_data.get("message") or err_data.get("detail") or err_data.get("output") or "")
             except Exception:
-                err_detail = f"Error {response.status_code} al comunicarse con n8n."
-            raise HTTPException(status_code=response.status_code, detail=err_detail)
+                raw_err = response.text or ""
+
+            clean_err = re.sub(r'(?i)Bad request\s*-\s*please check your parameters\s*', '', raw_err).strip()
+            clean_err = re.sub(r'(?i)NodeApiError:\s*', '', clean_err).strip()
+            if clean_err:
+                return {"response": clean_err}
+            raise HTTPException(status_code=response.status_code, detail=f"Error {response.status_code} desde el servicio n8n.")
 
         data = response.json()
-        bot_response = data.get("output", "Reserva procesada con éxito.")
+        bot_response = data.get("output") or data.get("message") or data.get("response") or "Reserva procesada con éxito."
         bot_response = re.sub(r'\[Usuario autenticado:[^\]]*\]\s*', '', bot_response)
+        bot_response = re.sub(r'\[Fecha y hora actual:[^\]]*\]\s*', '', bot_response)
+        bot_response = re.sub(r'\[Contexto temporal:[^\]]*\]\s*', '', bot_response)
+        bot_response = re.sub(r'(?i)Bad request\s*-\s*please check your parameters\s*', '', bot_response)
+        bot_response = re.sub(r'(?i)NodeApiError:\s*', '', bot_response)
         bot_response = re.sub(r'(?i)Calling\s+[a-zA-Z0-9_\-]+(\s*with\s+input:)?\s*\{[\s\S]*?\}', '', bot_response).strip()
         if not bot_response:
             bot_response = "Estoy procesando tu solicitud de cubículos. ¿En qué fecha, hora y sede te gustaría agendar?"
