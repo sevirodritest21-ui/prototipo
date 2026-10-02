@@ -706,6 +706,25 @@ class MessageInput(BaseModel):
         return values
 
 
+PATRONES_INYECCION = [
+    r"(?i)\b(ignora|olvida|desestima)\s+(todas?\s+)?(las?\s+)?(instrucciones|reglas|indicaciones)\b",
+    r"(?i)\bignore\s+(all\s+)?(previous\s+)?(instructions|rules|prompts?)\b",
+    r"(?i)\b(muestra|revela|dame|imprime|display|print|show)\s+(el\s+|tu\s+)?(system\s*prompt|prompt\s*inicial|prompt\s*del\s*sistema)\b",
+    r"(?i)\b(act[uú]a|comportate|pretend|act)\s+como\s+(un\s+)?(dan|hacker|root|admin|ia\s+sin\s+restricciones)\b",
+    r"(?i)\b(developer\s+mode|jailbreak|modo\s+desarrollador)\b",
+    r"(?i)\b(dame|revela|muestra)\s+(las?\s+)?(claves?|contrase[ñn]as?|api\s*keys?|secret\s*keys?|tokens?)\b",
+    r"(?i)<\s*script\b",
+    r"(?i)\b(drop\s+table|delete\s+from\s+usuarios|union\s+select)\b"
+]
+
+
+def es_mensaje_sospechoso(texto: str) -> bool:
+    if not texto:
+        return False
+    texto_norm = str(texto).strip()
+    return any(re.search(pat, texto_norm) for pat in PATRONES_INYECCION)
+
+
 class EsquemaEliminar(BaseModel):
     rut: Optional[str] = None
     sessionId: Optional[str] = None
@@ -2802,6 +2821,11 @@ async def hablar_con_bot(input_data: MessageInput, request: Request, current_use
 
     if input_data.message and len(input_data.message.strip()) > 300:
         raise HTTPException(status_code=400, detail="El mensaje no puede superar los 300 caracteres.")
+
+    if es_mensaje_sospechoso(input_data.message):
+        return {
+            "response": "Como asistente de Biblioteca UCT, solo puedo responder consultas sobre reservas de cubículos, normas de uso y horarios de la biblioteca. ¿En qué te puedo orientar?"
+        }
 
     try:
         rut_a_guardar = current_user.get("rut") or input_data.rut
