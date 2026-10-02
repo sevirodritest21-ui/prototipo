@@ -209,6 +209,13 @@ export default function ChatbotFlotante() {
       clearTimeout(timeoutId);
       console.error('Error al conectar con el bot:', error);
 
+      if (error?.message?.includes('límite') || error?.message?.includes('Límite') || error?.message?.includes('429')) {
+        setMensajes((prev) =>
+          prev.map((msg) => (msg.id === botPensandoId ? { ...msg, texto: error.message } : msg))
+        );
+        return;
+      }
+
       let fallbackTexto = null;
       try {
         const token = localStorage.getItem("auth_token") || localStorage.getItem("token");

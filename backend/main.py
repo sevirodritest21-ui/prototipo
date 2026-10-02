@@ -2779,9 +2779,29 @@ async def crear_reserva(
 
 @app.post("/api/chat")
 async def hablar_con_bot(input_data: MessageInput, request: Request, current_user: dict = Depends(get_current_user)):
-    client_id = input_data.sessionId or current_user.get("rut") or (request.client.host if request.client else "anon")
-    if not await check_rate_limit("chat", client_id, max_requests=15, window_seconds=60):
-        raise HTTPException(status_code=429, detail="Límite de solicitudes alcanzado. Por favor espera un minuto.")
+    user_rut = (current_user.get("rut") or "").replace(".", "").upper().strip()
+    client_ip = request.client.host if request.client else "anon"
+    ident = user_rut or client_ip
+
+    if not await check_rate_limit("chat_min", ident, max_requests=10, window_seconds=60, increment=False):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Has superado el límite de 10 mensajes por minuto. Por favor espera un momento.",
+            headers={"Retry-After": "60"}
+        )
+
+    if not await check_rate_limit("chat_day", ident, max_requests=50, window_seconds=86400, increment=False):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Has alcanzado el límite diario de 50 mensajes con el chatbot.",
+            headers={"Retry-After": "86400"}
+        )
+
+    await check_rate_limit("chat_min", ident, max_requests=10, window_seconds=60, increment=True)
+    await check_rate_limit("chat_day", ident, max_requests=50, window_seconds=86400, increment=True)
+
+    if input_data.message and len(input_data.message.strip()) > 300:
+        raise HTTPException(status_code=400, detail="El mensaje no puede superar los 300 caracteres.")
 
     try:
         rut_a_guardar = current_user.get("rut") or input_data.rut
