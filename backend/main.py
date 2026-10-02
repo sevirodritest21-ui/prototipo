@@ -22,6 +22,11 @@ import holidays
 _env_path = os.path.join(os.path.dirname(__file__), "backend.env")
 load_dotenv(_env_path if os.path.exists(_env_path) else "backend.env")
 
+import time as _time
+if hasattr(_time, "tzset"):
+    os.environ["TZ"] = os.getenv("TZ", "America/Santiago")
+    _time.tzset()
+
 app = FastAPI(title="API de Reservas y Chatbot UCT (PostgreSQL)")
 
 app.add_middleware(
@@ -40,6 +45,8 @@ N8N_CREACION_WEBHOOK_URL = os.getenv("N8N_CREACION_WEBHOOK_URL")
 N8N_EDICION_WEBHOOK_URL = os.getenv("N8N_EDICION_WEBHOOK_URL")
 N8N_SECRET_KEY = os.getenv("N8N_SECRET_KEY", "uct_n8n_shared_secret_webhook_2026")
 DATABASE_URL = os.getenv("DATABASE_URL")
+if DATABASE_URL and (os.path.exists("/.dockerenv") or os.getenv("RUNNING_IN_DOCKER")):
+    DATABASE_URL = DATABASE_URL.replace("@localhost:", "@host.docker.internal:").replace("@127.0.0.1:", "@host.docker.internal:")
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
 SECRET_KEY = os.getenv("SECRET_KEY")
 if not SECRET_KEY or not SECRET_KEY.strip():
@@ -690,7 +697,10 @@ class MessageInput(BaseModel):
     def sanitizar_mensaje(cls, values):
         if isinstance(values, dict):
             if "message" in values and values["message"] is not None:
-                values["message"] = sanitizar_texto(values["message"], max_length=1000)
+                msg = str(values["message"]).strip()
+                if len(msg) > 300:
+                    raise ValueError("El mensaje no puede superar los 300 caracteres.")
+                values["message"] = sanitizar_texto(msg, max_length=300)
             if "nombre" in values and values["nombre"] is not None:
                 values["nombre"] = sanitizar_texto(values["nombre"], max_length=150)
         return values

@@ -169,7 +169,7 @@ export default function ChatbotFlotante() {
     }
     if (!textoAEnviar.trim() || cargandoBot) return;
 
-    const mensajeTexto = textoAEnviar;
+    const mensajeTexto = textoAEnviar.trim().slice(0, 300);
     const mensajeUsuario = { id: Date.now(), texto: mensajeTexto, esBot: false };
     setMensajes((prev) => [...prev, mensajeUsuario]);
     setNuevoMensaje('');
@@ -696,20 +696,28 @@ export default function ChatbotFlotante() {
                 </div>
               </div>
             ) : (
-              <input
-                type="text"
-                value={nuevoMensaje}
-                onChange={(e) => setNuevoMensaje(e.target.value)}
-                disabled={!user || cargandoBot}
-                placeholder={
-                  !user
-                    ? "Debes iniciar sesión para chatear..."
-                    : cargandoBot
-                      ? "Esperando respuesta del asistente..."
-                      : "Pídeme una reserva (ej: mañana a las 10:00)..."
-                }
-                className="flex-1 px-4 py-2.5 text-sm border border-slate-200 bg-slate-50/70 focus:bg-white rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#00629B] transition-all disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed dark:border-slate-700 dark:bg-slate-800/80 dark:focus:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:disabled:bg-slate-800/50 dark:disabled:text-slate-600"
-              />
+              <div className="relative flex-1 flex items-center">
+                <input
+                  type="text"
+                  maxLength={300}
+                  value={nuevoMensaje}
+                  onChange={(e) => setNuevoMensaje(e.target.value)}
+                  disabled={!user || cargandoBot}
+                  placeholder={
+                    !user
+                      ? "Debes iniciar sesión para chatear..."
+                      : cargandoBot
+                        ? "Esperando respuesta del asistente..."
+                        : "Pídeme una reserva (ej: mañana a las 10:00)..."
+                  }
+                  className="w-full px-4 py-2.5 pr-14 text-sm border border-slate-200 bg-slate-50/70 focus:bg-white rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#00629B] transition-all disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed dark:border-slate-700 dark:bg-slate-800/80 dark:focus:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:disabled:bg-slate-800/50 dark:disabled:text-slate-600"
+                />
+                {nuevoMensaje.length >= 200 && (
+                  <span className="absolute right-3 text-[10px] font-mono text-slate-400 dark:text-slate-500 pointer-events-none">
+                    {nuevoMensaje.length}/300
+                  </span>
+                )}
+              </div>
             )}
 
             {user && (

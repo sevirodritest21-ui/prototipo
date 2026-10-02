@@ -5,5 +5,6 @@ httpx
 pydantic
 python-dotenv
 python-jose[cryptography]
-passlib[bcrypt]
+passlib
+bcrypt==4.0.1
 holidays
