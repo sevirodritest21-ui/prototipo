@@ -510,6 +510,16 @@ async def is_token_blacklisted(token: str) -> bool:
     return False
 
 
+def obtener_ip_cliente(request: Request) -> str:
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    real_ip = request.headers.get("x-real-ip")
+    if real_ip:
+        return real_ip.strip()
+    return request.client.host if request.client else "anon"
+
+
 async def check_rate_limit(key_prefix: str, identifier: str, max_requests: int = 15, window_seconds: int = 60, increment: bool = True) -> bool:
     key = f"{key_prefix}:{identifier}"
     if pool:
@@ -1058,7 +1068,7 @@ async def get_current_user_optional(credentials: Optional[HTTPAuthorizationCrede
 
 @app.post("/api/auth/register", response_model=UsuarioResponse, status_code=status.HTTP_201_CREATED)
 async def registrar_usuario(data: CrearUsuarioRequest, request: Request):
-    client_ip = request.client.host if request.client else "anon"
+    client_ip = obtener_ip_cliente(request)
     await enforce_rate_limit(
         "register",
         client_ip,
@@ -1087,7 +1097,7 @@ async def registrar_usuario(data: CrearUsuarioRequest, request: Request):
 
 @app.post("/api/auth/login", response_model=TokenResponse)
 async def login(data: LoginRequest, request: Request, response: Response):
-    client_ip = request.client.host if request.client else "anon"
+    client_ip = obtener_ip_cliente(request)
     
     if not await check_rate_limit("login_failed", client_ip, max_requests=5, window_seconds=60, increment=False):
         raise HTTPException(
@@ -2342,7 +2352,7 @@ async def obtener_resumen_dashboard(campus_id: Optional[int] = None, fecha: Opti
 
 @app.get("/api/disponibilidad")
 async def consultar_disponibilidad(campus_id: int, fecha: str, request: Request):
-    client_ip = request.client.host if request.client else "anon"
+    client_ip = obtener_ip_cliente(request)
     await enforce_rate_limit(
         "disponibilidad",
         client_ip,
@@ -2608,7 +2618,7 @@ async def crear_reserva(
     if "[" in rut_limpio or "RUT_" in rut_limpio or len(rut_limpio) > 12:
         raise HTTPException(status_code=400, detail="El RUT proporcionado no es válido.")
 
-    client_id = rut_limpio or reserva.sessionId or (request.client.host if request.client else "anon")
+    client_id = rut_limpio or reserva.sessionId or obtener_ip_cliente(request)
     if not await check_rate_limit("reserva", client_id, max_requests=10, window_seconds=60):
         raise HTTPException(status_code=429, detail="Límite de solicitudes alcanzado. Intenta de nuevo en un minuto.")
 
@@ -2833,7 +2843,7 @@ async def crear_reserva(
 @app.post("/api/chat")
 async def hablar_con_bot(input_data: MessageInput, request: Request, current_user: dict = Depends(get_current_user)):
     user_rut = (current_user.get("rut") or "").replace(".", "").upper().strip()
-    client_ip = request.client.host if request.client else "anon"
+    client_ip = obtener_ip_cliente(request)
     ident = user_rut or client_ip
 
     if not await check_rate_limit("chat_min", ident, max_requests=10, window_seconds=60, increment=False):
@@ -3000,7 +3010,7 @@ async def obtener_recordatorios_manana(dias: int = 1):
 
 @app.delete("/api/reservas")
 async def eliminar_reserva(data: EsquemaEliminar, request: Request, background_tasks: BackgroundTasks, credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)):
-    client_id = data.sessionId or (request.client.host if request.client else "anon")
+    client_id = data.sessionId or obtener_ip_cliente(request)
     await enforce_rate_limit(
         "eliminar_reserva",
         client_id,
@@ -3121,7 +3131,7 @@ async def eliminar_reserva_por_id(
     sessionId: Optional[str] = Query(None),
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)
 ):
-    client_id = sessionId or (request.client.host if request.client else "anon")
+    client_id = sessionId or obtener_ip_cliente(request)
     await enforce_rate_limit(
         "eliminar_reserva_id",
         client_id,
@@ -3561,7 +3571,7 @@ async def editar_reserva(data: EsquemaEditarReserva, background_tasks: Backgroun
 
 @app.post("/api/reservas/consultar")
 async def consultar_reservas(data: EsquemaConsulta, request: Request, credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)):
-    client_id = data.sessionId or (request.client.host if request.client else "anon")
+    client_id = data.sessionId or obtener_ip_cliente(request)
     await enforce_rate_limit(
         "consultar_reservas",
         client_id,
