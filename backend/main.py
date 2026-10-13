@@ -9,8 +9,12 @@ import html
 from typing import List, Optional, Any, Dict
 from datetime import datetime, date, time, timedelta
 import httpx
-import asyncpg
+try:
+    from backend import sqlserver_adapter as asyncpg
+except ImportError:
+    import sqlserver_adapter as asyncpg
 from fastapi import FastAPI, HTTPException, status, Depends, Request, Response, BackgroundTasks, Query
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, root_validator
@@ -18,6 +22,10 @@ from dotenv import load_dotenv
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 import holidays
+try:
+    from backend.hikcentral import request_artemis, open_door_direct, get_person_info, HIKVISION_TERMINAL_IP, HIKVISION_TERMINAL_USER, HIKVISION_TERMINAL_PASS
+except ImportError:
+    from hikcentral import request_artemis, open_door_direct, get_person_info, HIKVISION_TERMINAL_IP, HIKVISION_TERMINAL_USER, HIKVISION_TERMINAL_PASS
 
 _env_path = os.path.join(os.path.dirname(__file__), "backend.env")
 load_dotenv(_env_path if os.path.exists(_env_path) else "backend.env")
@@ -27,7 +35,7 @@ if hasattr(_time, "tzset"):
     os.environ["TZ"] = os.getenv("TZ", "America/Santiago")
     _time.tzset()
 
-app = FastAPI(title="API de Reservas y Chatbot UCT (PostgreSQL)")
+app = FastAPI(title="API de Reservas y Chatbot UCT (SQL Server)")
 
 app.add_middleware(
     CORSMiddleware,
@@ -239,6 +247,7 @@ def sanitizar_texto(texto: Optional[str], max_length: int = 500) -> str:
 pool: Optional[asyncpg.Pool] = None
 httpx_client: Optional[httpx.AsyncClient] = None
 tarea_limpieza_bg: Optional[asyncio.Task] = None
+tarea_monitor_terminal_bg: Optional[asyncio.Task] = None
 
 async def tarea_limpieza_sesiones_periodica():
     while True:
@@ -307,175 +316,34 @@ async def startup():
 
     async with pool.acquire() as conn:
         await conn.execute("""
-            CREATE TABLE IF NOT EXISTS cubiculos (
-                id SERIAL PRIMARY KEY,
-                codigo VARCHAR(20) NOT NULL UNIQUE,
-                campus_id INT NOT NULL REFERENCES campus(id) ON DELETE CASCADE,
-                estado VARCHAR(20) DEFAULT 'disponible'
-            );
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_cubiculos_codigo_upper ON cubiculos (UPPER(codigo));
-            CREATE TABLE IF NOT EXISTS historial_reservas (
-                id SERIAL PRIMARY KEY,
-                reserva_id INT,
-                nombre VARCHAR(100) NOT NULL,
-                rut VARCHAR(20) NOT NULL,
-                campus_id INT REFERENCES campus(id) ON DELETE SET NULL,
-                fecha DATE NOT NULL,
-                hora VARCHAR(20) NOT NULL,
-                estado VARCHAR(30) DEFAULT 'completada',
-                fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            DELETE FROM historial_reservas
-            WHERE reserva_id IS NOT NULL
-              AND id NOT IN (
-                  SELECT MIN(id)
-                  FROM historial_reservas
-                  WHERE reserva_id IS NOT NULL
-                  GROUP BY reserva_id
-              );
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_historial_reservas_unique_reserva_id 
-            ON historial_reservas (reserva_id) 
-            WHERE reserva_id IS NOT NULL;
-            INSERT INTO historial_reservas (reserva_id, nombre, rut, campus_id, fecha, hora, estado)
-            SELECT id, nombre, rut, campus_id, fecha, hora, 'activa'
-            FROM reservas r
-            WHERE NOT EXISTS (
-                SELECT 1 FROM historial_reservas h WHERE h.reserva_id = r.id
-            );
             UPDATE historial_reservas
             SET estado = 'cancelada'
             WHERE estado = 'activa'
               AND reserva_id IS NOT NULL
-              AND NOT EXISTS (SELECT 1 FROM reservas r WHERE r.id = historial_reservas.reserva_id);
+              AND NOT EXISTS (SELECT 1 FROM reservas r WHERE r.id = historial_reservas.reserva_id)
+        """)
+        await conn.execute("""
             UPDATE historial_reservas
             SET estado = 'expirada'
-            WHERE (fecha < CURRENT_DATE OR (fecha = CURRENT_DATE AND hora::time < CURRENT_TIME))
-              AND estado NOT IN ('cancelada', 'inasistencia');
-
-            CREATE TABLE IF NOT EXISTS anuncios_cms (
-                id SERIAL PRIMARY KEY,
-                titulo VARCHAR(200) NOT NULL,
-                subtitulo TEXT,
-                badge VARCHAR(50) DEFAULT 'NUEVO SERVICIO',
-                boton_texto VARCHAR(50) DEFAULT 'Ver Más',
-                boton_link VARCHAR(200) DEFAULT '/reservar',
-                color_fondo VARCHAR(50) DEFAULT '#4A4D55',
-                orden INT DEFAULT 0
-            );
-
-            CREATE TABLE IF NOT EXISTS tarjetas_cms (
-                id SERIAL PRIMARY KEY,
-                icono VARCHAR(50) DEFAULT '📚',
-                titulo VARCHAR(100) NOT NULL,
-                descripcion TEXT,
-                link_texto VARCHAR(50) DEFAULT 'Ir al Formulario →',
-                link_url VARCHAR(200) DEFAULT '/reservar',
-                orden INT DEFAULT 0
-            );
-
-            INSERT INTO anuncios_cms (titulo, subtitulo, badge, boton_texto, boton_link, color_fondo, orden)
-            SELECT 'RESERVA INTELIGENTE CON ASISTENCIA IA', '¿Sabías que puedes consultar disponibilidad y agendar tu espacio directamente desde el chat flotante?', 'NUEVO SERVICIO', 'Abrir Chatbot Ahora', 'open-chat', '#4A4D55', 1
-            WHERE NOT EXISTS (SELECT 1 FROM anuncios_cms);
-
-            INSERT INTO anuncios_cms (titulo, subtitulo, badge, boton_texto, boton_link, color_fondo, orden)
-            SELECT 'SEMANA DE EXÁMENES — EXTENSIÓN DE HORARIOS', 'Recuerda que durante el periodo de evaluaciones la biblioteca extiende sus bloques de atención.', 'AVISO INSTITUCIONAL', 'Reservar Tu Espacio', '/reservar', '#00629B', 2
-            WHERE NOT EXISTS (SELECT 1 FROM anuncios_cms OFFSET 1);
-
-            INSERT INTO tarjetas_cms (icono, titulo, descripcion, link_texto, link_url, orden)
-            SELECT '📚', 'Reserva de Cubículos', 'Selecciona la sede, fecha y bloque horario que necesitas para tu jornada de estudio individual o en equipo.', 'Ir al Formulario →', '/reservar', 1
-            WHERE NOT EXISTS (SELECT 1 FROM tarjetas_cms);
-
-            INSERT INTO tarjetas_cms (icono, titulo, descripcion, link_texto, link_url, orden)
-            SELECT '🤖', 'Asistente Virtual', 'Interactúa en lenguaje natural para realizar o cancelar reservas sin llenar formularios extensos.', 'Probar Chatbot →', 'open-chat', 2
-            WHERE NOT EXISTS (SELECT 1 FROM tarjetas_cms OFFSET 1);
-
-            INSERT INTO tarjetas_cms (icono, titulo, descripcion, link_texto, link_url, orden)
-            SELECT '👥', 'Trabajo Colaborativo', 'Registra a tus compañeros acompañantes al momento de realizar la reserva de tu espacio.', 'Hasta 10 espacios por bloque', '', 3
-            WHERE NOT EXISTS (SELECT 1 FROM tarjetas_cms OFFSET 2);
-
-            CREATE TABLE IF NOT EXISTS faqs_cms (
-                id SERIAL PRIMARY KEY,
-                pregunta VARCHAR(300) NOT NULL,
-                respuesta TEXT NOT NULL,
-                categoria VARCHAR(100) DEFAULT 'General',
-                orden INT DEFAULT 0
-            );
-
-            INSERT INTO faqs_cms (pregunta, respuesta, categoria, orden)
-            SELECT '¿Con cuánta anticipación puedo reservar un cubículo?', 'Puedes reservar cubículos con hasta 7 días de anticipación y un mínimo de 15 minutos antes del bloque deseado, según disponibilidad en cada campus.', 'Reservas', 1
-            WHERE NOT EXISTS (SELECT 1 FROM faqs_cms);
-
-            INSERT INTO faqs_cms (pregunta, respuesta, categoria, orden)
-            SELECT '¿Cuál es el tiempo máximo de reserva por estudiante?', 'Cada estudiante puede reservar hasta un máximo de 2 horas continuas por jornada para asegurar la rotación justa de los espacios de estudio.', 'Reservas', 2
-            WHERE NOT EXISTS (SELECT 1 FROM faqs_cms OFFSET 1);
-
-            INSERT INTO faqs_cms (pregunta, respuesta, categoria, orden)
-            SELECT '¿Puedo reservar a través del asistente virtual (Chatbot)?', 'Sí, puedes abrir el chatbot flotante desde cualquier página del portal y pedirle en lenguaje natural que reserve un cubículo indicando sede, fecha y hora.', 'Asistente IA', 3
-            WHERE NOT EXISTS (SELECT 1 FROM faqs_cms OFFSET 2);
-
-            INSERT INTO faqs_cms (pregunta, respuesta, categoria, orden)
-            SELECT '¿Qué pasa si no puedo asistir a mi reserva?', 'Debes cancelar tu reserva con al menos 30 minutos de anticipación desde la sección Mis Reservas o mediante el Asistente IA para evitar sanciones por inasistencia.', 'Reglamento y Sanciones', 4
-            WHERE NOT EXISTS (SELECT 1 FROM faqs_cms OFFSET 3);
-
-            INSERT INTO faqs_cms (pregunta, respuesta, categoria, orden)
-            SELECT '¿Cuántos acompañantes pueden ingresar al cubículo?', 'Depende de la capacidad de la sala (entre 2 y 8 personas según el cubículo). Puedes registrar a tus compañeros al realizar la solicitud.', 'Reglamento y Sanciones', 5
-            WHERE NOT EXISTS (SELECT 1 FROM faqs_cms OFFSET 4);
-
-            CREATE TABLE IF NOT EXISTS dias_bloqueados (
-                id SERIAL PRIMARY KEY,
-                fecha DATE NOT NULL,
-                motivo VARCHAR(255) DEFAULT 'Día bloqueado administrativamente',
-                campus_id INT REFERENCES campus(id) ON DELETE CASCADE,
-                creado_por VARCHAR(100) DEFAULT 'Administrador',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-
-            CREATE TABLE IF NOT EXISTS cubiculos_mantenimiento (
-                id SERIAL PRIMARY KEY,
-                cubiculo_id INT NOT NULL REFERENCES cubiculos(id) ON DELETE CASCADE,
-                fecha DATE NOT NULL,
-                motivo VARCHAR(255) DEFAULT 'Mantenimiento / Fuera de servicio',
-                creado_por VARCHAR(100) DEFAULT 'Administrador',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE (cubiculo_id, fecha)
-            );
-            CREATE INDEX IF NOT EXISTS idx_cubiculos_mantenimiento_fecha ON cubiculos_mantenimiento (fecha);
-
-            CREATE TABLE IF NOT EXISTS incidencias_cubiculos (
-                id SERIAL PRIMARY KEY,
-                cubiculo_id INT NOT NULL REFERENCES cubiculos(id) ON DELETE CASCADE,
-                reserva_id INT,
-                estudiante_rut VARCHAR(20),
-                estudiante_nombre VARCHAR(100),
-                categoria VARCHAR(50) DEFAULT 'otro',
-                descripcion TEXT NOT NULL,
-                estado VARCHAR(20) DEFAULT 'pendiente',
-                solucion TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            CREATE INDEX IF NOT EXISTS idx_incidencias_cubiculos_estado ON incidencias_cubiculos (estado);
-            CREATE INDEX IF NOT EXISTS idx_incidencias_cubiculos_cubiculo ON incidencias_cubiculos (cubiculo_id);
-            CREATE INDEX IF NOT EXISTS idx_sesiones_updated_at ON sesiones (updated_at);
-            DELETE FROM sesiones WHERE updated_at < NOW() - INTERVAL '7 days';
-
-            CREATE TABLE IF NOT EXISTS rate_limits (
-                id SERIAL PRIMARY KEY,
-                key VARCHAR(255) NOT NULL,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-            );
-            CREATE INDEX IF NOT EXISTS idx_rate_limits_key_created ON rate_limits (key, created_at);
-            DELETE FROM rate_limits WHERE created_at < NOW() - INTERVAL '1 day';
+            WHERE (fecha < CURRENT_DATE OR (fecha = CURRENT_DATE AND hora < CURRENT_TIME))
+              AND estado NOT IN ('cancelada', 'inasistencia')
         """)
+        await conn.execute("DELETE FROM sesiones WHERE updated_at < DATEADD(day, -7, GETDATE())")
+        await conn.execute("DELETE FROM rate_limits WHERE created_at < DATEADD(day, -1, GETDATE())")
 
-    global tarea_limpieza_bg
+
+    global tarea_limpieza_bg, tarea_monitor_terminal_bg
     tarea_limpieza_bg = asyncio.create_task(tarea_limpieza_sesiones_periodica())
+    tarea_monitor_terminal_bg = asyncio.create_task(background_terminal_watcher())
 
 
 @app.on_event("shutdown")
 async def shutdown():
-    global pool, httpx_client, tarea_limpieza_bg
+    global pool, httpx_client, tarea_limpieza_bg, tarea_monitor_terminal_bg
     if tarea_limpieza_bg:
         tarea_limpieza_bg.cancel()
+    if tarea_monitor_terminal_bg:
+        tarea_monitor_terminal_bg.cancel()
     if httpx_client:
         await httpx_client.aclose()
     if pool:
@@ -571,16 +439,22 @@ async def verificar_sancion_usuario(conn, rut: str) -> dict:
 
     rows = await conn.fetch(
         """
-        WITH inasistencias_unicas AS (
-            SELECT DISTINCT ON (COALESCE(reserva_id, id)) id, reserva_id, fecha, hora, fecha_registro
+        WITH raw_inasistencias AS (
+            SELECT id, reserva_id, fecha, hora, fecha_registro,
+                   ROW_NUMBER() OVER (PARTITION BY COALESCE(reserva_id, id) ORDER BY fecha_registro DESC, id DESC) AS rn
             FROM historial_reservas
             WHERE REPLACE(REPLACE(REPLACE(UPPER(rut), '.', ''), '-', ''), ' ', '') = $1 
               AND estado = 'inasistencia'
-            ORDER BY COALESCE(reserva_id, id), fecha_registro DESC, id DESC
+        ),
+        inasistencias_unicas AS (
+            SELECT id, reserva_id, fecha, hora, fecha_registro
+            FROM raw_inasistencias
+            WHERE rn = 1
         )
         SELECT id, reserva_id, fecha, hora, fecha_registro
         FROM inasistencias_unicas
         ORDER BY fecha_registro DESC, id DESC
+
         """,
         rut_limpio
     )
@@ -1243,8 +1117,8 @@ async def obtener_cubiculos(campus_id: Optional[int] = None, fecha: Optional[str
                     SELECT cb.id, cb.codigo, cb.campus_id, cb.estado,
                            cm.id as mantenimiento_id,
                            cm.motivo as mantenimiento_motivo,
-                           cm.fecha::text as mantenimiento_fecha,
-                           (cm.id IS NOT NULL OR cb.estado = 'mantenimiento') as en_mantenimiento
+                           cm.fecha as mantenimiento_fecha,
+                           CASE WHEN (cm.id IS NOT NULL OR cb.estado = 'mantenimiento') THEN 1 ELSE 0 END as en_mantenimiento
                     FROM cubiculos cb
                     LEFT JOIN cubiculos_mantenimiento cm 
                       ON cb.id = cm.cubiculo_id AND cm.fecha = $2
@@ -1259,8 +1133,8 @@ async def obtener_cubiculos(campus_id: Optional[int] = None, fecha: Optional[str
                     SELECT cb.id, cb.codigo, cb.campus_id, cb.estado,
                            cm.id as mantenimiento_id,
                            cm.motivo as mantenimiento_motivo,
-                           cm.fecha::text as mantenimiento_fecha,
-                           (cm.id IS NOT NULL OR cb.estado = 'mantenimiento') as en_mantenimiento
+                           cm.fecha as mantenimiento_fecha,
+                           CASE WHEN (cm.id IS NOT NULL OR cb.estado = 'mantenimiento') THEN 1 ELSE 0 END as en_mantenimiento
                     FROM cubiculos cb
                     LEFT JOIN cubiculos_mantenimiento cm 
                       ON cb.id = cm.cubiculo_id AND cm.fecha = $1
@@ -1537,9 +1411,11 @@ async def marcar_inasistencia_reserva(reserva_id: int, current_user: dict = Depe
             if res_upd == "UPDATE 0":
                 await conn.execute(
                     """
-                    INSERT INTO historial_reservas (reserva_id, nombre, rut, campus_id, fecha, hora, estado, fecha_registro)
-                    VALUES ($1, $2, $3, $4, $5, $6, 'inasistencia', NOW())
-                    ON CONFLICT (reserva_id) DO UPDATE SET estado = 'inasistencia', fecha_registro = NOW()
+                    IF NOT EXISTS (SELECT 1 FROM historial_reservas WHERE reserva_id = $1)
+                        INSERT INTO historial_reservas (reserva_id, nombre, rut, campus_id, fecha, hora, estado, fecha_registro)
+                        VALUES ($1, $2, $3, $4, $5, $6, 'inasistencia', GETDATE())
+                    ELSE
+                        UPDATE historial_reservas SET estado = 'inasistencia', fecha_registro = GETDATE() WHERE reserva_id = $1
                     """,
                     reserva_id, nombre_estudiante, rut_estudiante, campus_id, fecha_res, hora_res
                 )
@@ -2100,7 +1976,7 @@ async def obtener_campus():
                        COALESCE(COUNT(cb.id), c.cubiculas_fisicos) AS cubiculas_fisicos
                 FROM campus c
                 LEFT JOIN cubiculos cb ON c.id = cb.campus_id
-                GROUP BY c.id ORDER BY c.id ASC
+                GROUP BY c.id, c.nombre, c.cubiculas_fisicos ORDER BY c.id ASC
                 """
             )
             return [dict(f) for f in filas]
@@ -2190,9 +2066,13 @@ async def obtener_metricas_dashboard(campus_id: Optional[int] = None, current_us
 
             filas_dias = await conn.fetch(
                 """
-                SELECT TO_CHAR(fecha, 'Day') as dia_nombre, EXTRACT(ISODOW FROM fecha) as dia_num, COUNT(*) as total
-                FROM reservas
-                WHERE ($1::int IS NULL OR campus_id = $1)
+                WITH base_dias AS (
+                    SELECT TO_CHAR(fecha, 'Day') as dia_nombre, EXTRACT(ISODOW FROM fecha) as dia_num
+                    FROM reservas
+                    WHERE ($1::int IS NULL OR campus_id = $1)
+                )
+                SELECT dia_nombre, dia_num, COUNT(*) as total
+                FROM base_dias
                 GROUP BY dia_nombre, dia_num
                 ORDER BY total DESC
                 """,
@@ -2219,10 +2099,14 @@ async def obtener_metricas_dashboard(campus_id: Optional[int] = None, current_us
 
             filas_canc_dia = await conn.fetch(
                 """
-                SELECT TO_CHAR(fecha, 'Day') as dia_nombre, EXTRACT(ISODOW FROM fecha) as dia_num, COUNT(*) as total_canceladas
-                FROM historial_reservas
-                WHERE estado = 'cancelada'
-                  AND ($1::int IS NULL OR campus_id = $1)
+                WITH base_canc AS (
+                    SELECT TO_CHAR(fecha, 'Day') as dia_nombre, EXTRACT(ISODOW FROM fecha) as dia_num
+                    FROM historial_reservas
+                    WHERE estado = 'cancelada'
+                      AND ($1::int IS NULL OR campus_id = $1)
+                )
+                SELECT dia_nombre, dia_num, COUNT(*) as total_canceladas
+                FROM base_canc
                 GROUP BY dia_nombre, dia_num
                 ORDER BY dia_num ASC
                 """,
@@ -2759,7 +2643,6 @@ async def crear_reserva(
                       )
                     ORDER BY cb.codigo ASC
                     LIMIT 1
-                    FOR UPDATE OF cb
                     """,
                     target_campus_id, fecha_parsed, hora_parsed
                 )
@@ -2807,10 +2690,10 @@ async def crear_reserva(
                 if reserva.sessionId:
                     await conn.execute(
                         """
-                        INSERT INTO sesiones (session_id, rut, nombre, updated_at)
-                        VALUES ($1, $2, $3, NOW())
-                        ON CONFLICT (session_id) 
-                        DO UPDATE SET rut = EXCLUDED.rut, nombre = EXCLUDED.nombre, updated_at = NOW()
+                        IF EXISTS (SELECT 1 FROM sesiones WHERE session_id = $1)
+                            UPDATE sesiones SET rut = $2, nombre = $3, updated_at = GETDATE() WHERE session_id = $1
+                        ELSE
+                            INSERT INTO sesiones (session_id, rut, nombre, updated_at) VALUES ($1, $2, $3, GETDATE())
                         """,
                         reserva.sessionId, rut_limpio, nombre_final
                     )
@@ -2887,10 +2770,10 @@ async def hablar_con_bot(input_data: MessageInput, request: Request, current_use
             if input_data.sessionId and rut_a_guardar:
                 await conn.execute(
                     """
-                    INSERT INTO sesiones (session_id, rut, nombre, updated_at)
-                    VALUES ($1, $2, $3, NOW())
-                    ON CONFLICT (session_id) 
-                    DO UPDATE SET rut = EXCLUDED.rut, nombre = COALESCE(EXCLUDED.nombre, sesiones.nombre), updated_at = NOW()
+                    IF EXISTS (SELECT 1 FROM sesiones WHERE session_id = $1)
+                        UPDATE sesiones SET rut = $2, nombre = COALESCE($3, nombre), updated_at = GETDATE() WHERE session_id = $1
+                    ELSE
+                        INSERT INTO sesiones (session_id, rut, nombre, updated_at) VALUES ($1, $2, $3, GETDATE())
                     """,
                     input_data.sessionId, rut_a_guardar, nombre_a_guardar
                 )
@@ -3110,8 +2993,8 @@ async def eliminar_reserva(data: EsquemaEliminar, request: Request, background_t
                             """,
                             res["id"], res["nombre"], res["rut"], res.get("campus_id"), res["fecha"], str(res["hora"])
                         )
-                await conn.execute("DELETE FROM reserva_acompanantes WHERE reserva_id = ANY($1::int[])", ids_a_borrar)
-                await conn.execute("DELETE FROM reservas WHERE id = ANY($1::int[])", ids_a_borrar)
+                await conn.execute("DELETE FROM reserva_acompanantes WHERE reserva_id IN ($1)", ids_a_borrar)
+                await conn.execute("DELETE FROM reservas WHERE id IN ($1)", ids_a_borrar)
 
             await invalidar_caches_disponibilidad()
             background_tasks.add_task(notificar_cancelacion_n8n, filas_canceladas)
@@ -3361,7 +3244,7 @@ async def procesar_edicion_reserva(
                     rut_consulta = rut_ses
 
             if target_id:
-                res_existente = await conn.fetchrow("SELECT id, nombre, rut, fecha, hora, campus_id, cubiculo_id, session_id FROM reservas WHERE id = $1 FOR UPDATE", target_id)
+                res_existente = await conn.fetchrow("SELECT id, nombre, rut, fecha, hora, campus_id, cubiculo_id, session_id FROM reservas WHERE id = $1", target_id)
             elif rut_consulta:
                 rut_limpio = str(rut_consulta).replace(".", "").upper().strip()
                 res_existente = await conn.fetchrow(
@@ -3371,7 +3254,6 @@ async def procesar_edicion_reserva(
                     WHERE rut = $1 
                       AND (fecha > CURRENT_DATE OR (fecha = CURRENT_DATE AND hora + INTERVAL '1 hour' > CURRENT_TIME))
                     ORDER BY id DESC LIMIT 1
-                    FOR UPDATE
                     """,
                     rut_limpio
                 )
@@ -3477,7 +3359,6 @@ async def procesar_edicion_reserva(
                   )
                 ORDER BY cb.codigo ASC
                 LIMIT 1
-                FOR UPDATE OF cb
                 """,
                 nuevo_campus_id, nueva_fecha, nueva_hora, reserva_id
             )
@@ -3516,10 +3397,10 @@ async def procesar_edicion_reserva(
             if data.sessionId:
                 await conn.execute(
                     """
-                    INSERT INTO sesiones (session_id, rut, nombre, updated_at)
-                    VALUES ($1, $2, $3, NOW())
-                    ON CONFLICT (session_id) 
-                    DO UPDATE SET rut = EXCLUDED.rut, nombre = EXCLUDED.nombre, updated_at = NOW()
+                    IF EXISTS (SELECT 1 FROM sesiones WHERE session_id = $1)
+                        UPDATE sesiones SET rut = $2, nombre = $3, updated_at = GETDATE() WHERE session_id = $1
+                    ELSE
+                        INSERT INTO sesiones (session_id, rut, nombre, updated_at) VALUES ($1, $2, $3, GETDATE())
                     """,
                     data.sessionId, row_upd["rut"], row_upd["nombre"]
                 )
@@ -3831,3 +3712,316 @@ async def actualizar_campus(campus_id: int, data: ActualizarCampusRequest, curre
         "nombre": row_upd["nombre"],
         "cubiculas_fisicos": row_upd["cubiculas_fisicos"]
     }
+
+
+@app.post("/api/hikcentral/door/open")
+async def abrir_puerta_manual(door_code: str = "1"):
+    try:
+        direct_res = await open_door_direct(1)
+        if direct_res.get("success"):
+            return {"status": "ok", "mode": "direct_isapi", "result": direct_res}
+    except Exception:
+        pass
+    res = await request_artemis(
+        "POST",
+        "/artemis/api/acs/v1/door/doControl",
+        {"doorIndexCodes": [str(door_code)], "controlType": 0}
+    )
+    return res
+
+
+async def _generar_mjpeg_stream():
+    auth = httpx.DigestAuth(HIKVISION_TERMINAL_USER, HIKVISION_TERMINAL_PASS)
+    async with httpx.AsyncClient(verify=False, timeout=4.0, auth=auth) as client:
+        while True:
+            try:
+                r = await client.get(f"https://{HIKVISION_TERMINAL_IP}/ISAPI/Streaming/channels/102/picture")
+                if r.status_code != 200:
+                    r = await client.get(f"https://{HIKVISION_TERMINAL_IP}/ISAPI/Streaming/channels/101/picture")
+                if r.status_code == 200 and len(r.content) > 1000:
+                    yield (
+                        b"--frame\r\n"
+                        b"Content-Type: image/jpeg\r\n\r\n" + r.content + b"\r\n"
+                    )
+                await asyncio.sleep(0.05)
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                await asyncio.sleep(0.2)
+
+
+@app.get("/api/terminal/camara/stream")
+async def stream_camara_terminal():
+    headers = {
+        "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
+        "Pragma": "no-cache",
+        "Expires": "0",
+        "X-Accel-Buffering": "no",
+    }
+    return StreamingResponse(
+        _generar_mjpeg_stream(),
+        media_type="multipart/x-mixed-replace; boundary=frame",
+        headers=headers
+    )
+
+
+@app.get("/api/terminal/camara/snapshot")
+async def snapshot_camara_terminal():
+    auth = httpx.DigestAuth(HIKVISION_TERMINAL_USER, HIKVISION_TERMINAL_PASS)
+    async with httpx.AsyncClient(verify=False, timeout=4.0, auth=auth) as client:
+        try:
+            r = await client.get(f"https://{HIKVISION_TERMINAL_IP}/ISAPI/Streaming/channels/102/picture")
+            if r.status_code != 200:
+                r = await client.get(f"https://{HIKVISION_TERMINAL_IP}/ISAPI/Streaming/channels/101/picture")
+            if r.status_code == 200:
+                headers = {
+                    "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
+                    "Pragma": "no-cache",
+                    "Expires": "0",
+                }
+                return Response(content=r.content, media_type="image/jpeg", headers=headers)
+            raise HTTPException(status_code=r.status_code, detail="No se pudo obtener imagen")
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=str(e))
+
+
+
+async def validar_y_abrir_acceso(matricula_limpio: str = None, nombre_limpio: str = None, rut_limpio: str = None, door_code: str = "1") -> dict:
+    now_dt = datetime.now()
+    hoy = now_dt.date()
+
+    if matricula_limpio and len(matricula_limpio) <= 8 and matricula_limpio.isdigit():
+        p_info = await get_person_info(matricula_limpio)
+        if p_info:
+            matricula_limpio = p_info.get("personCode") or matricula_limpio
+            nombre_limpio = nombre_limpio or p_info.get("personName")
+            if not rut_limpio and p_info.get("certificateNo"):
+                rut_limpio = str(p_info.get("certificateNo")).replace(".", "").replace("-", "").upper().strip()
+
+    def _es_horario_valido(hora_val) -> bool:
+        if not hora_val:
+            return False
+        if isinstance(hora_val, str):
+            parts = hora_val.split(":")
+            t_val = time(int(parts[0]), int(parts[1]))
+        elif isinstance(hora_val, time):
+            t_val = hora_val
+        elif isinstance(hora_val, datetime):
+            t_val = hora_val.time()
+        else:
+            return False
+        dt_r = datetime.combine(hoy, t_val)
+        return (dt_r - timedelta(minutes=15)) <= now_dt <= (dt_r + timedelta(minutes=60))
+
+    async with pool.acquire() as conn:
+        reserva = None
+        ids_a_buscar = [x for x in [rut_limpio, matricula_limpio] if x]
+        for id_val in ids_a_buscar:
+            if reserva:
+                break
+            candidatos_rut = await conn.fetch(
+                """
+                SELECT r.id, r.nombre, r.rut, r.fecha, r.hora, r.cubiculo_id
+                FROM reservas r
+                LEFT JOIN usuarios u ON REPLACE(REPLACE(REPLACE(UPPER(u.rut), '.', ''), '-', ''), ' ', '') = REPLACE(REPLACE(REPLACE(UPPER(r.rut), '.', ''), '-', ''), ' ', '')
+                WHERE (
+                    REPLACE(REPLACE(REPLACE(UPPER(r.rut), '.', ''), '-', ''), ' ', '') = $1
+                    OR u.idmatricula = $1
+                    OR EXISTS (
+                        SELECT 1 FROM reserva_acompanantes ra
+                        WHERE ra.reserva_id = r.id
+                          AND REPLACE(REPLACE(REPLACE(UPPER(ra.rut), '.', ''), '-', ''), ' ', '') = $1
+                    )
+                )
+                AND r.fecha = $2
+                ORDER BY r.hora ASC
+                """,
+                id_val, hoy
+            )
+            for cand in candidatos_rut:
+                if _es_horario_valido(cand["hora"]):
+                    reserva = cand
+                    break
+
+        if not reserva and nombre_limpio:
+            candidatos_nom = await conn.fetch(
+                """
+                SELECT r.id, r.nombre, r.rut, r.fecha, r.hora, r.cubiculo_id
+                FROM reservas r
+                WHERE (
+                    LOWER(TRIM(r.nombre)) = LOWER(TRIM($1))
+                    OR EXISTS (
+                        SELECT 1 FROM reserva_acompanantes ra
+                        WHERE ra.reserva_id = r.id
+                          AND LOWER(TRIM(ra.nombre)) = LOWER(TRIM($1))
+                    )
+                )
+                AND r.fecha = $2
+                ORDER BY r.hora ASC
+                """,
+                nombre_limpio, hoy
+            )
+            for cand in candidatos_nom:
+                if _es_horario_valido(cand["hora"]):
+                    reserva = cand
+                    break
+
+        if reserva:
+            print(f"✅ RESERVA ENCONTRADA: ID={reserva['id']}, Estudiante={reserva['nombre']}, Hora={reserva['hora']}. ABRIENDO PUERTA...")
+            try:
+                direct_res = await open_door_direct(1)
+                control_res = direct_res if direct_res.get("success") else await request_artemis(
+                    "POST",
+                    "/artemis/api/acs/v1/door/doControl",
+                    {"doorIndexCodes": [door_code], "controlType": 0}
+                )
+                return {"doorIndexCode": door_code, "status": "opened", "reserva_id": reserva["id"], "estudiante": reserva["nombre"], "response": control_res}
+            except Exception as ex:
+                return {"doorIndexCode": door_code, "status": "error_opening", "error": str(ex), "reserva_id": reserva["id"]}
+        else:
+            ident = matricula_limpio or rut_limpio or nombre_limpio
+            print(f"❌ ACCESO DENEGADO: {ident}. Sin reserva activa hoy a esta hora.")
+            return {"doorIndexCode": door_code, "status": "denied", "reason": "Sin reserva activa en este horario", "identificador": ident}
+
+
+async def background_terminal_watcher():
+    await asyncio.sleep(4)
+    auth = httpx.DigestAuth(HIKVISION_TERMINAL_USER, HIKVISION_TERMINAL_PASS)
+    terminal_url = f"https://{HIKVISION_TERMINAL_IP}/ISAPI/AccessControl/AcsEvent?format=json"
+
+    last_serial = 0
+    try:
+        now = datetime.now()
+        payload = {
+            "AcsEventCond": {
+                "searchID": "init",
+                "searchResultPosition": 0,
+                "maxResults": 30,
+                "major": 5,
+                "minor": 75,
+                "startTime": (now - timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S-03:00"),
+                "endTime": (now + timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S-03:00")
+            }
+        }
+        async with httpx.AsyncClient(verify=False, timeout=4.0) as client:
+            r = await client.post(terminal_url, json=payload, auth=auth)
+            if r.status_code == 200:
+                for ev in r.json().get("AcsEvent", {}).get("InfoList", []):
+                    s = ev.get("serialNo", 0)
+                    if s > last_serial:
+                        last_serial = s
+    except Exception:
+        pass
+
+    while True:
+        try:
+            now = datetime.now()
+            payload = {
+                "AcsEventCond": {
+                    "searchID": "live",
+                    "searchResultPosition": 0,
+                    "maxResults": 15,
+                    "major": 5,
+                    "minor": 75,
+                    "startTime": (now - timedelta(minutes=2)).strftime("%Y-%m-%dT%H:%M:%S-03:00"),
+                    "endTime": (now + timedelta(minutes=2)).strftime("%Y-%m-%dT%H:%M:%S-03:00")
+                }
+            }
+            async with httpx.AsyncClient(verify=False, timeout=3.0) as client:
+                r = await client.post(terminal_url, json=payload, auth=auth)
+                if r.status_code == 200:
+                    events = r.json().get("AcsEvent", {}).get("InfoList", [])
+                    for ev in events:
+                        serial = ev.get("serialNo", 0)
+                        if serial > last_serial:
+                            last_serial = serial
+                            name = ev.get("name")
+                            emp = ev.get("employeeNoString")
+                            print(f"🎯 ESCANEO EN VIVO (ISAPI): {name} (ID: {emp})")
+                            asyncio.create_task(validar_y_abrir_acceso(matricula_limpio=emp, nombre_limpio=name))
+        except Exception:
+            pass
+        await asyncio.sleep(0.8)
+
+
+@app.post("/api/hikcentral/event")
+async def recibir_evento_hikcentral(request: Request):
+    raw_body = await request.body()
+    if not raw_body or raw_body.strip() == b"":
+        return {"status": "ok", "message": "Ping"}
+
+    raw_text = raw_body.decode("utf-8", errors="replace")
+    body = None
+    try:
+        body = json.loads(raw_text)
+    except Exception:
+        if "{" in raw_text and "}" in raw_text:
+            try:
+                start_idx = raw_text.find("{")
+                end_idx = raw_text.rfind("}")
+                body = json.loads(raw_text[start_idx:end_idx+1])
+            except Exception:
+                body = None
+
+    if not body:
+        return {"status": "ok", "message": "Non-json packet ignored"}
+
+    raw_events = body.get("events") if isinstance(body, dict) else []
+    if not raw_events and isinstance(body, dict) and "params" in body and isinstance(body["params"], dict):
+        raw_events = body["params"].get("events") or []
+    if not raw_events and isinstance(body, dict):
+        raw_events = [body]
+
+    resultados = []
+    for ev in raw_events:
+        data = ev.get("data") if isinstance(ev.get("data"), dict) else ev
+        ev_ace = ev.get("AccessControllerEvent", {})
+        first_name = data.get("firstName") or ev.get("firstName") or ""
+        last_name = data.get("lastName") or ev.get("lastName") or ""
+        person_name = (
+            ev_ace.get("name") or
+            data.get("personName") or
+            data.get("person_name") or
+            ev.get("personName") or
+            (f"{first_name} {last_name}".strip() or None)
+        )
+        door_code = str(ev_ace.get("doorNo") or data.get("doorIndexCode") or data.get("door_code") or ev.get("srcIndex") or "1")
+
+        person_id = str(data.get("personId") or ev.get("personId") or "")
+        p_info = {}
+        if person_id:
+            p_info = await get_person_info(person_id)
+
+        matricula_raw = (
+            ev_ace.get("employeeNoString") or
+            ev_ace.get("cardNo") or
+            data.get("personCode") or
+            p_info.get("personCode") or
+            data.get("employeeNo") or
+            data.get("employee_no") or
+            data.get("extEventEmployeeNo") or
+            data.get("extEventPersonNo") or
+            ev.get("employeeNo") or
+            ev.get("personCode") or
+            data.get("personId") or
+            data.get("ID") or
+            data.get("id") or
+            data.get("jobNo") or
+            ev.get("ID") or
+            ev.get("id") or
+            ev.get("jobNo")
+        )
+        matricula_limpio = str(matricula_raw).strip() if matricula_raw else None
+        rut = data.get("certificateNo") or data.get("rut") or ev.get("certificateNo") or p_info.get("certificateNo")
+        rut_limpio = str(rut).replace(".", "").replace("-", "").upper().strip() if rut else None
+        nombre_limpio = str(person_name or p_info.get("personName") or "").strip() or None
+
+        if matricula_limpio and (matricula_limpio.startswith("{$") or matricula_limpio.startswith("${")):
+            matricula_limpio = None
+        if rut_limpio and (rut_limpio.startswith("{$") or rut_limpio.startswith("${")):
+            rut_limpio = None
+
+        res = await validar_y_abrir_acceso(matricula_limpio, nombre_limpio, rut_limpio, door_code)
+        resultados.append(res)
+
+    return {"processed": len(resultados), "results": resultados}

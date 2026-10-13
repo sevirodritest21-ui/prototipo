@@ -70,7 +70,7 @@ function NavBar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  if (location.pathname.toLowerCase() === "/login") {
+  if (location.pathname.toLowerCase() === "/login" || location.pathname.toLowerCase() === "/dashboard") {
     return null;
   }
 

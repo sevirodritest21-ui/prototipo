@@ -185,6 +185,7 @@ html.dark .react-datepicker__triangle {
   0% {
     transform: translateX(-100%);
   }
+
   100% {
     transform: translateX(100%);
   }
@@ -195,9 +196,12 @@ html.dark .react-datepicker__triangle {
 }
 
 @keyframes audioWave {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: scaleY(0.25);
   }
+
   50% {
     transform: scaleY(1);
   }
@@ -208,6 +212,7 @@ html.dark .react-datepicker__triangle {
     transform: scale(0.9);
     opacity: 0.85;
   }
+
   100% {
     transform: scale(2.2);
     opacity: 0;

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { apiGet, apiPost, apiPut, apiDelete } from "../services/api";
+import { apiGet, apiPost, apiPut, apiDelete, BASE_URL } from "../services/api";
 import { queryClient } from "../services/queries";
 import * as XLSX from "xlsx";
 
@@ -57,6 +57,53 @@ export default function Dashboard() {
   const [eliminandoReservaId, setEliminandoReservaId] = useState(null);
   const [confirmModal, setConfirmModal] = useState({ open: false, titulo: "", mensaje: "", onConfirm: null });
   const [toastNotificacion, setToastNotificacion] = useState({ tipo: "", texto: "" });
+  const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false);
+  const [ayudaModalOpen, setAyudaModalOpen] = useState(false);
+  const [settingsDropdownOpen, setSettingsDropdownOpen] = useState(false);
+  const [modoCamara, setModoCamara] = useState("stream");
+  const [camaraTimestamp, setCamaraTimestamp] = useState(Date.now());
+  const [loopTimestamp, setLoopTimestamp] = useState(Date.now());
+  const [abriendoPuertaCamara, setAbriendoPuertaCamara] = useState(false);
+  const [errorCamara, setErrorCamara] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === "camara") {
+      setErrorCamara(false);
+      setCamaraTimestamp(Date.now());
+      setLoopTimestamp(Date.now());
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (modoCamara !== "loop" || activeTab !== "camara") return;
+    const watchdog = setTimeout(() => {
+      setLoopTimestamp(Date.now());
+    }, 3000);
+    return () => clearTimeout(watchdog);
+  }, [loopTimestamp, modoCamara, activeTab]);
+
+  useEffect(() => {
+    if (errorCamara && activeTab === "camara") {
+      const timer = setTimeout(() => {
+        setErrorCamara(false);
+        setCamaraTimestamp(Date.now());
+        setLoopTimestamp(Date.now());
+      }, 2500);
+      return () => clearTimeout(timer);
+    }
+  }, [errorCamara, activeTab]);
+
+  const handleAbrirPuertaManualCamara = async () => {
+    setAbriendoPuertaCamara(true);
+    try {
+      await apiPost("/api/hikcentral/door/open", { door_code: "1" });
+      setToastNotificacion({ tipo: "exito", texto: "Comando de apertura ejecutado con éxito en el relé 1." });
+    } catch (err) {
+      setToastNotificacion({ tipo: "error", texto: "Error al abrir puerta: " + (err.message || "Error") });
+    } finally {
+      setAbriendoPuertaCamara(false);
+    }
+  };
 
   useEffect(() => {
     if (toastNotificacion.texto) {
@@ -115,6 +162,7 @@ export default function Dashboard() {
   useEffect(() => {
     fetchCMS();
     fetchDiasBloqueados();
+    fetchIncidencias();
   }, []);
 
   useEffect(() => {
@@ -1101,96 +1149,255 @@ export default function Dashboard() {
   const OVERLAY = "fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 backdrop-blur-md p-4 animate-fadeIn";
   const MODAL = "w-full bg-white rounded-2xl shadow-[0_32px_80px_-24px_rgba(15,23,42,0.5)] border border-white/60 ring-1 ring-slate-900/5";
 
+  const navTabs = [
+    { id: "monitoreo", label: "Actividad y Monitoreo", icon: "🌐" },
+    { id: "sedes", label: "Sedes y Cubículos", icon: "🏛️" },
+    { id: "calendario", label: "Calendario y Bloqueos", icon: "📅" },
+    { id: "incidencias", label: "Incidencias de Cubículos", icon: "⚠️", badge: incidencias.filter((i) => i.estado === "pendiente").length },
+    { id: "sanciones", label: "Sanciones y Disciplina", icon: "⚖️" },
+    { id: "metricas", label: "Métricas y Análisis", icon: "📈" },
+    { id: "camara", label: "Cámara Terminal", icon: "📹" },
+    { id: "cms", label: "Portal Inicio (CMS)", icon: "🖼️" },
+    { id: "faqs", label: "Preguntas Frecuentes", icon: "❓" },
+    { id: "historial", label: "Historial de Registros", icon: "📜" },
+  ];
+
+  const handleSelectTab = (tabId) => {
+    setActiveTab(tabId);
+    setSidebarMobileOpen(false);
+    if (tabId === "cms" || tabId === "faqs") fetchCMS();
+    if (tabId === "calendario") fetchDiasBloqueados();
+    if (tabId === "historial") fetchHistorial();
+    if (tabId === "sanciones") fetchSancionados();
+    if (tabId === "incidencias") fetchIncidencias();
+  };
+
   return (
-    <div className="min-h-screen bg-[#F6F8FB] pt-20 pb-16 px-4 font-sans text-slate-800 selection:bg-[#00629B]/15">
-      <main className="relative mx-auto max-w-7xl w-full">
-        {/* Encabezado principal */}
-        <div className={`${CARD} overflow-hidden mb-8`}>
-          <div className="relative overflow-hidden bg-gradient-to-br from-[#004E7C] via-[#00629B] to-[#0284C7] text-white p-6 sm:p-9">
-            <div className="pointer-events-none absolute -top-24 -right-16 h-64 w-64 rounded-full bg-[#00A3E0]/30 blur-3xl" />
-            <div className="pointer-events-none absolute -bottom-28 left-1/3 h-56 w-56 rounded-full bg-[#FFC20E]/20 blur-3xl" />
+    <div className="min-h-screen bg-[#F6F8FB] font-sans text-slate-800 selection:bg-[#00629B]/15 flex flex-col lg:flex-row">
+      {sidebarMobileOpen && (
+        <div
+          onClick={() => setSidebarMobileOpen(false)}
+          className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-40 lg:hidden"
+        />
+      )}
 
-            <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-5">
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-[#FFC20E] px-3 py-1 text-[11px] font-bold text-slate-950 shadow-sm">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-700 animate-pulse"></span>
-                    Panel Administrador
-                  </span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-3 py-1 text-[11px] font-medium text-sky-50 backdrop-blur-sm">
-                    Sede activa: <strong className="text-white font-semibold">{campusSeleccionadoObj?.nombre || "General"}</strong>
-                  </span>
-                </div>
-                <h1 className="text-2xl md:text-[2rem] leading-tight font-serif font-bold text-white tracking-tight">
-                  Centro de Control Universitario
-                </h1>
-                <p className="text-xs md:text-sm text-sky-100/90">
-                  Bienvenido/a, <strong className="text-white font-semibold">{user?.nombre}</strong> · {user?.email}
-                </p>
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#002D4C] text-white flex flex-col transition-transform duration-300 ease-in-out lg:translate-x-0 ${
+          sidebarMobileOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"
+        }`}
+      >
+        <div className="p-5 border-b border-white/10 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#00A3E0] to-[#00629B] flex items-center justify-center font-bold text-white text-base shadow-sm ring-1 ring-white/20">
+              <span className="text-[#FFC20E] font-black">e</span>D
+            </div>
+            <div className="flex flex-col">
+              <div className="font-serif font-black text-xl tracking-tight text-white leading-tight">
+                <span className="text-[#00A3E0] font-sans font-bold">e</span>DUCA
+                <span className="text-[#FFC20E] text-[10px] font-mono ml-1 px-1.5 py-0.5 rounded bg-white/10">UCT</span>
               </div>
-
-              <div className="flex items-center gap-3">
-                <button
-                  id="dashboard-logout"
-                  onClick={logout}
-                  className="inline-flex items-center gap-2 rounded-xl border border-white/25 bg-white/10 backdrop-blur-sm px-4 py-2.5 text-xs font-semibold text-white hover:bg-white hover:text-rose-700 hover:border-white transition-all cursor-pointer shadow-sm"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                  </svg>
-                  Cerrar Sesión
-                </button>
-              </div>
+              <span className="text-[10px] text-sky-200/80 tracking-wider uppercase font-semibold">
+                Biblioteca Inteligente
+              </span>
             </div>
           </div>
+          <button
+            onClick={() => setSidebarMobileOpen(false)}
+            className="lg:hidden p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-white/10 cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
 
-          <div className="h-[3px] bg-gradient-to-r from-[#FFC20E] via-[#00A3E0] to-[#00629B]" />
-
-          {/* Navegación por pestañas */}
-          <div className="p-3 bg-white border-t border-slate-100">
-            <div className="flex flex-wrap items-center gap-1.5 rounded-2xl bg-slate-100/80 p-1.5 border border-slate-200/50">
-              {[
-                { id: "monitoreo", label: "Monitoreo y Bloques", icon: "📊" },
-                { id: "incidencias", label: "Incidencias de Cubículos", icon: "⚠️" },
-                { id: "metricas", label: "Métricas y Análisis", icon: "📈" },
-                { id: "sanciones", label: "Sanciones y Disciplina", icon: "⚖️" },
-                { id: "calendario", label: "Calendario y Bloqueos", icon: "📅" },
-                { id: "sedes", label: "Sedes y Cubículos", icon: "🏛️" },
-                { id: "cms", label: "Portal Inicio (CMS)", icon: "🖼️" },
-                { id: "faqs", label: "Preguntas Frecuentes", icon: "❓" },
-                { id: "historial", label: "Historial de Registros", icon: "📜" }
-              ].map((tab) => {
-                const isSelected = activeTab === tab.id;
-                const totalPendientes = tab.id === "incidencias" ? incidencias.filter(i => i.estado === "pendiente").length : 0;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => {
-                      setActiveTab(tab.id);
-                      if (tab.id === "cms" || tab.id === "faqs") fetchCMS();
-                      if (tab.id === "calendario") fetchDiasBloqueados();
-                      if (tab.id === "historial") fetchHistorial();
-                      if (tab.id === "sanciones") fetchSancionados();
-                      if (tab.id === "incidencias") fetchIncidencias();
-                    }}
-                    className={`flex items-center gap-2 px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap cursor-pointer active:scale-98 ${isSelected
-                      ? "bg-white text-[#00629B] font-bold shadow-[0_2px_8px_-2px_rgba(15,23,42,0.18)] ring-1 ring-slate-200/80"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-white/80"
-                      }`}
-                  >
-                    <span className="text-sm">{tab.icon}</span>
-                    <span>{tab.label}</span>
-                    {totalPendientes > 0 && (
-                      <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-rose-500 text-white">
-                        {totalPendientes}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
+        <div className="px-5 py-4 border-b border-white/10 flex items-center gap-3 bg-white/[0.04]">
+          <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#FFC20E] to-[#FFA000] text-slate-950 font-bold flex items-center justify-center text-xs shadow-inner shrink-0">
+            {user?.nombre ? user.nombre.slice(0, 2).toUpperCase() : "AD"}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-xs font-bold text-white truncate tracking-wide uppercase">
+              {user?.nombre || "ADMINISTRADOR"}
+            </div>
+            <div className="text-[10px] text-sky-200/70 truncate flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+              <span>{user?.rol || "Administrador"}</span>
             </div>
           </div>
         </div>
+
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+          <Link
+            to="/"
+            className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-medium text-sky-100/80 hover:text-white hover:bg-white/10 transition-colors"
+          >
+            <span className="text-sm">🏛️</span>
+            <span>Página de la institución</span>
+          </Link>
+
+          <div className="pt-2 pb-1 px-3.5">
+            <span className="text-[9px] font-bold text-sky-200/50 uppercase tracking-wider">
+              Navegación del Sistema
+            </span>
+          </div>
+
+          {navTabs.map((tab) => {
+            const isSelected = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => handleSelectTab(tab.id)}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  isSelected
+                    ? "bg-[#004E7C] text-white shadow-sm ring-1 ring-white/20"
+                    : "text-sky-100/80 hover:text-white hover:bg-white/10"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-sm">{tab.icon}</span>
+                  <span>{tab.label}</span>
+                </div>
+                {tab.badge > 0 && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500 text-white shadow-xs">
+                    +{tab.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="p-4 border-t border-white/10 space-y-3 bg-white/[0.03]">
+          <button
+            onClick={logout}
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-rose-300 hover:text-white hover:bg-rose-500/20 transition-all cursor-pointer"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            <span>Cerrar sesión</span>
+          </button>
+          <div className="flex items-center justify-between text-[10px] text-sky-200/60 px-1 pt-1 border-t border-white/5">
+            <button onClick={() => setAyudaModalOpen(true)} className="hover:text-white cursor-pointer">
+              Privacidad • Condiciones
+            </button>
+            <button onClick={() => setAyudaModalOpen(true)} className="hover:text-white cursor-pointer">
+              Accesibilidad
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      <div className="flex-1 min-w-0 flex flex-col min-h-screen lg:pl-72">
+        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-5 sm:px-8 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-2xs">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setSidebarMobileOpen(true)}
+              className="lg:hidden p-2 rounded-xl text-slate-600 hover:bg-slate-100 cursor-pointer"
+              title="Abrir menú"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-serif font-bold text-slate-900 tracking-tight">
+                  {activeTab === "monitoreo" ? "Flujo de actividades" :
+                   activeTab === "camara" ? "Cámara Terminal" :
+                   activeTab === "incidencias" ? "Incidencias de Cubículos" :
+                   activeTab === "metricas" ? "Métricas y Análisis" :
+                   activeTab === "sanciones" ? "Sanciones y Disciplina" :
+                   activeTab === "calendario" ? "Calendario y Bloqueos" :
+                   activeTab === "sedes" ? "Sedes y Cubículos" :
+                   activeTab === "cms" ? "Portal Inicio (CMS)" :
+                   activeTab === "faqs" ? "Preguntas Frecuentes" : "Historial de Registros"}
+                </h1>
+                {activeTab === "monitoreo" && (
+                  <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    En vivo
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-500 hidden sm:block">
+                {campusSeleccionadoObj?.nombre ? `Sede actual: ${campusSeleccionadoObj.nombre} · ` : ""}Centro de Control Universitario
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 self-end sm:self-auto">
+            <div className="relative">
+              <label className="absolute -top-2 left-2.5 px-1 bg-white text-[9px] font-bold uppercase tracking-wider text-slate-500 z-10">
+                Filtrar Sede
+              </label>
+              <div className="relative flex items-center">
+                <select
+                  value={campusSeleccionado || ""}
+                  onChange={(e) => setCampusSeleccionado(Number(e.target.value))}
+                  className="appearance-none pl-3 pr-8 py-2 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-800 shadow-2xs hover:border-[#00629B] focus:border-[#00629B] focus:ring-2 focus:ring-[#00629B]/20 outline-none transition-all cursor-pointer min-w-[170px]"
+                >
+                  {campus.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nombre}
+                    </option>
+                  ))}
+                </select>
+                <span className="pointer-events-none absolute right-2.5 text-slate-400 text-xs">▼</span>
+              </div>
+            </div>
+
+            <div className="relative">
+              <button
+                onClick={() => setSettingsDropdownOpen(!settingsDropdownOpen)}
+                className="w-9 h-9 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 flex items-center justify-center text-sm shadow-2xs transition-all cursor-pointer"
+                title="Acciones rápidas"
+              >
+                ⚙️
+              </button>
+
+              {settingsDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-200 p-2 z-50 text-xs space-y-1 animate-fadeIn">
+                  <div className="px-3 py-2 border-b border-slate-100">
+                    <span className="font-bold text-slate-900 block">Acciones Rápidas</span>
+                    <span className="text-[10px] text-slate-400">Terminal & Sistema</span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      handleAbrirPuertaManualCamara();
+                      setSettingsDropdownOpen(false);
+                    }}
+                    disabled={abriendoPuertaCamara}
+                    className="w-full text-left px-3 py-2 rounded-xl hover:bg-sky-50 text-slate-700 flex items-center gap-2 cursor-pointer font-medium"
+                  >
+                    <span>🔓</span>
+                    <span>{abriendoPuertaCamara ? "Abriendo..." : "Abrir Puerta Terminal (Relé 1)"}</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleSelectTab("sedes");
+                      setSettingsDropdownOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700 flex items-center gap-2 cursor-pointer font-medium"
+                  >
+                    <span>🏛️</span>
+                    <span>Administrar Sedes y Cubículos</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setAyudaModalOpen(true);
+                      setSettingsDropdownOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700 flex items-center gap-2 cursor-pointer font-medium"
+                  >
+                    <span>❓</span>
+                    <span>Ayuda y Atajos del Sistema</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </header>
+
+        <main className="p-5 sm:p-8 max-w-7xl w-full mx-auto space-y-6 flex-1">
 
         {/* Mensaje de Operación */}
         {campusMsg.texto && (
@@ -1207,6 +1414,192 @@ export default function Dashboard() {
             >
               Cerrar
             </button>
+          </div>
+        )}
+
+        {activeTab === "camara" && (
+          <div className={`${CARD} p-6 md:p-8 mb-8 space-y-7 animate-fadeIn`}>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+              <div className="space-y-1.5">
+                <span className={EYEBROW}>📹 Monitoreo Visual en Vivo</span>
+                <h2 className={SECTION_TITLE}>Cámara del Terminal MinMoe</h2>
+                <p className="text-xs text-slate-500 max-w-2xl leading-relaxed">
+                  Visualización en tiempo real del sensor óptico del dispositivo de reconocimiento facial para los cubículos de biblioteca.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 px-3 py-1 text-[11px] font-bold">
+                  <span className="w-2 h-2 rounded-full bg-emerald-600 animate-ping"></span>
+                  Terminal Online (172.29.0.70)
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 space-y-3">
+                <div className="relative overflow-hidden rounded-2xl bg-slate-950 border border-slate-800 shadow-2xl flex items-center justify-center min-h-[340px] sm:min-h-[420px] group">
+                  {errorCamara ? (
+                    <div className="text-center p-8 space-y-3 text-slate-400">
+                      <span className="text-4xl">⚠️</span>
+                      <p className="text-sm font-semibold text-slate-200">Reconectando con la cámara del terminal...</p>
+                      <p className="text-xs text-slate-400">Reintentando enlace en 172.29.0.70...</p>
+                      <button
+                        type="button"
+                        onClick={() => { setErrorCamara(false); setCamaraTimestamp(Date.now()); setLoopTimestamp(Date.now()); }}
+                        className={`${BTN_PRIMARY} mt-2`}
+                      >
+                        🔄 Reintentar de inmediato
+                      </button>
+                    </div>
+                  ) : (
+                    <img
+                      key={modoCamara === "loop" ? loopTimestamp : camaraTimestamp}
+                      src={`${BASE_URL}/api/terminal/camara/${modoCamara === "stream" ? "stream" : "snapshot"}?t=${modoCamara === "loop" ? loopTimestamp : camaraTimestamp}`}
+                      alt="Cámara Terminal MinMoe"
+                      className="w-full h-auto max-h-[500px] object-contain rounded-2xl transition-all"
+                      onLoad={() => {
+                        if (modoCamara === "loop" && activeTab === "camara") {
+                          setTimeout(() => setLoopTimestamp(Date.now()), 70);
+                        }
+                      }}
+                      onError={() => setErrorCamara(true)}
+                    />
+                  )}
+
+                  <div className="absolute top-3 left-3 flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-900/80 backdrop-blur-md px-3 py-1 text-[11px] font-bold text-white border border-white/10 shadow-lg">
+                      <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
+                      {modoCamara === "stream" ? "EN VIVO · MJPEG" : modoCamara === "loop" ? "EN VIVO · FLUIDO" : "FOTOGRAMA"}
+                    </span>
+                    <span className="rounded-full bg-slate-900/80 backdrop-blur-md px-2.5 py-1 text-[10px] font-semibold text-sky-300 border border-white/10">
+                      Canal 102
+                    </span>
+                  </div>
+
+                  <div className="absolute top-3 right-3 flex items-center gap-2 opacity-90 group-hover:opacity-100 transition-opacity">
+                    <button
+                      type="button"
+                      onClick={() => { setErrorCamara(false); setCamaraTimestamp(Date.now()); setLoopTimestamp(Date.now()); }}
+                      className="p-2 rounded-xl bg-slate-900/80 backdrop-blur-md text-white hover:bg-slate-800 text-xs font-semibold border border-white/10 transition-all cursor-pointer shadow-lg"
+                      title="Refrescar transmisión"
+                    >
+                      🔄
+                    </button>
+                    <a
+                      href={`${BASE_URL}/api/terminal/camara/snapshot`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="p-2 rounded-xl bg-slate-900/80 backdrop-blur-md text-white hover:bg-slate-800 text-xs font-semibold border border-white/10 transition-all cursor-pointer shadow-lg"
+                      title="Abrir foto en tamaño completo"
+                    >
+                      ↗️
+                    </a>
+                  </div>
+
+                  <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-[11px] text-slate-300 bg-slate-900/80 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-white/10">
+                    <span>MinMoe DS-K1T673DWX</span>
+                    <span>Relé: Puerta 1</span>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200/80 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-slate-600">Modo de visualización:</span>
+                    <button
+                      type="button"
+                      onClick={() => { setModoCamara("stream"); setErrorCamara(false); setCamaraTimestamp(Date.now()); }}
+                      className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${modoCamara === "stream"
+                          ? "bg-[#00629B] text-white shadow-xs"
+                          : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
+                        }`}
+                    >
+                      Transmisión directa (MJPEG)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setModoCamara("loop"); setErrorCamara(false); setLoopTimestamp(Date.now()); }}
+                      className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${modoCamara === "loop"
+                          ? "bg-[#00629B] text-white shadow-xs"
+                          : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
+                        }`}
+                    >
+                      Secuencia fluida (Auto-recuperable)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setModoCamara("snapshot"); setErrorCamara(false); setCamaraTimestamp(Date.now()); }}
+                      className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${modoCamara === "snapshot"
+                          ? "bg-[#00629B] text-white shadow-xs"
+                          : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
+                        }`}
+                    >
+                      Captura estática
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setCamaraTimestamp(Date.now())}
+                    className={BTN_GHOST}
+                  >
+                    📸 Capturar fotograma
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="p-5 rounded-2xl border border-sky-100 bg-gradient-to-br from-white to-sky-50/40 shadow-xs space-y-4">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#00629B] flex items-center gap-2">
+                    <span>⚡</span> Control de Acceso Directo
+                  </h3>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    Abre el cerrojo eléctrico del cubículo directamente desde este panel de control mientras observas la cámara en tiempo real.
+                  </p>
+                  <button
+                    type="button"
+                    disabled={abriendoPuertaCamara}
+                    onClick={handleAbrirPuertaManualCamara}
+                    className={`${BTN_PRIMARY} w-full py-3.5 text-sm font-bold shadow-md`}
+                  >
+                    {abriendoPuertaCamara ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                        Abriendo relé...
+                      </span>
+                    ) : (
+                      "🚪 Abrir Puerta (Relé 1)"
+                    )}
+                  </button>
+                </div>
+
+                <div className="p-5 rounded-2xl border border-slate-200/80 bg-white shadow-xs space-y-3.5">
+                  <h4 className="text-xs font-bold text-slate-900">Información del Dispositivo</h4>
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between py-1.5 border-b border-slate-100">
+                      <span className="text-slate-500">Modelo</span>
+                      <span className="font-semibold text-slate-800">DS-K1T673DWX</span>
+                    </div>
+                    <div className="flex justify-between py-1.5 border-b border-slate-100">
+                      <span className="text-slate-500">Dirección IP</span>
+                      <span className="font-mono font-semibold text-slate-800">172.29.0.70</span>
+                    </div>
+                    <div className="flex justify-between py-1.5 border-b border-slate-100">
+                      <span className="text-slate-500">Protocolo</span>
+                      <span className="font-semibold text-slate-800">ISAPI / HTTP Digest</span>
+                    </div>
+                    <div className="flex justify-between py-1.5 border-b border-slate-100">
+                      <span className="text-slate-500">Canal de Video</span>
+                      <span className="font-semibold text-slate-800">101 (JPEG Snapshot)</span>
+                    </div>
+                    <div className="flex justify-between py-1.5">
+                      <span className="text-slate-500">Modo de Autenticación</span>
+                      <span className="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100 text-[10px]">
+                        Verificación 1:N
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -1536,11 +1929,10 @@ export default function Dashboard() {
                       ) : (
                         <div
                           key={cb.id}
-                          className={`group flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 rounded-xl text-xs font-semibold shadow-xs transition-all ${
-                            cb.en_mantenimiento
+                          className={`group flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 rounded-xl text-xs font-semibold shadow-xs transition-all ${cb.en_mantenimiento
                               ? "bg-amber-50/90 border border-amber-300 text-amber-900"
                               : "bg-white border border-slate-200 hover:border-[#00629B]/40 text-slate-800"
-                          }`}
+                            }`}
                         >
                           <span>{cb.en_mantenimiento ? "⚠️" : "🚪"} {cb.codigo}</span>
                           {cb.en_mantenimiento && (
@@ -1551,11 +1943,10 @@ export default function Dashboard() {
                           <button
                             type="button"
                             onClick={() => handleAbrirModalMantenimiento(cb)}
-                            className={`p-1 rounded-lg cursor-pointer transition-colors ${
-                              cb.en_mantenimiento
+                            className={`p-1 rounded-lg cursor-pointer transition-colors ${cb.en_mantenimiento
                                 ? "text-amber-600 hover:text-amber-800 hover:bg-amber-100"
                                 : "text-slate-400 hover:text-amber-600 hover:bg-amber-50"
-                            }`}
+                              }`}
                             title="Gestionar días de mantenimiento"
                           >
                             🛠️
@@ -1784,11 +2175,10 @@ export default function Dashboard() {
                               <button
                                 type="button"
                                 onClick={() => handleAbrirModalMantenimiento(cb)}
-                                className={`w-7 h-7 flex items-center justify-center rounded-lg border text-xs transition-all cursor-pointer ${
-                                  cb.en_mantenimiento
+                                className={`w-7 h-7 flex items-center justify-center rounded-lg border text-xs transition-all cursor-pointer ${cb.en_mantenimiento
                                     ? "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
                                     : "border-slate-200 bg-white text-slate-600 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200"
-                                }`}
+                                  }`}
                                 title="Gestionar días de mantenimiento"
                               >
                                 🛠️
@@ -1869,65 +2259,44 @@ export default function Dashboard() {
 
         {(activeTab === "monitoreo") && (
           <>
-            <div className={`${CARD} p-5 md:p-6 mb-6 flex flex-col gap-5`}>
-              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider min-w-[96px]">
-                  Sede / Campus
+            <div className={`${CARD} p-4 sm:p-5 mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4`}>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mr-2">
+                  Fecha:
                 </span>
-                <div className="flex flex-wrap gap-2">
-                  {campus.map((c) => {
-                    const esActivo = campusSeleccionado === c.id;
-                    return (
-                      <button
-                        key={c.id}
-                        onClick={() => setCampusSeleccionado(c.id)}
-                        className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${esActivo
-                          ? "bg-[#00629B] text-white shadow-[0_6px_16px_-8px_rgba(0,98,155,0.9)] scale-[1.02]"
+                {proximosDias.map((d) => {
+                  const esActivo = fechaSeleccionada === d.fechaStr;
+                  return (
+                    <button
+                      key={d.fechaStr}
+                      onClick={() => setFechaSeleccionada(d.fechaStr)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold capitalize transition-all cursor-pointer ${
+                        esActivo
+                          ? "bg-[#00629B] text-white font-bold shadow-xs scale-[1.02]"
                           : "bg-white border border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50"
-                          }`}
-                      >
-                        🏛️ {c.nombre}
-                      </button>
-                    );
-                  })}
-                </div>
+                      }`}
+                    >
+                      {d.label}
+                    </button>
+                  );
+                })}
+                <input
+                  type="date"
+                  value={fechaSeleccionada}
+                  onChange={(e) => e.target.value && setFechaSeleccionada(e.target.value)}
+                  className="bg-white border border-slate-200 text-slate-800 rounded-xl px-2.5 py-1.5 text-xs font-medium outline-none focus:border-[#00629B] focus:ring-2 focus:ring-[#00629B]/10 shadow-2xs cursor-pointer transition-all ml-1"
+                />
               </div>
 
-              <div className="h-px bg-slate-100 w-full" />
-
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider min-w-[96px]">
-                    Fecha
-                  </span>
-                  <div className="flex flex-wrap gap-2">
-                    {proximosDias.map((d) => {
-                      const esActivo = fechaSeleccionada === d.fechaStr;
-                      return (
-                        <button
-                          key={d.fechaStr}
-                          onClick={() => setFechaSeleccionada(d.fechaStr)}
-                          className={`px-3.5 py-2 rounded-xl text-xs font-semibold capitalize transition-all cursor-pointer ${esActivo
-                            ? "bg-[#FFC20E] text-slate-950 font-bold shadow-[0_6px_16px_-8px_rgba(255,194,14,0.9)] scale-[1.02]"
-                            : "bg-white border border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50"
-                            }`}
-                        >
-                          {d.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 self-start lg:self-auto">
-                  <span className="text-[11px] font-medium text-slate-500">Otra fecha</span>
-                  <input
-                    type="date"
-                    value={fechaSeleccionada}
-                    onChange={(e) => e.target.value && setFechaSeleccionada(e.target.value)}
-                    className="bg-white border border-slate-200 text-slate-800 rounded-xl px-3 py-2 text-xs font-medium outline-none focus:border-[#00629B] focus:ring-4 focus:ring-[#00629B]/10 shadow-xs cursor-pointer transition-all"
-                  />
-                </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("camara")}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#00629B] to-[#0284C7] hover:from-[#004E7C] hover:to-[#00629B] text-white text-xs font-bold shadow-xs transition-all cursor-pointer whitespace-nowrap"
+                >
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                  📹 Cámara Terminal
+                </button>
               </div>
             </div>
 
@@ -2078,6 +2447,173 @@ export default function Dashboard() {
                       <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-100 px-2.5 py-1 rounded-lg w-fit">
                         Simultáneos
                       </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className={`${CARD} p-6 md:p-8 space-y-6 mb-8`}>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                    <div>
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-[#00629B] block">Supervisión en Línea</span>
+                      <h3 className="text-lg font-serif font-bold text-slate-900">Flujo de Actividades y Novedades</h3>
+                      <p className="text-xs text-slate-500">Línea de tiempo de eventos críticos, incidencias reportadas y actividad horaria de la sede.</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          fetchIncidencias();
+                          fetchResumen();
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition-all cursor-pointer"
+                      >
+                        <span>🔄 Actualizar flujo</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="relative pl-6 sm:pl-32 space-y-8 before:absolute before:left-2 sm:before:left-28 before:top-3 before:bottom-3 before:w-0.5 before:bg-slate-200">
+                    <div className="space-y-4">
+                      <div className="relative flex items-center">
+                        <span className="absolute -left-6 sm:-left-32 w-5 h-5 rounded-full bg-rose-100 border-2 border-rose-500 flex items-center justify-center text-[10px] text-rose-600 font-bold z-10 translate-x-[2px] sm:translate-x-[102px]">
+                          !
+                        </span>
+                        <h4 className="text-sm font-bold text-rose-600 uppercase tracking-wider ml-2 sm:ml-4">
+                          Importante
+                        </h4>
+                      </div>
+
+                      {incidencias.filter((i) => i.estado === "pendiente").length > 0 ? (
+                        incidencias
+                          .filter((i) => i.estado === "pendiente")
+                          .slice(0, 3)
+                          .map((inc) => (
+                            <div key={inc.id} className="relative group flex items-start">
+                              <span className="hidden sm:block absolute -left-28 top-3 text-[11px] font-medium text-slate-400 text-right w-24 pr-4">
+                                {inc.created_at ? String(inc.created_at).split(" ")[0] : "Reciente"}
+                              </span>
+
+                              <div className="absolute -left-6 sm:-left-6 top-3 w-5 h-5 rounded-md bg-rose-50 border border-rose-300 flex items-center justify-center text-xs text-rose-600 shadow-2xs z-10 -translate-x-1 sm:translate-x-[2px]">
+                                ⚠️
+                              </div>
+
+                              <div className="ml-2 sm:ml-4 flex-1 bg-white border border-slate-200/80 border-l-4 border-l-rose-500 rounded-xl p-4 shadow-2xs hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-mono text-xs font-bold text-slate-900 bg-rose-50 text-rose-700 px-2 py-0.5 rounded">
+                                      {inc.cubiculo_codigo}
+                                    </span>
+                                    <span className="text-xs font-bold text-slate-800">
+                                      Incidencia: {inc.categoria}
+                                    </span>
+                                    <span className="text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
+                                      Pendiente
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-slate-600 line-clamp-2">
+                                    {inc.descripcion}
+                                  </p>
+                                  <p className="text-[10px] text-slate-400">
+                                    Reportado por {inc.estudiante_nombre} · {inc.campus_nombre}
+                                  </p>
+                                </div>
+
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <button
+                                    onClick={() => handleSelectTab("incidencias")}
+                                    className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-all cursor-pointer"
+                                  >
+                                    Revisar
+                                  </button>
+                                  <button
+                                    onClick={() => handleCambiarEstadoIncidencia(inc.id, "resuelta")}
+                                    className="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold transition-all cursor-pointer"
+                                  >
+                                    Descartar
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                      ) : (
+                        <div className="relative group flex items-start">
+                          <span className="hidden sm:block absolute -left-28 top-3 text-[11px] font-medium text-slate-400 text-right w-24 pr-4">
+                            Hoy
+                          </span>
+                          <div className="absolute -left-6 sm:-left-6 top-3 w-5 h-5 rounded-md bg-emerald-50 border border-emerald-300 flex items-center justify-center text-xs text-emerald-600 shadow-2xs z-10 -translate-x-1 sm:translate-x-[2px]">
+                            ✓
+                          </div>
+                          <div className="ml-2 sm:ml-4 flex-1 bg-white border border-slate-200/80 border-l-4 border-l-emerald-500 rounded-xl p-4 shadow-2xs flex items-center justify-between">
+                            <div>
+                              <p className="text-xs font-bold text-slate-800">Sin incidencias críticas pendientes</p>
+                              <p className="text-[11px] text-slate-500">Todos los cubículos reportados se encuentran operativos o atendidos.</p>
+                            </div>
+                            <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                              Operativo
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-4 pt-4">
+                      <div className="relative flex items-center">
+                        <span className="absolute -left-6 sm:-left-32 w-5 h-5 rounded-full bg-slate-100 border-2 border-slate-400 flex items-center justify-center text-[10px] text-slate-600 font-bold z-10 translate-x-[2px] sm:translate-x-[102px]">
+                          •
+                        </span>
+                        <h4 className="text-sm font-bold text-slate-700 uppercase tracking-wider ml-2 sm:ml-4">
+                          Reciente
+                        </h4>
+                      </div>
+
+                      {resumen?.bloques && resumen.bloques.filter((b) => b.ocupados > 0).length > 0 ? (
+                        resumen.bloques
+                          .filter((b) => b.ocupados > 0)
+                          .slice(0, 4)
+                          .map((b, idx) => (
+                            <div key={idx} className="relative group flex items-start">
+                              <span className="hidden sm:block absolute -left-28 top-3 text-[11px] font-semibold text-slate-500 text-right w-24 pr-4">
+                                {(b.rango || b.hora || "").split("-")[0]?.trim() || "Turno"}
+                              </span>
+                              <div className="absolute -left-6 sm:-left-6 top-3 w-5 h-5 rounded-md bg-sky-50 border border-sky-300 flex items-center justify-center text-xs text-[#00629B] shadow-2xs z-10 -translate-x-1 sm:translate-x-[2px]">
+                                📋
+                              </div>
+                              <div className="ml-2 sm:ml-4 flex-1 bg-white border border-slate-200/80 border-l-4 border-l-[#00A3E0] rounded-xl p-4 shadow-2xs hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                <div className="space-y-0.5">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-bold text-slate-900">
+                                      Turno: {b.rango || b.hora || "Horario"}
+                                    </span>
+                                    <span className="text-[10px] font-bold text-[#00629B] bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full">
+                                      {b.ocupados} cubículo{b.ocupados > 1 ? "s" : ""} reservado{b.ocupados > 1 ? "s" : ""}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-slate-500">
+                                    Disponibilidad: {b.disponibles} cupos libres de un aforo de {cubiculosActuales} unidades.
+                                  </p>
+                                </div>
+                                <button
+                                  onClick={() => handleAbrirDetalleBloque(b)}
+                                  className="px-3.5 py-1.5 rounded-lg bg-white border border-slate-300 hover:border-[#00629B] hover:text-[#00629B] text-slate-700 text-xs font-semibold transition-all cursor-pointer whitespace-nowrap"
+                                >
+                                  Auditar alumnos →
+                                </button>
+                              </div>
+                            </div>
+                          ))
+                      ) : (
+                        <div className="relative group flex items-start">
+                          <span className="hidden sm:block absolute -left-28 top-3 text-[11px] font-medium text-slate-400 text-right w-24 pr-4">
+                            Hoy
+                          </span>
+                          <div className="absolute -left-6 sm:-left-6 top-3 w-5 h-5 rounded-md bg-slate-100 border border-slate-300 flex items-center justify-center text-xs text-slate-500 shadow-2xs z-10 -translate-x-1 sm:translate-x-[2px]">
+                            🕒
+                          </div>
+                          <div className="ml-2 sm:ml-4 flex-1 bg-white border border-slate-200/80 border-l-4 border-l-slate-300 rounded-xl p-4 shadow-2xs flex items-center justify-between">
+                            <p className="text-xs text-slate-600">No hay reservas registradas aún para los bloques de hoy en esta sede.</p>
+                            <span className="text-[11px] text-slate-400 font-medium">Libre demanda</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -2998,11 +3534,10 @@ export default function Dashboard() {
                               {est.rut}
                             </td>
                             <td className="py-3.5 px-4 text-center">
-                              <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[11px] font-bold ${
-                                est.suspendido
+                              <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[11px] font-bold ${est.suspendido
                                   ? "bg-rose-100 text-rose-800"
                                   : "bg-amber-100 text-amber-800"
-                              }`}>
+                                }`}>
                                 {est.total_inasistencias}
                               </span>
                             </td>
@@ -3099,11 +3634,10 @@ export default function Dashboard() {
                     key={f.id}
                     type="button"
                     onClick={() => setFiltroEstadoIncidencia(f.id)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                      filtroEstadoIncidencia === f.id
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${filtroEstadoIncidencia === f.id
                         ? "bg-white text-[#00629B] shadow-xs"
                         : "text-slate-600 hover:text-slate-900"
-                    }`}
+                      }`}
                   >
                     {f.label}
                   </button>
@@ -3187,13 +3721,12 @@ export default function Dashboard() {
                               <p className="font-mono text-[11px] text-slate-500">{inc.estudiante_rut || "Sin RUT"}</p>
                             </td>
                             <td className="py-3.5 px-4">
-                              <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                                inc.estado === "pendiente"
+                              <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${inc.estado === "pendiente"
                                   ? "bg-rose-50 text-rose-700 border border-rose-200"
                                   : inc.estado === "en_revision"
-                                  ? "bg-amber-50 text-amber-800 border border-amber-200"
-                                  : "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                              }`}>
+                                    ? "bg-amber-50 text-amber-800 border border-amber-200"
+                                    : "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                                }`}>
                                 {inc.estado === "pendiente" && "⚠️ Pendiente"}
                                 {inc.estado === "en_revision" && "🔧 En revisión"}
                                 {inc.estado === "resuelta" && "✅ Resuelta"}
@@ -3852,11 +4385,10 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Footer */}
-        <div className="mt-12 pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-slate-500">
+        <div className="pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-slate-500">
           <Link
             to="/"
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-slate-700 font-semibold shadow-xs hover:bg-slate-50 hover:border-slate-300 transition-all"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-slate-700 font-semibold shadow-2xs hover:bg-slate-50 hover:border-slate-300 transition-all"
           >
             ← Volver a la página de inicio
           </Link>
@@ -3864,5 +4396,70 @@ export default function Dashboard() {
         </div>
       </main>
     </div>
-  );
+
+    <button
+      onClick={() => setAyudaModalOpen(true)}
+      className="fixed bottom-6 right-6 z-40 w-10 h-10 rounded-full bg-[#002D4C] hover:bg-[#004E7C] text-white flex items-center justify-center font-bold text-sm shadow-[0_8px_20px_-4px_rgba(0,45,76,0.6)] ring-2 ring-white/80 transition-all cursor-pointer hover:scale-105"
+      title="Centro de ayuda y atajos"
+    >
+      ?
+    </button>
+
+    {ayudaModalOpen && (
+      <div className={OVERLAY}>
+        <div className={`${MODAL} max-w-lg p-6 space-y-5 animate-slideUp`}>
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-2.5">
+              <span className="w-8 h-8 rounded-xl bg-sky-50 text-[#00629B] font-bold flex items-center justify-center text-sm">
+                ?
+              </span>
+              <div>
+                <h3 className="font-serif font-bold text-base text-slate-900">Guía del Panel Administrador</h3>
+                <p className="text-[11px] text-slate-500">Flujo de actividades y herramientas de biblioteca</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setAyudaModalOpen(false)}
+              className="text-slate-400 hover:text-slate-700 font-bold text-sm cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
+
+          <div className="space-y-4 text-xs text-slate-600 leading-relaxed">
+            <div>
+              <h4 className="font-bold text-slate-800 mb-1.5">Leyenda del Flujo de Actividades:</h4>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 p-2 rounded-lg bg-rose-50 border border-rose-100">
+                  <span className="w-3 h-3 rounded-full bg-rose-500 shrink-0"></span>
+                  <span className="text-rose-900 font-medium"><strong>Importante:</strong> Incidencias críticas pendientes o cubículos con fallas.</span>
+                </div>
+                <div className="flex items-center gap-2 p-2 rounded-lg bg-sky-50 border border-sky-100">
+                  <span className="w-3 h-3 rounded-full bg-[#00A3E0] shrink-0"></span>
+                  <span className="text-sky-900 font-medium"><strong>Reciente:</strong> Turnos horarios activos, pases reservados y eventos del terminal.</span>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="font-bold text-slate-800 mb-1">Terminal de Reconocimiento Facial:</h4>
+              <p className="text-slate-500">
+                Puedes abrir el relé 1 directamente desde el menú de opciones (icono ⚙️ superior) o monitorear la cámara en vivo desde la pestaña de Cámara Terminal.
+              </p>
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-slate-100 flex justify-end">
+            <button
+              onClick={() => setAyudaModalOpen(false)}
+              className={BTN_PRIMARY}
+            >
+              Entendido
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
+);
 }
