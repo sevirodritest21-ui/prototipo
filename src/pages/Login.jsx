@@ -50,9 +50,9 @@ export default function Login() {
     setTipoUsuario(nuevoTipo);
     setError("");
     if (nuevoTipo === "estudiante") {
-      setForm({ email: "juan.perez@alumnos.cl", password: "admin1234" });
+      setForm({ email: "rsevilla2020@alu.uct.cl", password: "" });
     } else {
-      setForm({ email: "admin@biblioteca.cl", password: "admin1234" });
+      setForm({ email: "admin@biblioteca.cl", password: "" });
     }
   };
 
@@ -66,6 +66,7 @@ export default function Login() {
     setError("");
     try {
       const userData = await login(form.email, form.password);
+      sessionStorage.removeItem("alerta_incidencias_admin_mostrada");
 
       if (userData.rol === "admin") {
         navigate("/dashboard", { replace: true });

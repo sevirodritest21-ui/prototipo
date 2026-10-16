@@ -32,17 +32,7 @@ const IconEdit = (p) => <Icon {...p} path={<><path d="M12 20h9" /><path d="M16.5
 const IconList = (p) => <Icon {...p} path={<><path d="M8 6h13M8 12h13M8 18h13" /><path d="M3 6h.01M3 12h.01M3 18h.01" /></>} />;
 const IconBook = (p) => <Icon {...p} path={<><path d="M4 4.5A2.5 2.5 0 016.5 2H20v18H6.5A2.5 2.5 0 004 22z" /><path d="M8 7h8M8 11h6" /></>} />;
 
-const obtenerSessionId = (rut) => {
-  if (rut) {
-    return `session_rut_${String(rut).replace(/\./g, '').trim().toUpperCase()}`;
-  }
-  let sId = sessionStorage.getItem("chat_session_id");
-  if (!sId) {
-    sId = "session_" + Math.random().toString(36).substring(2, 15) + "_" + Date.now();
-    sessionStorage.setItem("chat_session_id", sId);
-  }
-  return sId;
-};
+import { obtenerSessionId } from "./utils/session";
 
 const calcularEsBloquePasado = (fechaStr, horaStr) => {
   if (!fechaStr || !horaStr) return false;

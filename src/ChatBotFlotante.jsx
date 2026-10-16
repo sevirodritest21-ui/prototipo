@@ -9,44 +9,24 @@ const obtenerSessionId = (rut) => {
   return `session_rut_${rutLimpio}`;
 };
 
-const detectarPreguntaConfirmacion = (texto) => {
-  if (!texto) return { esPregunta: false, esCancelar: false };
+const detectarPreguntaEliminar = (texto) => {
+  if (!texto) return false;
   const t = texto.toLowerCase();
-
-  // Ignorar mensaje de bienvenida / presentación inicial
   if (t.includes("soy tu asistente") || t.includes("¿qué te gustaría gestionar hoy?")) {
-    return { esPregunta: false, esCancelar: false };
+    return false;
   }
-
-  const esCancelar = (
-    /¿(deseas|confirmas|estás seguro de|quieres) (cancelar|eliminar|anular|liberar)/i.test(t) ||
-    /¿(deseas que cancele|procedo a cancelar|procedo a eliminar)/i.test(t) ||
-    /para confirmar la cancelación/i.test(t) ||
-    /(deseas|seguro de) (cancelar|eliminar) tu reserva/i.test(t)
-  );
-
-  const esConfirmarReserva = (
-    /¿(deseas|confirmas|estás seguro de|quieres) (confirmar|agendar|reservar|crear)/i.test(t) ||
-    /¿(procedo a agendar|procedo a reservar|procedo a crear)/i.test(t) ||
-    /¿deseas que confirme la reserva/i.test(t) ||
-    /para confirmar tu reserva/i.test(t) ||
-    /¿los datos son correctos/i.test(t)
-  );
-
-  return {
-    esPregunta: esCancelar || esConfirmarReserva,
-    esCancelar: esCancelar
-  };
+  const accionCancel = ["cancelar", "eliminar", "anular", "liberar"].some((p) => t.includes(p));
+  const tieneContexto = ["¿", "?", "deseas", "quieres", "confirmas", "seguro de", "para confirmar"].some((c) => t.includes(c));
+  return accionCancel && tieneContexto;
 };
 
 const extraerDatosReserva = (texto) => {
   if (!texto) return null;
 
   const esConfirmada = /reserva\s+(creada|confirmada|agendada|registrada|exitosa)|confirmada con éxito|agendado con éxito/i.test(texto);
-  const { esPregunta: esPreguntaConfirmar, esCancelar: esPreguntaCancelar } = detectarPreguntaConfirmacion(texto);
-  const esCancelada = /reserva\s+(cancelada|eliminada)|cancelada con éxito|eliminada con éxito/i.test(texto);
+  const esCancelada = /reserva\s+(cancelada|eliminada|anulada|liberada)|cancelada con éxito|eliminada con éxito/i.test(texto);
 
-  if (!esConfirmada && !esPreguntaConfirmar && !esCancelada) {
+  if (!esConfirmada && !esCancelada) {
     return null;
   }
 
@@ -59,7 +39,7 @@ const extraerDatosReserva = (texto) => {
   }
 
   let cubiculo = null;
-  const cubMatch = texto.match(/cub[íi]culo\s*:?\s*([A-Za-z0-9\-_]+)/i) || texto.match(/\b(CUB[0-9A-Za-z\-_]*)\b/i);
+  const cubMatch = texto.match(/cub[íi]culo[:\s]+([A-Za-z0-9_-]+)/i) || texto.match(/\b(CUB[0-9A-Za-z_-]*)\b/i);
   if (cubMatch) cubiculo = cubMatch[1];
 
   let fecha = null;
@@ -71,20 +51,11 @@ const extraerDatosReserva = (texto) => {
   if (horaMatch) hora = horaMatch[0];
 
   let id = null;
-  const idMatch = texto.match(/reserva\s*(?:id|#|n[úu]mero)?\s*:?\s*(\d+)/i) || texto.match(/#(\d+)/);
+  const idMatch = texto.match(/#(\d+)/) || texto.match(/(?:reserva|número|id)[:\s#]+(\d+)/i);
   if (idMatch) id = idMatch[1];
 
-  let tipo = "pendiente_confirmacion";
-  if (esConfirmada) {
-    tipo = "confirmada";
-  } else if (esCancelada) {
-    tipo = "cancelada";
-  } else if (esPreguntaCancelar) {
-    tipo = "pendiente_cancelacion";
-  }
-
   return {
-    tipo,
+    tipo: esConfirmada ? "confirmada" : "cancelada",
     id,
     campus,
     cubiculo,
@@ -101,51 +72,48 @@ export default function ChatbotFlotante() {
   const [nuevoMensaje, setNuevoMensaje] = useState('');
   const [cargandoBot, setCargandoBot] = useState(false);
   const [escuchandoVoz, setEscuchandoVoz] = useState(false);
+  const [seccionActiva, setSeccionActiva] = useState('menu');
+  const [nombreContacto, setNombreContacto] = useState('');
+  const [emailContacto, setEmailContacto] = useState('');
+  const [asuntoContacto, setAsuntoContacto] = useState('Guías temáticas');
+  const [mensajeContacto, setMensajeContacto] = useState('');
+  const [enviandoContacto, setEnviandoContacto] = useState(false);
   const recognitionRef = useRef(null);
   const pressTimerRef = useRef(null);
   const isHoldingRef = useRef(false);
 
-  // Referencia para el Auto-Scroll al final de la conversación
   const chatEndRef = useRef(null);
 
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Bajar automáticamente el scroll cada vez que cambien los mensajes o se abra el chat
   useEffect(() => {
     if (isChatOpen) {
       scrollToBottom();
     }
   }, [mensajes, isChatOpen]);
 
+  const getSaludo = () => {
+    const hora = new Date().getHours();
+    if (hora >= 6 && hora < 12) return '¡Buenos días';
+    if (hora >= 12 && hora < 20) return '¡Buenas tardes';
+    return '¡Buenas noches';
+  };
+
   useEffect(() => {
     if (!user) return;
-
-    fetch(`${API_URL}/api/campus`)
-      .then((res) => {
-        if (!res.ok) throw new Error('Error al obtener los campus');
-        return res.json();
-      })
-      .then((data) => {
-        const nombresCampus = data.map((c) => c.nombre).join(', ');
-        setMensajes([
-          {
-            id: 1,
-            texto: `¡Hola, ${user.nombre}! 👋 Soy tu asistente de biblioteca UCT.\n\nPuedo ayudarte con lo siguiente:\n• 📅 Reservar un cubículo (indica fecha, horario y campus).\n• 🔍 Consultar disponibilidad de horarios y cubículos.\n• 📋 Ver tus reservas activas o historial.\n• ✏️ Modificar la fecha, hora o cubículo de una reserva.\n• ❌ Cancelar o liberar una reserva existente.\n• ℹ️ Resolver dudas sobre normas y horarios de biblioteca.\n\nCampus habilitados: ${nombresCampus || 'Campus San Juan Pablo II, Campus San Francisco'}.\n\n¿Qué te gustaría gestionar hoy?`,
-            esBot: true
-          }
-        ]);
-      })
-      .catch(() => {
-        setMensajes([
-          {
-            id: 1,
-            texto: `¡Hola, ${user.nombre}! 👋 Soy tu asistente de biblioteca UCT.\n\nPuedo ayudarte con:\n• 📅 Reservar un cubículo de estudio.\n• 🔍 Consultar horarios y cubículos disponibles.\n• 📋 Revisar tus reservas activas.\n• ✏️ Modificar una reserva ya agendada.\n• ❌ Cancelar o liberar una reserva.\n• ℹ️ Información y normas de uso de la biblioteca.\n\n¿En qué te puedo ayudar hoy?`,
-            esBot: true
-          }
-        ]);
-      });
+    setNombreContacto(user.nombre || '');
+    setEmailContacto(user.email || '');
+    setSeccionActiva('menu');
+    setMensajes([
+      {
+        id: 1,
+        texto: `${getSaludo()}, ${user.nombre || 'estudiante'}! 👋 Te doy la bienvenida al asistente virtual de Biblioteca UCT.\n\n¿Qué deseas hacer hoy? Selecciona una de las siguientes opciones:`,
+        esBot: true,
+        esMenuOpciones: true
+      }
+    ]);
   }, [user]);
 
   useEffect(() => {
@@ -154,12 +122,110 @@ export default function ChatbotFlotante() {
     return () => window.removeEventListener('open-chat', abrirChat);
   }, []);
 
-  // Limpiar historial de mensajes en pantalla cuando cambia el usuario autenticado
-  useEffect(() => {
-    if (user) {
-      setMensajes([]);
+  const seleccionarOpcion = (opcion) => {
+    if (opcion === 'reservas') {
+      setSeccionActiva('reservas');
+      setMensajes((prev) => [
+        ...prev,
+        { id: Date.now(), texto: '🏢 Gestionar reserva', esBot: false },
+        {
+          id: Date.now() + 1,
+          texto: `¡Excelente! Estoy listo para ayudarte con la gestión de cubículos de estudio.\n\n🏛️ Sedes disponibles:\n• Campus San Juan Pablo II\n• Campus Derecho\n• Campus Jaime Arellano\n\nPuedes pedirme agendar directamente indicando sede, fecha y horario (ej: "Quiero un cubículo en San Juan Pablo II hoy a las 11:00"), consultar disponibilidad o revisar tus reservas activas.`,
+          esBot: true
+        }
+      ]);
+    } else if (opcion === 'contacto') {
+      setSeccionActiva('contacto');
+      setNombreContacto(user?.nombre || '');
+      setEmailContacto(user?.email || '');
+      setAsuntoContacto('Guías temáticas');
+      setMensajeContacto('');
+      setMensajes((prev) => [
+        ...prev,
+        { id: Date.now(), texto: '📩 Contactar al soporte', esBot: false },
+        {
+          id: Date.now() + 1,
+          texto: `📩 Formulario de contacto y soporte:\nCompleta los campos a continuación para remitir tu consulta directamente al soporte de Biblioteca UCT:`,
+          esBot: true,
+          esFormContacto: true
+        }
+      ]);
+    } else if (opcion === 'taller') {
+      setSeccionActiva('taller');
+      setMensajes((prev) => [
+        ...prev,
+        { id: Date.now(), texto: '🎓 Gestionar un taller', esBot: false },
+        {
+          id: Date.now() + 1,
+          texto: `¡Excelente! Te puedo ayudar a solicitar y coordinar cualquiera de nuestros 6 talleres especializados de biblioteca:\n\n1️⃣ Conoce tu biblioteca: Taller de inicio\n2️⃣ Búsqueda y evaluación de información\n3️⃣ Gestión de referencias y estilo de citas\n4️⃣ Uso ético de la información\n5️⃣ Introducción a Leganto\n6️⃣ ORCID\n\n📌 Requisitos generales:\n• Grupo mínimo: 4 personas (hasta 9 o más)\n• Modalidad: Presencial o Virtual\n\n¿Cuál de estos talleres te gustaría solicitar y cuál es tu carrera?`,
+          esBot: true
+        }
+      ]);
+    } else if (opcion === 'prestamos') {
+      setMensajes((prev) => [
+        ...prev,
+        { id: Date.now(), texto: '📚 Préstamos interbibliotecarios', esBot: false },
+        {
+          id: Date.now() + 1,
+          texto: `📚 El servicio de préstamos interbibliotecarios estará habilitado muy pronto para coordinar libros y material entre sedes.\n\nPor ahora puedes gestionar reservas de cubículos o contactar a soporte.`,
+          esBot: true,
+          mostrarBotonMenu: true
+        }
+      ]);
     }
-  }, [user?.id, user?.rut]);
+  };
+
+  const volverAlMenuPrincipal = () => {
+    setSeccionActiva('menu');
+    setMensajes((prev) => [
+      ...prev,
+      {
+        id: Date.now(),
+        texto: `${getSaludo()}, ${user?.nombre || 'estudiante'}! 👋\n\n¿Qué deseas hacer? Selecciona una opción:`,
+        esBot: true,
+        esMenuOpciones: true
+      }
+    ]);
+  };
+
+  const enviarFormularioContacto = async (e) => {
+    if (e) e.preventDefault();
+    if (!mensajeContacto.trim() || enviandoContacto) return;
+
+    setEnviandoContacto(true);
+    try {
+      const resp = await apiPost('/api/contacto', {
+        nombre: nombreContacto.trim() || user?.nombre || 'Estudiante',
+        email: emailContacto.trim() || user?.email || '',
+        rut: user?.rut || '',
+        asunto: asuntoContacto,
+        mensaje: mensajeContacto.trim()
+      });
+
+      setMensajeContacto('');
+      setSeccionActiva('menu');
+      setMensajes((prev) => [
+        ...prev,
+        {
+          id: Date.now(),
+          texto: `✅ ¡Tu mensaje ha sido enviado al soporte de la universidad!\n\nSe derivó tu consulta sobre "${asuntoContacto}". El equipo de soporte te responderá a tu correo institucional (${emailContacto.trim() || user?.email || 'registrado'}).`,
+          esBot: true,
+          mostrarBotonMenu: true
+        }
+      ]);
+    } catch (err) {
+      setMensajes((prev) => [
+        ...prev,
+        {
+          id: Date.now(),
+          texto: `⚠️ No se pudo enviar el mensaje: ${err.message || 'Error de conexión'}. Por favor intenta nuevamente.`,
+          esBot: true
+        }
+      ]);
+    } finally {
+      setEnviandoContacto(false);
+    }
+  };
 
   const enviarMensajeTexto = async (textoAEnviar) => {
     if (!user) {
@@ -483,29 +549,210 @@ export default function ChatbotFlotante() {
                       {msg.texto}
                     </div>
 
+                    {msg.esMenuOpciones && (
+                      <div className="w-full max-w-[95%] mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 animate-fadeIn">
+                        <button
+                          type="button"
+                          onClick={() => seleccionarOpcion('reservas')}
+                          className="flex items-start gap-2.5 p-3 rounded-2xl bg-white/95 dark:bg-slate-800/90 border border-sky-200/80 dark:border-slate-700 hover:border-[#00629B] dark:hover:border-sky-400 hover:shadow-md hover:scale-[1.01] active:scale-[0.99] transition-all text-left cursor-pointer group"
+                        >
+                          <span className="text-xl p-1.5 rounded-xl bg-sky-100/70 dark:bg-sky-950/60 group-hover:scale-110 transition-transform">🏢</span>
+                          <div className="flex-1 min-w-0">
+                            <span className="block font-bold text-xs text-slate-800 dark:text-slate-100 group-hover:text-[#00629B] dark:group-hover:text-sky-300">
+                              Gestionar reserva
+                            </span>
+                            <span className="block text-[11px] text-slate-500 dark:text-slate-400 leading-tight mt-0.5">
+                              Cubículos de estudio, agendar o cancelar
+                            </span>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => seleccionarOpcion('contacto')}
+                          className="flex items-start gap-2.5 p-3 rounded-2xl bg-white/95 dark:bg-slate-800/90 border border-sky-200/80 dark:border-slate-700 hover:border-[#00629B] dark:hover:border-sky-400 hover:shadow-md hover:scale-[1.01] active:scale-[0.99] transition-all text-left cursor-pointer group"
+                        >
+                          <span className="text-xl p-1.5 rounded-xl bg-sky-100/70 dark:bg-sky-950/60 group-hover:scale-110 transition-transform">📩</span>
+                          <div className="flex-1 min-w-0">
+                            <span className="block font-bold text-xs text-slate-800 dark:text-slate-100 group-hover:text-[#00629B] dark:group-hover:text-sky-300">
+                              Contactar al soporte
+                            </span>
+                            <span className="block text-[11px] text-slate-500 dark:text-slate-400 leading-tight mt-0.5">
+                              Envía un mensaje o consulta a biblioteca
+                            </span>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => seleccionarOpcion('taller')}
+                          className="flex items-start gap-2.5 p-3 rounded-2xl bg-white/95 dark:bg-slate-800/90 border border-sky-200/80 dark:border-slate-700 hover:border-[#00629B] dark:hover:border-sky-400 hover:shadow-md hover:scale-[1.01] active:scale-[0.99] transition-all text-left cursor-pointer group"
+                        >
+                          <span className="text-xl p-1.5 rounded-xl bg-sky-100/70 dark:bg-sky-950/60 group-hover:scale-110 transition-transform">🎓</span>
+                          <div className="flex-1 min-w-0">
+                            <span className="block font-bold text-xs text-slate-800 dark:text-slate-100 group-hover:text-[#00629B] dark:group-hover:text-sky-300">
+                              Gestionar un taller
+                            </span>
+                            <span className="block text-[11px] text-slate-500 dark:text-slate-400 leading-tight mt-0.5">
+                              Solicita talleres presenciales o virtuales
+                            </span>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => seleccionarOpcion('prestamos')}
+                          className="flex items-start gap-2.5 p-3 rounded-2xl bg-white/70 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/60 hover:border-slate-300 dark:hover:border-slate-600 hover:scale-[1.01] active:scale-[0.99] transition-all text-left cursor-pointer group"
+                        >
+                          <span className="text-xl p-1.5 rounded-xl bg-slate-100 dark:bg-slate-700/50">📚</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-xs text-slate-700 dark:text-slate-200">
+                                Préstamos interbibliotecarios
+                              </span>
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300 border border-amber-200/60 dark:border-amber-900/60">
+                                Pronto
+                              </span>
+                            </div>
+                            <span className="block text-[11px] text-slate-500 dark:text-slate-400 leading-tight mt-0.5">
+                              Solicitud de libros entre sedes
+                            </span>
+                          </div>
+                        </button>
+                      </div>
+                    )}
+
+                    {msg.esFormContacto && (
+                      <form
+                        onSubmit={enviarFormularioContacto}
+                        className="w-full max-w-[95%] mt-3 p-4 rounded-2xl bg-white dark:bg-slate-800 border border-sky-200/80 dark:border-slate-700 shadow-md space-y-3 animate-fadeIn"
+                      >
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1 flex items-center justify-between">
+                              <span>Nombre</span>
+                              <span className="text-[10px] text-slate-400 font-normal">🔒 Cuenta</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={nombreContacto}
+                              readOnly
+                              tabIndex={-1}
+                              placeholder="Tu nombre completo"
+                              className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200/80 dark:border-slate-700 bg-slate-100/80 dark:bg-slate-900/60 text-slate-600 dark:text-slate-300 cursor-not-allowed select-none focus:outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1 flex items-center justify-between">
+                              <span>Correo institucional</span>
+                              <span className="text-[10px] text-slate-400 font-normal">🔒 Cuenta</span>
+                            </label>
+                            <input
+                              type="email"
+                              value={emailContacto}
+                              readOnly
+                              tabIndex={-1}
+                              placeholder="tu_correo@uct.cl"
+                              className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200/80 dark:border-slate-700 bg-slate-100/80 dark:bg-slate-900/60 text-slate-600 dark:text-slate-300 cursor-not-allowed select-none focus:outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                            Asunto
+                          </label>
+                          <select
+                            value={asuntoContacto}
+                            onChange={(e) => setAsuntoContacto(e.target.value)}
+                            disabled={enviandoContacto}
+                            className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#00629B]"
+                          >
+                            <option value="Guías temáticas">1. Guías temáticas</option>
+                            <option value="Sugerencias">2. Sugerencias</option>
+                            <option value="Reclamos">3. Reclamos</option>
+                            <option value="Bases de datos">4. Bases de datos</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                            Mensaje
+                          </label>
+                          <textarea
+                            rows={3}
+                            maxLength={500}
+                            value={mensajeContacto}
+                            onChange={(e) => setMensajeContacto(e.target.value)}
+                            placeholder="Escribe tu mensaje para el soporte..."
+                            disabled={enviandoContacto}
+                            required
+                            className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#00629B] resize-none"
+                          />
+                          <div className="flex justify-end text-[10px] text-slate-400 mt-0.5">
+                            <span>{mensajeContacto.length}/500</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 pt-1">
+                          <button
+                            type="submit"
+                            disabled={!mensajeContacto.trim() || enviandoContacto}
+                            className="flex-1 py-2 px-3 bg-gradient-to-r from-[#00629B] to-[#0082B3] hover:from-[#004B75] hover:to-[#00629B] disabled:opacity-50 text-white rounded-xl font-bold text-xs transition-all shadow-sm cursor-pointer flex items-center justify-center gap-1.5"
+                          >
+                            {enviandoContacto ? (
+                              <span>Enviando al soporte...</span>
+                            ) : (
+                              <>
+                                <span>📧</span>
+                                <span>Enviar correo al soporte</span>
+                              </>
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={volverAlMenuPrincipal}
+                            disabled={enviandoContacto}
+                            className="py-2 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl font-semibold text-xs transition-all cursor-pointer"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </form>
+                    )}
+
+                    {msg.mostrarBotonMenu && (
+                      <div className="mt-2.5 animate-fadeIn">
+                        <button
+                          type="button"
+                          onClick={volverAlMenuPrincipal}
+                          className="py-1.5 px-3 bg-sky-50 hover:bg-sky-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-[#00629B] dark:text-sky-300 border border-sky-200 dark:border-slate-700 rounded-xl font-semibold text-xs transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                        >
+                          <span>🏠</span>
+                          <span>Volver al menú principal</span>
+                        </button>
+                      </div>
+                    )}
+
                     {(() => {
                       const esUltimo = index === mensajes.length - 1;
                       if (!esUltimo || !msg.esBot || msg.texto === 'Escribiendo...') return null;
 
-                      const { esPregunta, esCancelar } = detectarPreguntaConfirmacion(msg.texto);
-                      const tieneBotonesEnCard = cardData && (cardData.tipo === 'pendiente_cancelacion' || cardData.tipo === 'pendiente_confirmacion');
-
-                      if (esPregunta && !tieneBotonesEnCard) {
+                      if (detectarPreguntaEliminar(msg.texto) && (!cardData || cardData.tipo !== 'cancelada')) {
                         return (
                           <div className="flex items-center gap-2 mt-2 pt-1 animate-fadeIn">
                             <button
                               type="button"
-                              onClick={() => enviarMensajeTexto(esCancelar ? "Sí, deseo cancelar la reserva" : "Sí, confirmo la reserva")}
+                              onClick={() => enviarMensajeTexto("Sí, deseo cancelar la reserva")}
                               disabled={cargandoBot}
-                              className={`py-2 px-4 text-white rounded-xl font-bold text-xs shadow-md active:scale-95 transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5 ${esCancelar ? "bg-rose-600 hover:bg-rose-700" : "bg-emerald-600 hover:bg-emerald-700"
-                                }`}
+                              className="py-2 px-4 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white rounded-xl font-bold text-xs shadow-md transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
                             >
-                              <span>{esCancelar ? "🗑️" : "✓"}</span>
-                              <span>{esCancelar ? "Sí, cancelar" : "Sí, confirmar"}</span>
+                              <span>🗑️</span>
+                              <span>Sí</span>
                             </button>
                             <button
                               type="button"
-                              onClick={() => enviarMensajeTexto(esCancelar ? "No, no deseo cancelarla" : "No, deseo cancelar la solicitud")}
+                              onClick={() => enviarMensajeTexto("No, no deseo cancelarla")}
                               disabled={cargandoBot}
                               className="py-2 px-4 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-xl font-semibold text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50"
                             >
@@ -517,26 +764,24 @@ export default function ChatbotFlotante() {
                       return null;
                     })()}
 
-                    {cardData && (
-                      <div className={`max-w-[90%] mt-2 rounded-2xl border p-3.5 shadow-lg shadow-sky-950/5 text-xs space-y-2.5 backdrop-blur-lg ${cardData.tipo === 'cancelada' || cardData.tipo === 'pendiente_cancelacion'
+                    {cardData && (cardData.tipo === 'confirmada' || cardData.tipo === 'cancelada') && (
+                      <div className={`max-w-[90%] mt-2 rounded-2xl border p-3.5 shadow-lg shadow-sky-950/5 text-xs space-y-2.5 backdrop-blur-lg ${cardData.tipo === 'cancelada'
                         ? 'border-rose-200/90 bg-rose-50/40 dark:bg-rose-950/40 dark:border-rose-900/70'
                         : 'border-sky-200/80 bg-white/90 dark:bg-slate-800/95 dark:border-slate-700'
                         }`}>
                         <div className="flex items-center justify-between border-b pb-2 border-slate-100 dark:border-slate-700/60">
                           <span className={`font-bold flex items-center gap-1.5 ${cardData.tipo === 'confirmada'
                             ? 'text-emerald-700 dark:text-emerald-400'
-                            : cardData.tipo === 'cancelada' || cardData.tipo === 'pendiente_cancelacion'
-                              ? 'text-rose-600 dark:text-rose-400'
-                              : 'text-amber-700 dark:text-amber-400'
+                            : 'text-rose-600 dark:text-rose-400'
                             }`}>
-                            <span>{cardData.tipo === 'confirmada' ? '✅' : (cardData.tipo === 'cancelada' || cardData.tipo === 'pendiente_cancelacion') ? '🗑️' : '⚡'}</span>
-                            <span>{cardData.tipo === 'confirmada' ? 'Reserva Confirmada' : cardData.tipo === 'cancelada' ? 'Reserva Cancelada' : cardData.tipo === 'pendiente_cancelacion' ? 'Confirmar Cancelación' : 'Confirmar Reserva'}</span>
+                            <span>{cardData.tipo === 'confirmada' ? '✅' : '🗑️'}</span>
+                            <span>{cardData.tipo === 'confirmada' ? 'Reserva Confirmada' : 'Reserva Cancelada'}</span>
                           </span>
-                          <span className={`text-[10px] uppercase font-black px-2 py-0.5 rounded-full border ${cardData.tipo === 'cancelada' || cardData.tipo === 'pendiente_cancelacion'
+                          <span className={`text-[10px] uppercase font-black px-2 py-0.5 rounded-full border ${cardData.tipo === 'cancelada'
                             ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/70 dark:text-rose-300 dark:border-rose-800'
-                            : 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/70 dark:text-amber-300 dark:border-amber-800'
+                            : 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/70 dark:text-emerald-300 dark:border-emerald-800'
                             }`}>
-                            {cardData.tipo === 'cancelada' ? 'Liberada' : cardData.tipo === 'pendiente_cancelacion' ? 'Por cancelar' : 'UCT'}
+                            {cardData.tipo === 'cancelada' ? 'Liberada' : 'Confirmada'}
                           </span>
                         </div>
 
@@ -570,48 +815,6 @@ export default function ChatbotFlotante() {
                               <p className="text-slate-400 dark:text-slate-400 font-medium">Horario:</p>
                               <p className="font-bold text-slate-800 dark:text-slate-100">{cardData.hora || (cardData.tipo === 'cancelada' ? "Cancelado" : "Bloque agendado")}</p>
                             </div>
-                          </div>
-                        )}
-
-                        {cardData.tipo === 'pendiente_cancelacion' && (
-                          <div className="flex items-center gap-2 pt-1">
-                            <button
-                              type="button"
-                              onClick={() => enviarMensajeTexto("Sí, deseo cancelar la reserva")}
-                              disabled={cargandoBot}
-                              className="flex-1 py-2 px-3 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white rounded-xl font-bold text-xs transition-all shadow-sm cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
-                            >
-                              <span>🗑️</span> Sí, cancelar
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => enviarMensajeTexto("No, no deseo cancelarla")}
-                              disabled={cargandoBot}
-                              className="py-2 px-4 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-200 rounded-xl font-semibold text-xs transition-all cursor-pointer disabled:opacity-50"
-                            >
-                              No
-                            </button>
-                          </div>
-                        )}
-
-                        {cardData.tipo === 'pendiente_confirmacion' && (
-                          <div className="flex items-center gap-2 pt-1">
-                            <button
-                              type="button"
-                              onClick={() => enviarMensajeTexto("Sí, confirmo la reserva")}
-                              disabled={cargandoBot}
-                              className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl font-bold text-xs transition-all shadow-sm cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
-                            >
-                              <span>✓</span> Sí, confirmar
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => enviarMensajeTexto("No, deseo cancelar la solicitud")}
-                              disabled={cargandoBot}
-                              className="py-2 px-4 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-200 rounded-xl font-semibold text-xs transition-all cursor-pointer disabled:opacity-50"
-                            >
-                              No
-                            </button>
                           </div>
                         )}
 
@@ -662,21 +865,74 @@ export default function ChatbotFlotante() {
 
           {user && !cargandoBot && (
             <div className="px-3 pt-2 pb-1 flex items-center gap-1.5 overflow-x-auto bg-white/80 dark:bg-slate-900/90 backdrop-blur-md border-t border-slate-100 dark:border-slate-800 scrollbar-none">
-              {[
-                { label: "📅 Agendar cubículo", texto: "Quiero agendar un cubículo" },
-                { label: "🔍 Ver mis reservas", texto: "Muéstrame mis reservas activas" },
-                { label: "❓ Disponibilidad", texto: "Consultar disponibilidad para hoy" },
-                { label: "❌ Cancelar reserva", texto: "Deseo cancelar mi reserva" }
-              ].map((chip, idx) => (
+              {seccionActiva === 'menu' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => seleccionarOpcion('reservas')}
+                    className="px-2.5 py-1 bg-sky-50/60 hover:bg-sky-100/70 border border-sky-200/70 hover:border-[#FFC20E] rounded-full text-[11px] font-semibold text-slate-700 hover:text-sky-900 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:border-slate-700 dark:hover:border-[#FFC20E] dark:text-slate-200 dark:hover:text-white whitespace-nowrap active:scale-95 transition-all cursor-pointer shadow-2xs"
+                  >
+                    🏢 Gestionar reserva
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => seleccionarOpcion('contacto')}
+                    className="px-2.5 py-1 bg-sky-50/60 hover:bg-sky-100/70 border border-sky-200/70 hover:border-[#FFC20E] rounded-full text-[11px] font-semibold text-slate-700 hover:text-sky-900 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:border-slate-700 dark:hover:border-[#FFC20E] dark:text-slate-200 dark:hover:text-white whitespace-nowrap active:scale-95 transition-all cursor-pointer shadow-2xs"
+                  >
+                    📩 Contactar soporte
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => seleccionarOpcion('taller')}
+                    className="px-2.5 py-1 bg-sky-50/60 hover:bg-sky-100/70 border border-sky-200/70 hover:border-[#FFC20E] rounded-full text-[11px] font-semibold text-slate-700 hover:text-sky-900 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:border-slate-700 dark:hover:border-[#FFC20E] dark:text-slate-200 dark:hover:text-white whitespace-nowrap active:scale-95 transition-all cursor-pointer shadow-2xs"
+                  >
+                    🎓 Talleres
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => seleccionarOpcion('prestamos')}
+                    className="px-2.5 py-1 bg-sky-50/60 hover:bg-sky-100/70 border border-sky-200/70 hover:border-[#FFC20E] rounded-full text-[11px] font-semibold text-slate-700 hover:text-sky-900 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:border-slate-700 dark:hover:border-[#FFC20E] dark:text-slate-200 dark:hover:text-white whitespace-nowrap active:scale-95 transition-all cursor-pointer shadow-2xs"
+                  >
+                    📚 Préstamos
+                  </button>
+                </>
+              )}
+              {seccionActiva === 'reservas' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={volverAlMenuPrincipal}
+                    className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-full text-[11px] font-bold text-amber-900 dark:bg-amber-950/60 dark:hover:bg-amber-900 dark:border-amber-700 dark:text-amber-200 whitespace-nowrap active:scale-95 transition-all cursor-pointer shadow-2xs"
+                  >
+                    🏠 Menú principal
+                  </button>
+                  {[
+                    { label: "📍 San Juan Pablo II", texto: "Consultar disponibilidad en Campus San Juan Pablo II para hoy" },
+                    { label: "📍 Derecho", texto: "Consultar disponibilidad en Campus Derecho para hoy" },
+                    { label: "📍 Jaime Arellano", texto: "Consultar disponibilidad en Campus Jaime Arellano para hoy" },
+                    { label: "🔍 Mis reservas", texto: "Muéstrame mis reservas activas" },
+                    { label: "❌ Cancelar reserva", texto: "Deseo cancelar mi reserva" }
+                  ].map((chip, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => enviarMensajeTexto(chip.texto)}
+                      className="px-2.5 py-1 bg-sky-50/60 hover:bg-sky-100/70 border border-sky-200/70 hover:border-[#FFC20E] rounded-full text-[11px] font-semibold text-slate-700 hover:text-sky-900 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:border-slate-700 dark:hover:border-[#FFC20E] dark:text-slate-200 dark:hover:text-white whitespace-nowrap active:scale-95 transition-all cursor-pointer shadow-2xs"
+                    >
+                      {chip.label}
+                    </button>
+                  ))}
+                </>
+              )}
+              {seccionActiva === 'contacto' && (
                 <button
-                  key={idx}
                   type="button"
-                  onClick={() => enviarMensajeTexto(chip.texto)}
-                  className="px-2.5 py-1 bg-sky-50/60 hover:bg-sky-100/70 border border-sky-200/70 hover:border-[#FFC20E] rounded-full text-[11px] font-semibold text-slate-700 hover:text-sky-900 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:border-slate-700 dark:hover:border-[#FFC20E] dark:text-slate-200 dark:hover:text-white whitespace-nowrap active:scale-95 transition-all cursor-pointer shadow-2xs"
+                  onClick={volverAlMenuPrincipal}
+                  className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-full text-[11px] font-bold text-amber-900 dark:bg-amber-950/60 dark:hover:bg-amber-900 dark:border-amber-700 dark:text-amber-200 whitespace-nowrap active:scale-95 transition-all cursor-pointer shadow-2xs"
                 >
-                  {chip.label}
+                  🏠 Menú principal
                 </button>
-              ))}
+              )}
             </div>
           )}
 
@@ -715,7 +971,9 @@ export default function ChatbotFlotante() {
                       ? "Debes iniciar sesión para chatear..."
                       : cargandoBot
                         ? "Esperando respuesta del asistente..."
-                        : "Pídeme una reserva (ej: mañana a las 10:00)..."
+                        : seccionActiva === 'contacto'
+                          ? "Escribe o usa el formulario arriba..."
+                          : "Ej: Reservar en San Juan Pablo II hoy a las 11:00..."
                   }
                   className="w-full px-4 py-2.5 pr-14 text-sm border border-slate-200 bg-slate-50/70 focus:bg-white rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#00629B] transition-all disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed dark:border-slate-700 dark:bg-slate-800/80 dark:focus:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:disabled:bg-slate-800/50 dark:disabled:text-slate-600"
                 />

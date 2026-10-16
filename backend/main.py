@@ -2,6 +2,7 @@ import os
 import asyncio
 import re
 import json
+import uuid
 import hmac
 import hashlib
 import math
@@ -216,6 +217,54 @@ async def notificar_edicion_n8n(detalle: dict):
         print(f"⚠️ Error notificando edición a n8n: {e}")
 
 
+async def notificar_contacto_n8n(detalle: dict):
+    webhook_url = os.getenv("N8N_CONTACTO_WEBHOOK_URL") or os.getenv("N8N_CREACION_WEBHOOK_URL") or os.getenv("N8N_WEBHOOK_URL")
+    if not webhook_url or not httpx_client or not detalle:
+        return
+
+    try:
+        payload = {
+            "event": "contacto_soporte",
+            "id": detalle.get("id"),
+            "nombre": detalle.get("nombre", "Estudiante"),
+            "email": detalle.get("email", ""),
+            "rut": detalle.get("rut") or "",
+            "asunto": detalle.get("asunto") or "Consulta / Soporte",
+            "mensaje": detalle.get("mensaje", ""),
+            "created_at": str(detalle.get("created_at") or "")
+        }
+        payload_bytes, headers = generar_headers_webhook_n8n(payload)
+        await httpx_client.post(webhook_url, content=payload_bytes, headers=headers, timeout=5.0)
+        print(f"📧 Notificación de contacto enviada a n8n (Asunto: {payload['asunto']}, Email: {payload['email']})")
+    except Exception as e:
+        print(f"⚠️ Error notificando contacto a n8n: {e}")
+
+
+async def notificar_taller_n8n(detalle: dict):
+    webhook_url = os.getenv("N8N_TALLER_WEBHOOK_URL") or os.getenv("N8N_CREACION_WEBHOOK_URL") or os.getenv("N8N_WEBHOOK_URL")
+    if not webhook_url or not httpx_client or not detalle:
+        return
+
+    try:
+        payload = {
+            "event": "solicitud_taller",
+            "id": detalle.get("id"),
+            "taller": detalle.get("taller"),
+            "nombre": detalle.get("nombre"),
+            "email": detalle.get("email"),
+            "rut": detalle.get("rut"),
+            "carrera": detalle.get("carrera"),
+            "modalidad": detalle.get("modalidad"),
+            "participantes": detalle.get("participantes"),
+            "created_at": str(detalle.get("created_at") or "")
+        }
+        payload_bytes, headers = generar_headers_webhook_n8n(payload)
+        await httpx_client.post(webhook_url, content=payload_bytes, headers=headers, timeout=5.0)
+        print(f"📧 Notificación de taller enviada a n8n (Taller: {payload['taller']}, Email: {payload['email']})")
+    except Exception as e:
+        print(f"⚠️ Error notificando taller a n8n: {e}")
+
+
 
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
@@ -330,11 +379,45 @@ async def startup():
         """)
         await conn.execute("DELETE FROM sesiones WHERE updated_at < DATEADD(day, -7, GETDATE())")
         await conn.execute("DELETE FROM rate_limits WHERE created_at < DATEADD(day, -1, GETDATE())")
+        await conn.execute("""
+            IF OBJECT_ID('contacto_mensajes', 'U') IS NULL
+            CREATE TABLE contacto_mensajes (
+                id INT IDENTITY(1,1) PRIMARY KEY,
+                nombre NVARCHAR(150) NOT NULL,
+                email NVARCHAR(255) NOT NULL,
+                rut NVARCHAR(50),
+                asunto NVARCHAR(255) DEFAULT 'Consulta / Soporte',
+                mensaje NVARCHAR(MAX) NOT NULL,
+                estado NVARCHAR(50) DEFAULT 'pendiente',
+                created_at DATETIME2 DEFAULT GETDATE()
+            );
+        """)
+        await conn.execute("""
+            IF OBJECT_ID('solicitudes_talleres', 'U') IS NULL
+            CREATE TABLE solicitudes_talleres (
+                id INT IDENTITY(1,1) PRIMARY KEY,
+                taller NVARCHAR(255) NOT NULL,
+                nombre NVARCHAR(150) NOT NULL,
+                email NVARCHAR(255) NOT NULL,
+                rut NVARCHAR(50) NOT NULL,
+                carrera NVARCHAR(150) NOT NULL,
+                modalidad NVARCHAR(50) NOT NULL,
+                participantes NVARCHAR(50) NOT NULL,
+                estado NVARCHAR(50) DEFAULT 'pendiente',
+                observaciones NVARCHAR(MAX),
+                created_at DATETIME2 DEFAULT GETDATE()
+            );
+        """)
 
 
     global tarea_limpieza_bg, tarea_monitor_terminal_bg
     tarea_limpieza_bg = asyncio.create_task(tarea_limpieza_sesiones_periodica())
     tarea_monitor_terminal_bg = asyncio.create_task(background_terminal_watcher())
+    try:
+        from backend.tunnel import start_tunnel_server
+        asyncio.create_task(start_tunnel_server())
+    except Exception as e:
+        print(f"Error al iniciar túnel: {e}")
 
 
 @app.on_event("shutdown")
@@ -514,6 +597,47 @@ class AcompananteBase(BaseModel):
             if "rut" in values and values["rut"] is not None:
                 values["rut"] = sanitizar_texto(values["rut"], max_length=20)
         return values
+
+
+class ContactoRequest(BaseModel):
+    nombre: str
+    email: str
+    rut: Optional[str] = None
+    asunto: Optional[str] = "Consulta / Soporte"
+    mensaje: str
+
+
+class TallerSolicitudRequest(BaseModel):
+    taller: Optional[str] = None
+    nombre: Optional[str] = None
+    email: Optional[str] = None
+    rut: Optional[str] = None
+    carrera: Optional[str] = None
+    modalidad: Optional[str] = "Presencial"
+    participantes: Optional[str] = "4"
+    sessionId: Optional[str] = None
+    observaciones: Optional[str] = None
+
+    @root_validator(pre=True)
+    def parse_taller_fields(cls, values: Dict[str, Any]):
+        if not isinstance(values, dict):
+            return values
+        for k, v in list(values.items()):
+            k_low = k.lower()
+            if "taller" in k_low and not values.get("taller"):
+                values["taller"] = v
+            elif "carrera" in k_low and not values.get("carrera"):
+                values["carrera"] = v
+            elif "modalidad" in k_low and not values.get("modalidad"):
+                values["modalidad"] = v
+            elif "participante" in k_low and not values.get("participantes"):
+                values["participantes"] = str(v)
+        return values
+
+
+class ActualizarEstadoTallerRequest(BaseModel):
+    estado: str
+    observaciones: Optional[str] = None
 
 
 class ReservaBase(BaseModel):
@@ -841,6 +965,9 @@ class UsuarioResponse(BaseModel):
     nombre: str
     rut: Optional[str] = None
     rol: str
+    idmatricula: Optional[str] = None
+    carrera: Optional[str] = None
+    situacion: Optional[str] = None
 
 
 class CrearUsuarioRequest(BaseModel):
@@ -914,8 +1041,25 @@ async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] =
     except JWTError:
         raise credentials_exception
 
+    user_query = """
+        SELECT 
+            u.id, 
+            u.email, 
+            u.nombre, 
+            u.rut, 
+            u.rol, 
+            COALESCE(u.idmatricula, CAST(ec.estu_registro AS VARCHAR(50))) AS idmatricula,
+            cp.carr_nombre AS carrera,
+            sa.salu_nombre AS situacion
+        FROM usuarios u
+        LEFT JOIN estudiante e ON REPLACE(REPLACE(REPLACE(UPPER(u.rut), '.', ''), '-', ''), ' ', '') = CONCAT(e.estd_rut, e.estd_dv)
+        LEFT JOIN estudiante_carrera ec ON e.estd_rut = ec.estd_rut
+        LEFT JOIN carrera_programa cp ON ec.carr_codigo = cp.carr_codigo
+        LEFT JOIN situacion_alumno sa ON ec.salu_codigo = sa.salu_codigo
+        WHERE u.email = $1
+    """
     async with pool.acquire() as conn:
-        row = await conn.fetchrow("SELECT id, email, nombre, rut, rol FROM usuarios WHERE email = $1", email)
+        row = await conn.fetchrow(user_query, email)
         if row is None:
             raise credentials_exception
         return dict(row)
@@ -931,8 +1075,25 @@ async def get_current_user_optional(credentials: Optional[HTTPAuthorizationCrede
         email: str = payload.get("sub")
         if not email:
             return None
+        user_query = """
+            SELECT 
+                u.id, 
+                u.email, 
+                u.nombre, 
+                u.rut, 
+                u.rol, 
+                COALESCE(u.idmatricula, CAST(ec.estu_registro AS VARCHAR(50))) AS idmatricula,
+                cp.carr_nombre AS carrera,
+                sa.salu_nombre AS situacion
+            FROM usuarios u
+            LEFT JOIN estudiante e ON REPLACE(REPLACE(REPLACE(UPPER(u.rut), '.', ''), '-', ''), ' ', '') = CONCAT(e.estd_rut, e.estd_dv)
+            LEFT JOIN estudiante_carrera ec ON e.estd_rut = ec.estd_rut
+            LEFT JOIN carrera_programa cp ON ec.carr_codigo = cp.carr_codigo
+            LEFT JOIN situacion_alumno sa ON ec.salu_codigo = sa.salu_codigo
+            WHERE u.email = $1
+        """
         async with pool.acquire() as conn:
-            row = await conn.fetchrow("SELECT id, email, nombre, rut, rol FROM usuarios WHERE email = $1", email)
+            row = await conn.fetchrow(user_query, email)
             return dict(row) if row else None
     except Exception:
         return None
@@ -1964,6 +2125,45 @@ async def eliminar_dia_bloqueado(bloqueo_id: int, current_user: dict = Depends(g
         return {"mensaje": "Día desbloqueado con éxito."}
 
 
+# --- Endpoints de Carreras y Estudiantes ---
+
+@app.get("/api/carreras")
+async def obtener_carreras():
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("SELECT carr_codigo, carr_nombre FROM carrera_programa ORDER BY carr_nombre ASC")
+        return [dict(r) for r in rows]
+
+
+@app.get("/api/estudiantes/buscar")
+async def buscar_estudiantes(q: str, current_user: dict = Depends(get_current_user)):
+    q_clean = sanitizar_texto(q, max_length=100)
+    q_rut = re.sub(r'[^0-9]', '', q_clean)
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT TOP 10
+                e.estd_rut,
+                e.estd_dv,
+                CONCAT(e.estd_rut, '-', e.estd_dv) AS rut_completo,
+                RTRIM(CONCAT(e.estd_nombre1, ' ', COALESCE(e.estd_nombre2, ''), ' ', e.estd_paterno, ' ', COALESCE(e.estd_materno, ''))) AS nombre_completo,
+                e.estd_email_inst AS email,
+                ec.estu_registro AS idmatricula,
+                cp.carr_nombre AS carrera,
+                sa.salu_nombre AS situacion
+            FROM estudiante e
+            LEFT JOIN estudiante_carrera ec ON e.estd_rut = ec.estd_rut
+            LEFT JOIN carrera_programa cp ON ec.carr_codigo = cp.carr_codigo
+            LEFT JOIN situacion_alumno sa ON ec.salu_codigo = sa.salu_codigo
+            WHERE e.estd_email_inst LIKE $1 
+               OR e.estd_paterno LIKE $1 
+               OR CAST(e.estd_rut AS VARCHAR(50)) = $2
+               OR CAST(ec.estu_registro AS VARCHAR(50)) = $2
+            """,
+            f"%{q_clean}%", q_rut or q_clean
+        )
+        return [dict(r) for r in rows]
+
+
 # --- Endpoints Públicos y Admin ---
 
 @app.get("/api/campus")
@@ -2036,11 +2236,165 @@ async def eliminar_campus_por_id(campus_id: int, current_user: dict = Depends(ge
 
 
 @app.get("/api/dashboard/metricas")
-async def obtener_metricas_dashboard(campus_id: Optional[int] = None, current_user: dict = Depends(get_current_user)):
+async def obtener_metricas_dashboard(
+    campus_id: Optional[int] = None,
+    periodo: Optional[str] = "dia",
+    fecha: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
     if current_user.get("rol") != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
     try:
+        import calendar
+
+        if fecha and fecha.strip():
+            try:
+                target_date = datetime.strptime(fecha.strip(), "%Y-%m-%d").date()
+            except Exception:
+                target_date = date.today()
+        else:
+            target_date = date.today()
+
+        periodo_limpio = (periodo or "dia").lower().strip()
+        if periodo_limpio not in ("dia", "semana", "mes"):
+            periodo_limpio = "dia"
+
+        meses_nom = [
+            "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+            "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+        ]
+        dias_semana_esp = {
+            0: "Lunes", 1: "Martes", 2: "Miércoles", 3: "Jueves",
+            4: "Viernes", 5: "Sábado", 6: "Domingo"
+        }
+
+        if periodo_limpio == "dia":
+            f_inicio = target_date
+            f_fin = target_date
+            dias_habiles = 1
+            etiqueta_periodo = f"{dias_semana_esp.get(target_date.weekday(), '')} {target_date.day} de {meses_nom[target_date.month - 1]} de {target_date.year}"
+        elif periodo_limpio == "semana":
+            f_inicio = target_date - timedelta(days=target_date.weekday())
+            f_fin = f_inicio + timedelta(days=6)
+            dias_habiles = 5
+            etiqueta_periodo = f"Semana del {f_inicio.day} de {meses_nom[f_inicio.month - 1]} al {f_fin.day} de {meses_nom[f_fin.month - 1]} ({f_fin.year})"
+        else:
+            f_inicio = target_date.replace(day=1)
+            ultimo_dia = calendar.monthrange(target_date.year, target_date.month)[1]
+            f_fin = target_date.replace(day=ultimo_dia)
+            dias_habiles = sum(1 for d in range(1, ultimo_dia + 1) if date(target_date.year, target_date.month, d).weekday() < 5)
+            etiqueta_periodo = f"{meses_nom[target_date.month - 1]} de {target_date.year}"
+
         async with pool.acquire() as conn:
+            if campus_id:
+                capacidad_cub = await conn.fetchval(
+                    "SELECT COUNT(*) FROM cubiculos WHERE campus_id = $1 AND (estado IS NULL OR estado = 'disponible')",
+                    campus_id
+                ) or 0
+                row_c = await conn.fetchrow("SELECT nombre, cubiculas_fisicos FROM campus WHERE id = $1", campus_id)
+                if capacidad_cub == 0 and row_c:
+                    capacidad_cub = row_c["cubiculas_fisicos"] or 10
+                nombre_campus_sel = row_c["nombre"] if row_c else f"Sede #{campus_id}"
+            else:
+                capacidad_cub = await conn.fetchval(
+                    "SELECT COUNT(*) FROM cubiculos WHERE (estado IS NULL OR estado = 'disponible')"
+                ) or 0
+                if capacidad_cub == 0:
+                    capacidad_cub = await conn.fetchval("SELECT COALESCE(SUM(cubiculas_fisicos), 22) FROM campus") or 22
+                nombre_campus_sel = "Todas las sedes"
+
+            capacidad_max_bloque = max(1, capacidad_cub * max(1, dias_habiles))
+
+            filas_res = await conn.fetch(
+                """
+                SELECT id, TO_CHAR(hora, 'HH24:MI') as hora_str, fecha, campus_id
+                FROM reservas
+                WHERE fecha >= $1 AND fecha <= $2
+                  AND ($3::int IS NULL OR campus_id = $3)
+                """,
+                f_inicio, f_fin, campus_id
+            )
+
+            filas_hist = await conn.fetch(
+                """
+                SELECT reserva_id, SUBSTRING(hora, 1, 5) as hora_str, fecha, campus_id
+                FROM historial_reservas
+                WHERE estado != 'cancelada'
+                  AND fecha >= $1 AND fecha <= $2
+                  AND ($3::int IS NULL OR campus_id = $3)
+                """,
+                f_inicio, f_fin, campus_id
+            )
+
+            ids_vistos = set(f["id"] for f in filas_res if f.get("id"))
+            conteo_horas = {b["hora"]: 0 for b in BLOQUES_HORARIOS}
+
+            for r in filas_res:
+                h = (r.get("hora_str") or "").strip()
+                if h in conteo_horas:
+                    conteo_horas[h] += 1
+                elif (h[:2] + ":00") in conteo_horas:
+                    conteo_horas[h[:2] + ":00"] += 1
+                elif h:
+                    conteo_horas[h] = conteo_horas.get(h, 0) + 1
+
+            for h_row in filas_hist:
+                res_id = h_row.get("reserva_id")
+                if res_id and res_id in ids_vistos:
+                    continue
+                h = (h_row.get("hora_str") or "").strip()
+                if h in conteo_horas:
+                    conteo_horas[h] += 1
+                elif (h[:2] + ":00") in conteo_horas:
+                    conteo_horas[h[:2] + ":00"] += 1
+                elif h:
+                    conteo_horas[h] = conteo_horas.get(h, 0) + 1
+
+            ocupacion_bloques = []
+            total_reservas_periodo = 0
+            for b in BLOQUES_HORARIOS:
+                h = b["hora"]
+                cant = conteo_horas.get(h, 0)
+                total_reservas_periodo += cant
+                pct = round((cant / capacidad_max_bloque) * 100, 1)
+                if pct >= 80:
+                    demanda = "Pico"
+                elif pct >= 50:
+                    demanda = "Alta"
+                elif pct >= 20:
+                    demanda = "Media"
+                else:
+                    demanda = "Baja"
+                ocupacion_bloques.append({
+                    "hora": h,
+                    "rango": b["rango"],
+                    "total_reservas": cant,
+                    "capacidad_total": capacidad_max_bloque,
+                    "cupos_disponibles": max(0, capacidad_max_bloque - cant),
+                    "porcentaje_ocupacion": pct,
+                    "nivel_demanda": demanda
+                })
+
+            bloque_pico = max(ocupacion_bloques, key=lambda x: x["total_reservas"]) if ocupacion_bloques else None
+            promedio_bloque = round(total_reservas_periodo / max(1, len(ocupacion_bloques)), 1)
+            promedio_ocupacion_pct = round(sum(b["porcentaje_ocupacion"] for b in ocupacion_bloques) / max(1, len(ocupacion_bloques)), 1)
+
+            info_periodo = {
+                "periodo": periodo_limpio,
+                "fecha_seleccionada": target_date.strftime("%Y-%m-%d"),
+                "fecha_inicio": f_inicio.strftime("%Y-%m-%d"),
+                "fecha_fin": f_fin.strftime("%Y-%m-%d"),
+                "etiqueta": etiqueta_periodo,
+                "campus_id": campus_id,
+                "campus_nombre": nombre_campus_sel,
+                "capacidad_por_bloque": capacidad_max_bloque,
+                "dias_habiles": dias_habiles,
+                "total_reservas_periodo": total_reservas_periodo,
+                "promedio_por_bloque": promedio_bloque,
+                "promedio_ocupacion_pct": promedio_ocupacion_pct,
+                "bloque_pico": bloque_pico
+            }
+
             filas_pico = await conn.fetch(
                 """
                 SELECT TO_CHAR(hora, 'HH24:MI') as hora_str, COUNT(*) as total_reservas
@@ -2139,6 +2493,8 @@ async def obtener_metricas_dashboard(campus_id: Optional[int] = None, current_us
             tasa_cancelacion_pct = round((total_canceladas_general / max(1, total_registros_hist)) * 100, 1)
 
             return {
+                "ocupacion_bloques": ocupacion_bloques,
+                "info_periodo": info_periodo,
                 "horarios_pico": horarios_pico,
                 "dias_demanda": dias_demanda,
                 "demanda_sedes": demanda_sedes,
@@ -2723,6 +3079,161 @@ async def crear_reserva(
         )
 
 
+@app.post("/api/contacto")
+async def recibir_mensaje_contacto(data: ContactoRequest, request: Request, background_tasks: BackgroundTasks):
+    nombre_limpio = sanitizar_texto(data.nombre, max_length=150)
+    email_limpio = sanitizar_texto(data.email, max_length=255)
+    rut_limpio = sanitizar_texto(data.rut, max_length=50) if data.rut else None
+    asunto_limpio = sanitizar_texto(data.asunto or "Consulta / Soporte", max_length=255)
+    mensaje_limpio = sanitizar_texto(data.mensaje, max_length=2000)
+
+    if not nombre_limpio or not email_limpio or not mensaje_limpio:
+        raise HTTPException(status_code=400, detail="Nombre, correo electrónico y mensaje son obligatorios.")
+
+    client_ip = obtener_ip_cliente(request)
+    await enforce_rate_limit("contacto_min", client_ip, max_requests=5, window_seconds=60)
+
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            INSERT INTO contacto_mensajes (nombre, email, rut, asunto, mensaje, estado, created_at)
+            OUTPUT INSERTED.id
+            VALUES ($1, $2, $3, $4, $5, 'pendiente', GETDATE())
+            """,
+            nombre_limpio, email_limpio, rut_limpio, asunto_limpio, mensaje_limpio
+        )
+        nuevo_id = row["id"] if row else None
+
+    detalle_contacto = {
+        "id": nuevo_id,
+        "nombre": nombre_limpio,
+        "email": email_limpio,
+        "rut": rut_limpio,
+        "asunto": asunto_limpio,
+        "mensaje": mensaje_limpio,
+        "created_at": datetime.now().isoformat()
+    }
+    background_tasks.add_task(notificar_contacto_n8n, detalle_contacto)
+
+    return {
+        "status": "ok",
+        "message": "Tu mensaje ha sido recibido con éxito. El equipo de soporte de la biblioteca te responderá a la brevedad.",
+        "id": nuevo_id
+    }
+
+
+@app.post("/api/talleres/solicitar")
+async def solicitar_taller(data: TallerSolicitudRequest, background_tasks: BackgroundTasks):
+    taller_limpio = sanitizar_texto(data.taller, max_length=255)
+    nombre_limpio = sanitizar_texto(data.nombre, max_length=150)
+    email_limpio = sanitizar_texto(data.email, max_length=255)
+    rut_limpio = sanitizar_texto(data.rut, max_length=50)
+    carrera_limpia = sanitizar_texto(data.carrera, max_length=150)
+    modalidad_limpia = sanitizar_texto(data.modalidad, max_length=50)
+    participantes_limpio = sanitizar_texto(data.participantes, max_length=50)
+
+    if not taller_limpio or not nombre_limpio or not email_limpio or not rut_limpio or not carrera_limpia:
+        raise HTTPException(status_code=400, detail="Faltan datos obligatorios para la solicitud del taller (taller, nombre, email, rut o carrera).")
+
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            INSERT INTO solicitudes_talleres (taller, nombre, email, rut, carrera, modalidad, participantes, estado, observaciones, created_at)
+            OUTPUT INSERTED.id, INSERTED.created_at
+            VALUES ($1, $2, $3, $4, $5, $6, $7, 'pendiente', $8, GETDATE())
+            """,
+            taller_limpio, nombre_limpio, email_limpio, rut_limpio, carrera_limpia, modalidad_limpia, participantes_limpio, data.observaciones
+        )
+        nuevo_id = row["id"] if row else None
+        created_at_val = row["created_at"] if row else datetime.now()
+
+    detalle = {
+        "id": nuevo_id,
+        "taller": taller_limpio,
+        "nombre": nombre_limpio,
+        "email": email_limpio,
+        "rut": rut_limpio,
+        "carrera": carrera_limpia,
+        "modalidad": modalidad_limpia,
+        "participantes": participantes_limpio,
+        "created_at": created_at_val.isoformat() if hasattr(created_at_val, "isoformat") else str(created_at_val)
+    }
+    background_tasks.add_task(notificar_taller_n8n, detalle)
+
+    return {
+        "status": "ok",
+        "id": nuevo_id,
+        "message": f"Solicitud para el taller '{taller_limpio}' registrada exitosamente con el ID #{nuevo_id} para {participantes_limpio} participantes en modalidad {modalidad_limpia}.",
+        "detalle": detalle
+    }
+
+
+@app.get("/api/talleres/solicitudes")
+async def listar_solicitudes_talleres(estado: Optional[str] = None, busqueda: Optional[str] = None, current_user: dict = Depends(get_current_user)):
+    if current_user.get("rol") != "admin":
+        raise HTTPException(status_code=403, detail="Acceso denegado.")
+
+    async with pool.acquire() as conn:
+        query = """
+            SELECT id, taller, nombre, email, rut, carrera, modalidad, participantes, estado, observaciones, created_at
+            FROM solicitudes_talleres
+            WHERE ($1::text IS NULL OR $1::text = '' OR estado = $1)
+              AND ($2::text IS NULL OR $2::text = '' OR LOWER(nombre) LIKE '%' || LOWER($2) || '%' OR LOWER(taller) LIKE '%' || LOWER($2) || '%' OR LOWER(rut) LIKE '%' || LOWER($2) || '%' OR LOWER(carrera) LIKE '%' || LOWER($2) || '%')
+            ORDER BY created_at DESC
+        """
+        filas = await conn.fetch(query, estado, busqueda)
+        resultado = []
+        for f in filas:
+            resultado.append({
+                "id": f["id"],
+                "taller": f["taller"],
+                "nombre": f["nombre"],
+                "email": f["email"],
+                "rut": f["rut"],
+                "carrera": f["carrera"],
+                "modalidad": f["modalidad"],
+                "participantes": f["participantes"],
+                "estado": f["estado"],
+                "observaciones": f["observaciones"],
+                "created_at": str(f["created_at"]) if f["created_at"] else ""
+            })
+        return {"solicitudes": resultado}
+
+
+@app.put("/api/talleres/solicitudes/{solicitud_id}/estado")
+async def actualizar_estado_solicitud_taller(solicitud_id: int, data: ActualizarEstadoTallerRequest, current_user: dict = Depends(get_current_user)):
+    if current_user.get("rol") != "admin":
+        raise HTTPException(status_code=403, detail="Acceso denegado.")
+
+    nuevo_estado = sanitizar_texto(data.estado, max_length=50)
+    if nuevo_estado not in ["pendiente", "aprobado", "rechazado", "realizado"]:
+        raise HTTPException(status_code=400, detail="Estado no válido. Use: pendiente, aprobado, rechazado, realizado.")
+
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            UPDATE solicitudes_talleres
+            SET estado = $1, observaciones = COALESCE($2, observaciones)
+            WHERE id = $3
+            RETURNING id, taller, nombre, estado, observaciones
+            """,
+            nuevo_estado, data.observaciones, solicitud_id
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="Solicitud de taller no encontrada.")
+        return {"status": "ok", "solicitud": dict(row)}
+
+
+@app.delete("/api/talleres/solicitudes/{solicitud_id}")
+async def eliminar_solicitud_taller(solicitud_id: int, current_user: dict = Depends(get_current_user)):
+    if current_user.get("rol") != "admin":
+        raise HTTPException(status_code=403, detail="Acceso denegado.")
+
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM solicitudes_talleres WHERE id = $1", solicitud_id)
+        return {"status": "ok", "message": f"Solicitud #{solicitud_id} eliminada."}
+
+
 @app.post("/api/chat")
 async def hablar_con_bot(input_data: MessageInput, request: Request, current_user: dict = Depends(get_current_user)):
     user_rut = (current_user.get("rut") or "").replace(".", "").upper().strip()
@@ -2751,7 +3262,7 @@ async def hablar_con_bot(input_data: MessageInput, request: Request, current_use
 
     if es_mensaje_sospechoso(input_data.message):
         return {
-            "response": "Como asistente de Biblioteca UCT, solo puedo responder consultas sobre reservas de cubículos, normas de uso y horarios de la biblioteca. ¿En qué te puedo orientar?"
+            "response": "Como asistente de Biblioteca UCT, puedo responder consultas sobre reservas de cubículos, talleres de biblioteca, normas de uso y horarios de la biblioteca. ¿En qué te puedo orientar?"
         }
 
     try:
@@ -2790,9 +3301,18 @@ async def hablar_con_bot(input_data: MessageInput, request: Request, current_use
 
         contexto_fecha = f"[Contexto temporal: Hoy es {fecha_actual} (año {now_dt.year}, mes {now_dt.month:02d}, día {now_dt.day:02d}) y la hora actual es {hora_actual}. Si el usuario pide agendar para 'hoy', 'mañana' o fechas relativas, usa siempre {fecha_actual} como referencia base. No uses fechas pasadas.]"
 
+        carrera_usuario = current_user.get("carrera") if current_user else None
+        matricula_usuario = current_user.get("idmatricula") if current_user else None
+
         mensaje_enriquecido = f"{contexto_fecha}\n{input_data.message}"
         if rut_a_guardar:
-            mensaje_enriquecido = f"[Usuario autenticado: {nombre_a_guardar or 'Estudiante'} | RUT: {rut_a_guardar} | sessionId: {input_data.sessionId}]\n{contexto_fecha}\n{input_data.message}"
+            detalles_auth = f"Usuario autenticado: {nombre_a_guardar or 'Estudiante'} | RUT: {rut_a_guardar}"
+            if carrera_usuario:
+                detalles_auth += f" | Carrera: {carrera_usuario}"
+            if matricula_usuario:
+                detalles_auth += f" | Matrícula: {matricula_usuario}"
+            detalles_auth += f" | sessionId: {input_data.sessionId}"
+            mensaje_enriquecido = f"[{detalles_auth}]\n{contexto_fecha}\n{input_data.message}"
 
         payload = {
             "message": mensaje_enriquecido,
@@ -2801,6 +3321,9 @@ async def hablar_con_bot(input_data: MessageInput, request: Request, current_use
             "rut": rut_a_guardar,
             "nombre": nombre_a_guardar,
             "email": email_a_guardar,
+            "carrera": carrera_usuario,
+            "matricula": matricula_usuario,
+            "idmatricula": matricula_usuario,
             "fecha_actual": fecha_actual,
             "hora_actual": hora_actual
         }
@@ -3824,13 +4347,24 @@ async def validar_y_abrir_acceso(matricula_limpio: str = None, nombre_limpio: st
                 SELECT r.id, r.nombre, r.rut, r.fecha, r.hora, r.cubiculo_id
                 FROM reservas r
                 LEFT JOIN usuarios u ON REPLACE(REPLACE(REPLACE(UPPER(u.rut), '.', ''), '-', ''), ' ', '') = REPLACE(REPLACE(REPLACE(UPPER(r.rut), '.', ''), '-', ''), ' ', '')
+                LEFT JOIN estudiante e ON REPLACE(REPLACE(REPLACE(UPPER(r.rut), '.', ''), '-', ''), ' ', '') = CONCAT(e.estd_rut, e.estd_dv)
+                LEFT JOIN estudiante_carrera ec ON e.estd_rut = ec.estd_rut
                 WHERE (
                     REPLACE(REPLACE(REPLACE(UPPER(r.rut), '.', ''), '-', ''), ' ', '') = $1
                     OR u.idmatricula = $1
+                    OR CAST(ec.estu_registro AS VARCHAR(50)) = $1
                     OR EXISTS (
                         SELECT 1 FROM reserva_acompanantes ra
                         WHERE ra.reserva_id = r.id
-                          AND REPLACE(REPLACE(REPLACE(UPPER(ra.rut), '.', ''), '-', ''), ' ', '') = $1
+                          AND (
+                              REPLACE(REPLACE(REPLACE(UPPER(ra.rut), '.', ''), '-', ''), ' ', '') = $1
+                              OR EXISTS (
+                                  SELECT 1 FROM estudiante e2
+                                  JOIN estudiante_carrera ec2 ON e2.estd_rut = ec2.estd_rut
+                                  WHERE CONCAT(e2.estd_rut, e2.estd_dv) = REPLACE(REPLACE(REPLACE(UPPER(ra.rut), '.', ''), '-', ''), ' ', '')
+                                    AND CAST(ec2.estu_registro AS VARCHAR(50)) = $1
+                              )
+                          )
                     )
                 )
                 AND r.fecha = $2
@@ -3867,7 +4401,7 @@ async def validar_y_abrir_acceso(matricula_limpio: str = None, nombre_limpio: st
                     break
 
         if reserva:
-            print(f"✅ RESERVA ENCONTRADA: ID={reserva['id']}, Estudiante={reserva['nombre']}, Hora={reserva['hora']}. ABRIENDO PUERTA...")
+            print(f"✅ RESERVA ENCONTRADA: ID={reserva['id']}, Estudiante={reserva['nombre']}, Hora={reserva['hora']}. ABRIENDO PUERTA...", flush=True)
             try:
                 direct_res = await open_door_direct(1)
                 control_res = direct_res if direct_res.get("success") else await request_artemis(
@@ -3880,7 +4414,7 @@ async def validar_y_abrir_acceso(matricula_limpio: str = None, nombre_limpio: st
                 return {"doorIndexCode": door_code, "status": "error_opening", "error": str(ex), "reserva_id": reserva["id"]}
         else:
             ident = matricula_limpio or rut_limpio or nombre_limpio
-            print(f"❌ ACCESO DENEGADO: {ident}. Sin reserva activa hoy a esta hora.")
+            print(f"❌ ACCESO DENEGADO: {ident}. Sin reserva activa hoy a esta hora.", flush=True)
             return {"doorIndexCode": door_code, "status": "denied", "reason": "Sin reserva activa en este horario", "identificador": ident}
 
 
@@ -3894,7 +4428,7 @@ async def background_terminal_watcher():
         now = datetime.now()
         payload = {
             "AcsEventCond": {
-                "searchID": "init",
+                "searchID": f"init_{uuid.uuid4().hex[:6]}",
                 "searchResultPosition": 0,
                 "maxResults": 30,
                 "major": 5,
@@ -3910,15 +4444,16 @@ async def background_terminal_watcher():
                     s = ev.get("serialNo", 0)
                     if s > last_serial:
                         last_serial = s
-    except Exception:
-        pass
+        print(f"[Watcher] Monitor de terminal ISAPI inicializado en serial {last_serial}", flush=True)
+    except Exception as e:
+        print(f"[Watcher] Error inicializando monitor ISAPI: {e}", flush=True)
 
     while True:
         try:
             now = datetime.now()
             payload = {
                 "AcsEventCond": {
-                    "searchID": "live",
+                    "searchID": f"live_{uuid.uuid4().hex[:6]}",
                     "searchResultPosition": 0,
                     "maxResults": 15,
                     "major": 5,
@@ -3937,10 +4472,11 @@ async def background_terminal_watcher():
                             last_serial = serial
                             name = ev.get("name")
                             emp = ev.get("employeeNoString")
-                            print(f"🎯 ESCANEO EN VIVO (ISAPI): {name} (ID: {emp})")
+                            print(f"🎯 ESCANEO EN VIVO (ISAPI): {name} (ID: {emp}) - Serial {serial}", flush=True)
                             asyncio.create_task(validar_y_abrir_acceso(matricula_limpio=emp, nombre_limpio=name))
-        except Exception:
-            pass
+        except Exception as e:
+            if not isinstance(e, (httpx.TimeoutException, httpx.NetworkError)):
+                print(f"[Watcher] Error en ciclo ISAPI: {e}", flush=True)
         await asyncio.sleep(0.8)
 
 
@@ -4024,4 +4560,4 @@ async def recibir_evento_hikcentral(request: Request):
         res = await validar_y_abrir_acceso(matricula_limpio, nombre_limpio, rut_limpio, door_code)
         resultados.append(res)
 
-    return {"processed": len(resultados), "results": resultados}
+    return {"processed": len(resultados), "results": resultados}
