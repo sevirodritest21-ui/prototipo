@@ -29,7 +29,7 @@ export default function Login() {
 
   // Selector de perfil: 'estudiante' (por defecto) o 'admin'
   const [tipoUsuario, setTipoUsuario] = useState("estudiante");
-  const [form, setForm] = useState({ email: "", password: "" });
+  const [form, setForm] = useState({ email: "rsevilla2020@alu.uct.cl", password: "admin1234" });
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -50,9 +50,9 @@ export default function Login() {
     setTipoUsuario(nuevoTipo);
     setError("");
     if (nuevoTipo === "estudiante") {
-      setForm({ email: "rsevilla2020@alu.uct.cl", password: "" });
+      setForm({ email: "rsevilla2020@alu.uct.cl", password: "admin1234" });
     } else {
-      setForm({ email: "admin@biblioteca.cl", password: "" });
+      setForm({ email: "admin@biblioteca.cl", password: "admin1234" });
     }
   };
 

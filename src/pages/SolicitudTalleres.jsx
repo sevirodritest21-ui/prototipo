@@ -137,7 +137,7 @@ export default function SolicitudTalleres() {
     taller: TALLERES_DISPONIBLES[0],
     modalidad: "Presencial",
     participantes: "4",
-    carrera: "",
+    carrera: user?.carrera || "",
     observaciones: "",
   });
 
@@ -237,6 +237,14 @@ export default function SolicitudTalleres() {
     } catch (err) {
       setToast({ tipo: "error", texto: "No se pudo cancelar la solicitud: " + (err.message || "") });
     }
+  };
+
+  const abrirModalNuevaSolicitud = () => {
+    setFormData((prev) => ({
+      ...prev,
+      carrera: user?.carrera || prev.carrera || "",
+    }));
+    setModalNuevoOpen(true);
   };
 
   const abrirChatbotTalleres = () => {
@@ -350,7 +358,7 @@ export default function SolicitudTalleres() {
 
               <button
                 type="button"
-                onClick={() => setModalNuevoOpen(true)}
+                onClick={abrirModalNuevaSolicitud}
                 className="inline-flex items-center gap-2 rounded-md bg-[#FFC20E] px-4 py-2.5 text-[13px] font-semibold text-slate-900 shadow-sm transition-colors hover:bg-[#FFCA28] focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
                 <IconPlus className="w-4 h-4" /> Nueva solicitud
@@ -520,7 +528,7 @@ export default function SolicitudTalleres() {
             <div className="mt-6 flex flex-wrap justify-center gap-3">
               <button
                 type="button"
-                onClick={() => setModalNuevoOpen(true)}
+                onClick={abrirModalNuevaSolicitud}
                 className="inline-flex items-center gap-2 rounded-md bg-[#00629B] px-5 py-2.5 text-xs font-semibold text-white shadow-xs transition hover:bg-[#004B75]"
               >
                 <IconPlus className="w-4 h-4" /> Solicitar un taller ahora
@@ -728,9 +736,16 @@ export default function SolicitudTalleres() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Carrera / Programa *
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Carrera / Programa *
+                  </label>
+                  {user?.carrera && (
+                    <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+                      ✓ Autocompletado desde tu perfil
+                    </span>
+                  )}
+                </div>
                 <input
                   type="text"
                   value={formData.carrera}

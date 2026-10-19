@@ -52,7 +52,8 @@ CREATE TABLE usuarios (
     nombre NVARCHAR(150) NOT NULL,
     rol NVARCHAR(50) DEFAULT 'estudiante',
     created_at DATETIME2 DEFAULT GETDATE(),
-    rut NVARCHAR(50)
+    rut NVARCHAR(50),
+    carrera NVARCHAR(150)
 );
 
 CREATE TABLE reservas (
@@ -186,20 +187,21 @@ TABLE_ORDER = [
 
 async def migrate():
     pg_conn = await asyncpg.connect(PG_URL)
-    ms_conn = pymssql.connect(
-        server=MSSQL_HOST,
-        port=MSSQL_PORT,
-        user=MSSQL_USER,
-        password=MSSQL_PASSWORD,
-        database=MSSQL_DB,
-        autocommit=False
-    )
+    conn_params = {
+        "server": MSSQL_HOST,
+        "port": MSSQL_PORT,
+        "user": MSSQL_USER,
+        "password": MSSQL_PASSWORD,
+        "database": MSSQL_DB,
+        "autocommit": False
+    }
+    ms_conn = pymssql.connect(**conn_params)
     ms_cur = ms_conn.cursor()
 
     for cmd in DDL.strip().split(";"):
         cmd_clean = cmd.strip()
         if cmd_clean:
-            ms_cur.execute(cmd_clean)
+            ms_cur.execute(cmd_clean, ())
     ms_conn.commit()
     print("Tablas creadas exitosamente en SQL Server 2019.")
 
@@ -214,7 +216,7 @@ async def migrate():
         val_placeholders = ", ".join(["%s"] * len(cols))
 
         if has_identity:
-            ms_cur.execute(f"SET IDENTITY_INSERT {table_name} ON")
+            ms_cur.execute(f"SET IDENTITY_INSERT {table_name} ON", ())
 
         for row in pg_rows:
             vals = []
@@ -229,7 +231,7 @@ async def migrate():
             ms_cur.execute(f"INSERT INTO {table_name} ({col_list}) VALUES ({val_placeholders})", tuple(vals))
 
         if has_identity:
-            ms_cur.execute(f"SET IDENTITY_INSERT {table_name} OFF")
+            ms_cur.execute(f"SET IDENTITY_INSERT {table_name} OFF", ())
 
         ms_conn.commit()
         print(f"{table_name}: {len(pg_rows)} filas migradas exitosamente.")
