@@ -3224,6 +3224,70 @@ async def actualizar_estado_solicitud_taller(solicitud_id: int, data: Actualizar
         return {"status": "ok", "solicitud": dict(row)}
 
 
+@app.get("/api/talleres/mis-solicitudes")
+async def listar_mis_solicitudes_talleres(current_user: dict = Depends(get_current_user)):
+    user_rut = str(current_user.get("rut") or "").replace(".", "").replace("-", "").replace(" ", "").upper().strip()
+    user_email = str(current_user.get("email") or "").strip().lower()
+
+    async with pool.acquire() as conn:
+        query = """
+            SELECT id, taller, nombre, email, rut, carrera, modalidad, participantes, estado, observaciones, created_at
+            FROM solicitudes_talleres
+            WHERE (
+                REPLACE(REPLACE(REPLACE(UPPER(rut), '.', ''), '-', ''), ' ', '') = $1
+                OR LOWER(email) = $2
+            )
+            ORDER BY created_at DESC
+        """
+        filas = await conn.fetch(query, user_rut, user_email)
+        resultado = []
+        for f in filas:
+            resultado.append({
+                "id": f["id"],
+                "taller": f["taller"],
+                "nombre": f["nombre"],
+                "email": f["email"],
+                "rut": f["rut"],
+                "carrera": f["carrera"],
+                "modalidad": f["modalidad"],
+                "participantes": f["participantes"],
+                "estado": f["estado"],
+                "observaciones": f["observaciones"],
+                "created_at": str(f["created_at"]) if f["created_at"] else ""
+            })
+        return {"solicitudes": resultado}
+
+
+@app.delete("/api/talleres/mis-solicitudes/{solicitud_id}")
+async def cancelar_mi_solicitud_taller(solicitud_id: int, current_user: dict = Depends(get_current_user)):
+    user_rut = str(current_user.get("rut") or "").replace(".", "").replace("-", "").replace(" ", "").upper().strip()
+    user_email = str(current_user.get("email") or "").strip().lower()
+
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT id, estado, rut, email
+            FROM solicitudes_talleres
+            WHERE id = $1
+            """,
+            solicitud_id
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="Solicitud no encontrada.")
+
+        sol_rut = str(row["rut"] or "").replace(".", "").replace("-", "").replace(" ", "").upper().strip()
+        sol_email = str(row["email"] or "").strip().lower()
+
+        if current_user.get("rol") != "admin" and (sol_rut != user_rut and sol_email != user_email):
+            raise HTTPException(status_code=403, detail="No tienes permiso para cancelar esta solicitud.")
+
+        if row["estado"] != "pendiente":
+            raise HTTPException(status_code=400, detail="Solo se pueden cancelar solicitudes en estado pendiente.")
+
+        await conn.execute("DELETE FROM solicitudes_talleres WHERE id = $1", solicitud_id)
+        return {"status": "ok", "message": f"Solicitud #{solicitud_id} cancelada con éxito."}
+
+
 @app.delete("/api/talleres/solicitudes/{solicitud_id}")
 async def eliminar_solicitud_taller(solicitud_id: int, current_user: dict = Depends(get_current_user)):
     if current_user.get("rol") != "admin":

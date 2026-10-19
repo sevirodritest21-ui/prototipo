@@ -11,6 +11,7 @@ const ChatbotFlotante = lazy(() => import("./ChatBotFlotante"));
 const Login = lazy(() => import("./pages/Login"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const MisReservas = lazy(() => import("./pages/MisReservas"));
+const SolicitudTalleres = lazy(() => import("./pages/SolicitudTalleres"));
 const Reglamento = lazy(() => import("./pages/Reglamento"));
 const PreguntasFrecuentes = lazy(() => import("./pages/PreguntasFrecuentes"));
 
@@ -33,6 +34,7 @@ const IconCalendar = (p) => <Icon {...p} path={<><rect x="3" y="5" width="18" he
 const IconDoc = (p) => <Icon {...p} path={<><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z" /><path d="M14 3v5h5M9 13h6M9 17h4" /></>} />;
 const IconHelp = (p) => <Icon {...p} path={<><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" /></>} />;
 const IconLogout = (p) => <Icon {...p} path={<><path d="M15 17l5-5-5-5" /><path d="M20 12H9" /><path d="M11 3H6a2 2 0 00-2 2v14a2 2 0 002 2h5" /></>} />;
+const IconAcademic = (p) => <Icon {...p} path={<><path d="M22 10v6M2 10l10-5 10 5-10 5z" /><path d="M6 12v5c3 3 9 3 12 0v-5" /></>} />;
 const IconLogin = (p) => <Icon {...p} path={<><path d="M10 17l5-5-5-5" /><path d="M15 12H3" /><path d="M13 3h5a2 2 0 012 2v14a2 2 0 01-2 2h-5" /></>} />;
 const IconSun = (p) => (
   <Icon {...p} path={<><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" /></>} />
@@ -195,6 +197,14 @@ function NavBar() {
                       </Link>
 
                       <Link
+                        to="/solicitud-talleres"
+                        onClick={() => setDropdownOpen(false)}
+                        className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-slate-700 transition-colors hover:bg-slate-50 hover:text-[#00629B]"
+                      >
+                        <IconAcademic className="w-4 h-4 text-slate-400" /> Solicitud de talleres
+                      </Link>
+
+                      <Link
                         to="/reservar"
                         onClick={() => setDropdownOpen(false)}
                         className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-slate-700 transition-colors hover:bg-slate-50 hover:text-[#00629B] md:hidden"
@@ -279,6 +289,7 @@ export default function App() {
                 <Route path="/" element={<PaginaInicio />} />
                 <Route path="/reservar" element={<FormularioReserva />} />
                 <Route path="/mis-reservas" element={<MisReservas />} />
+                <Route path="/solicitud-talleres" element={<SolicitudTalleres />} />
                 <Route path="/reglamento" element={<Reglamento />} />
                 <Route path="/preguntas-frecuentes" element={<PreguntasFrecuentes />} />
               </Route>
