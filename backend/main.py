@@ -57,6 +57,7 @@ N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL")
 N8N_CANCELACION_WEBHOOK_URL = os.getenv("N8N_CANCELACION_WEBHOOK_URL")
 N8N_CREACION_WEBHOOK_URL = os.getenv("N8N_CREACION_WEBHOOK_URL")
 N8N_EDICION_WEBHOOK_URL = os.getenv("N8N_EDICION_WEBHOOK_URL")
+N8N_REGLAMENTO_WEBHOOK_URL = os.getenv("N8N_REGLAMENTO_WEBHOOK_URL", os.getenv("N8N_ADMIN_WEBHOOK_URL", "http://n8n:5678/webhook/consultar-reglamento"))
 N8N_SECRET_KEY = os.getenv("N8N_SECRET_KEY")
 if not N8N_SECRET_KEY or not N8N_SECRET_KEY.strip():
     raise RuntimeError("CRITICAL ERROR: N8N_SECRET_KEY no está definido en backend.env.")
@@ -3424,6 +3425,67 @@ async def hablar_con_bot(input_data: MessageInput, request: Request, current_use
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error en comunicación con chatbot: {str(e)}")
+
+
+class AdminChatMessageInput(BaseModel):
+    message: str
+    tipo: Optional[str] = "reglamento"
+
+
+@app.post("/api/chat/admin")
+async def hablar_con_bot_admin(input_data: AdminChatMessageInput, request: Request, current_user: dict = Depends(get_current_user)):
+    if current_user.get("rol") != "admin":
+        raise HTTPException(status_code=403, detail="Acceso denegado. Este chatbot es exclusivo para asistentes y administradores.")
+
+    client_ip = obtener_ip_cliente(request)
+    ident = f"admin_chat_{current_user.get('id') or client_ip}"
+
+    if not await check_rate_limit("chat_admin_min", ident, max_requests=30, window_seconds=60, increment=True):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Has superado el límite de 30 consultas por minuto. Por favor espera un momento.",
+            headers={"Retry-After": "60"}
+        )
+
+    if not input_data.message or not input_data.message.strip():
+        raise HTTPException(status_code=400, detail="El mensaje no puede estar vacío.")
+
+    if len(input_data.message.strip()) > 600:
+        raise HTTPException(status_code=400, detail="La consulta no puede superar los 600 caracteres.")
+
+    payload = {
+        "message": input_data.message.strip(),
+        "query": input_data.message.strip(),
+        "admin_nombre": current_user.get("nombre") or "Asistente Biblioteca",
+        "admin_email": current_user.get("email") or "",
+        "admin_rut": current_user.get("rut") or "",
+        "rol": current_user.get("rol") or "admin",
+        "contexto": "reglamento_biblioteca_uct",
+        "fecha_actual": datetime.now().strftime("%Y-%m-%d %H:%M")
+    }
+
+    try:
+        payload_bytes, headers = generar_headers_webhook_n8n(payload)
+        timeout_n8n = float(os.getenv("N8N_CHATBOT_TIMEOUT", "120.0"))
+        target_url = N8N_REGLAMENTO_WEBHOOK_URL or "http://n8n:5678/webhook/consultar-reglamento"
+
+        response = await httpx_client.post(target_url, content=payload_bytes, headers=headers, timeout=timeout_n8n)
+        if response.status_code == 200:
+            data = response.json()
+            bot_response = data.get("output") or data.get("message") or data.get("response") or "Consulta sobre reglamento procesada con éxito."
+            return {"response": bot_response}
+        elif response.status_code == 404:
+            return {
+                "response": "ℹ️ El webhook de n8n para reglamento (`/webhook/consultar-reglamento`) está configurado pero aún no se encuentra activo en tu instancia de n8n. Una vez que actives el flujo con los PDFs de reglamento en n8n, responderé tus dudas normativas aquí."
+            }
+        else:
+            return {
+                "response": f"⚠️ Error {response.status_code} desde el servicio n8n de reglamento. Por favor verifica el flujo en n8n."
+            }
+    except Exception as e:
+        return {
+            "response": f"⚠️ No se pudo comunicar con el webhook de n8n (`{str(e)}`). Asegúrate de que el contenedor de n8n tenga el flujo de reglamento activado en `/webhook/consultar-reglamento`."
+        }
 
 
 @app.get("/api/reservas/recordatorios")

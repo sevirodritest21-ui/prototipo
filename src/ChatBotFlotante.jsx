@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { apiPost, API_URL } from './services/api';
 import logoUCT from './assets/logoredondo.png';
@@ -67,6 +67,8 @@ const extraerDatosReserva = (texto) => {
 export default function ChatbotFlotante() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const esModoAdmin = user?.rol === 'admin' || location.pathname.startsWith('/dashboard');
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [mensajes, setMensajes] = useState([]);
   const [nuevoMensaje, setNuevoMensaje] = useState('');
@@ -106,15 +108,26 @@ export default function ChatbotFlotante() {
     setNombreContacto(user.nombre || '');
     setEmailContacto(user.email || '');
     setSeccionActiva('menu');
-    setMensajes([
-      {
-        id: 1,
-        texto: `${getSaludo()}, ${user.nombre || 'estudiante'}! 👋 Te doy la bienvenida al asistente virtual de Biblioteca UCT.\n\n¿Qué deseas hacer hoy? Selecciona una de las siguientes opciones:`,
-        esBot: true,
-        esMenuOpciones: true
-      }
-    ]);
-  }, [user]);
+    if (esModoAdmin) {
+      setMensajes([
+        {
+          id: 1,
+          texto: `${getSaludo()}, ${user.nombre || 'asistente'}! 🛡️ Te doy la bienvenida al Asistente de Reglamento y Normativas de Biblioteca UCT.\n\nPuedes hacerme consultas directas sobre el reglamento oficial, políticas de sanciones, liberación de cubículos y normativas institucionales basadas en los documentos oficiales:`,
+          esBot: true,
+          esMenuAdmin: true
+        }
+      ]);
+    } else {
+      setMensajes([
+        {
+          id: 1,
+          texto: `${getSaludo()}, ${user.nombre || 'estudiante'}! 👋 Te doy la bienvenida al asistente virtual de Biblioteca UCT.\n\n¿Qué deseas hacer hoy? Selecciona una de las siguientes opciones:`,
+          esBot: true,
+          esMenuOpciones: true
+        }
+      ]);
+    }
+  }, [user, esModoAdmin]);
 
   useEffect(() => {
     const abrirChat = () => setIsChatOpen(true);
@@ -248,15 +261,21 @@ export default function ChatbotFlotante() {
     const timeoutId = setTimeout(() => controller.abort(), 120000);
 
     try {
-      const payload = {
-        message: mensajeTexto,
-        sessionId: obtenerSessionId(user.rut),
-        rut: user.rut,
-        nombre: user.nombre,
-        email: user.email,
-      };
+      const endpoint = esModoAdmin ? '/api/chat/admin' : '/api/chat';
+      const payload = esModoAdmin
+        ? {
+            message: mensajeTexto,
+            tipo: 'reglamento',
+          }
+        : {
+            message: mensajeTexto,
+            sessionId: obtenerSessionId(user.rut),
+            rut: user.rut,
+            nombre: user.nombre,
+            email: user.email,
+          };
 
-      const data = await apiPost('/api/chat', payload, {
+      const data = await apiPost(endpoint, payload, {
         signal: controller.signal,
         timeout: 120000
       });
@@ -264,13 +283,17 @@ export default function ChatbotFlotante() {
 
       let textoRespuesta = (data.response || '').replace(/Calling\s+[a-zA-Z0-9_\-]+(\s*with\s+input:)?\s*\{[\s\S]*?\}/gi, '').trim();
       if (!textoRespuesta) {
-        textoRespuesta = 'Estoy procesando tu solicitud de cubículos. ¿En qué fecha, hora y sede te gustaría agendar?';
+        textoRespuesta = esModoAdmin
+          ? 'Consulta sobre el reglamento procesada con éxito.'
+          : 'Estoy procesando tu solicitud de cubículos. ¿En qué fecha, hora y sede te gustaría agendar?';
       }
 
       setMensajes((prev) =>
         prev.map((msg) => msg.id === botPensandoId ? { ...msg, texto: textoRespuesta } : msg)
       );
-      window.dispatchEvent(new CustomEvent("reservaActualizada"));
+      if (!esModoAdmin) {
+        window.dispatchEvent(new CustomEvent("reservaActualizada"));
+      }
     } catch (error) {
       clearTimeout(timeoutId);
       console.error('Error al conectar con el bot:', error);
@@ -470,8 +493,12 @@ export default function ChatbotFlotante() {
               </div>
               <div>
                 <div className="flex items-center gap-1.5">
-                  <p className="font-extrabold text-sm tracking-tight text-white">Asistente Virtual</p>
-                  <span className="text-[10px] font-black px-1.5 py-0.2 rounded bg-[#FFC20E] text-slate-900 tracking-wider">UCT</span>
+                  <p className="font-extrabold text-sm tracking-tight text-white">
+                    {esModoAdmin ? "Asistente de Reglamento" : "Asistente Virtual"}
+                  </p>
+                  <span className="text-[10px] font-black px-1.5 py-0.2 rounded bg-[#FFC20E] text-slate-900 tracking-wider">
+                    {esModoAdmin ? "ADMIN" : "UCT"}
+                  </span>
                 </div>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <span className="relative flex h-2 w-2">
@@ -479,7 +506,7 @@ export default function ChatbotFlotante() {
                     <span className={`relative inline-flex rounded-full h-2 w-2 ${user ? 'bg-emerald-400' : 'bg-rose-500'}`}></span>
                   </span>
                   <p className="text-[11px] text-sky-100/90 font-medium">
-                    {user ? user.nombre : 'Acceso Restringido'}
+                    {user ? (esModoAdmin ? `${user.nombre} • Normativas` : user.nombre) : 'Acceso Restringido'}
                   </p>
                 </div>
               </div>
@@ -548,6 +575,68 @@ export default function ChatbotFlotante() {
                       } ${msg.texto === 'Escribiendo...' ? 'text-slate-400 italic bg-white/50 dark:bg-slate-800/50 dark:text-slate-400 animate-pulse' : ''}`}>
                       {msg.texto}
                     </div>
+
+                    {msg.esMenuAdmin && (
+                      <div className="w-full max-w-[95%] mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 animate-fadeIn">
+                        {[
+                          {
+                            icono: "⏱️",
+                            titulo: "Tolerancia de 15 minutos",
+                            sub: "Margen de llegada y liberación",
+                            pregunta: "¿Cuál es el margen de tolerancia y cómo funciona la liberación automática de cubículos según el reglamento?"
+                          },
+                          {
+                            icono: "🚫",
+                            titulo: "Inasistencias y Sanción",
+                            sub: "Suspensión de 3 días y causales",
+                            pregunta: "¿Qué sanciones se aplican a los estudiantes por acumulación de inasistencias a cubículos y cuánto tiempo duran?"
+                          },
+                          {
+                            icono: "👥",
+                            titulo: "Reglas de acompañantes",
+                            sub: "Registro y límites por cubículo",
+                            pregunta: "¿Cuáles son las normas y requisitos para los acompañantes en las reservas de cubículos?"
+                          },
+                          {
+                            icono: "🛠️",
+                            titulo: "Incidencias técnicas",
+                            sub: "Protocolo de reporte y mantención",
+                            pregunta: "¿Cuál es el protocolo de atención para asistentes ante fallas técnicas o daños en los cubículos?"
+                          },
+                          {
+                            icono: "🏛️",
+                            titulo: "Horarios y sedes",
+                            sub: "Horarios de apertura oficiales",
+                            pregunta: "¿Cuáles son los horarios de atención y normativas generales de las bibliotecas de la universidad?"
+                          },
+                          {
+                            icono: "🎓",
+                            titulo: "Talleres especializados",
+                            sub: "Requisitos de grupos y modalidades",
+                            pregunta: "¿Cuáles son los requisitos y modalidades de talleres especializados de biblioteca disponibles para estudiantes?"
+                          }
+                        ].map((item, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => enviarMensajeTexto(item.pregunta)}
+                            className="flex items-start gap-2.5 p-3 rounded-2xl bg-white/95 dark:bg-slate-800/90 border border-sky-200/80 dark:border-slate-700 hover:border-[#00629B] dark:hover:border-sky-400 hover:shadow-md hover:scale-[1.01] active:scale-[0.99] transition-all text-left cursor-pointer group"
+                          >
+                            <span className="text-xl p-1.5 rounded-xl bg-sky-100/70 dark:bg-sky-950/60 group-hover:scale-110 transition-transform">
+                              {item.icono}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <span className="block font-bold text-xs text-slate-800 dark:text-slate-100 group-hover:text-[#00629B] dark:group-hover:text-sky-300">
+                                {item.titulo}
+                              </span>
+                              <span className="block text-[11px] text-slate-500 dark:text-slate-400 leading-tight mt-0.5">
+                                {item.sub}
+                              </span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
 
                     {msg.esMenuOpciones && (
                       <div className="w-full max-w-[95%] mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 animate-fadeIn">
@@ -865,7 +954,27 @@ export default function ChatbotFlotante() {
 
           {user && !cargandoBot && (
             <div className="px-3 pt-2 pb-1 flex items-center gap-1.5 overflow-x-auto bg-white/80 dark:bg-slate-900/90 backdrop-blur-md border-t border-slate-100 dark:border-slate-800 scrollbar-none">
-              {seccionActiva === 'menu' && (
+              {esModoAdmin && (
+                <>
+                  {[
+                    { label: "⏱️ Tolerancia 15m", texto: "¿Cuál es el margen de tolerancia para la validación presencial de cubículos?" },
+                    { label: "🚫 Sanciones", texto: "¿Cuáles son las causales y duración de las suspensiones por inasistencia?" },
+                    { label: "👥 Acompañantes", texto: "¿Qué normas aplican a los acompañantes de cubículos?" },
+                    { label: "🛠️ Incidencias", texto: "¿Cómo se gestiona una incidencia técnica en un cubículo?" },
+                    { label: "🏛️ Sedes y Horarios", texto: "¿Cuáles son los horarios de atención oficiales de las bibliotecas?" },
+                  ].map((chip, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => enviarMensajeTexto(chip.texto)}
+                      className="px-2.5 py-1 bg-sky-50/60 hover:bg-sky-100/70 border border-sky-200/70 hover:border-[#FFC20E] rounded-full text-[11px] font-semibold text-slate-700 hover:text-sky-900 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:border-slate-700 dark:hover:border-[#FFC20E] dark:text-slate-200 dark:hover:text-white whitespace-nowrap active:scale-95 transition-all cursor-pointer shadow-2xs"
+                    >
+                      {chip.label}
+                    </button>
+                  ))}
+                </>
+              )}
+              {!esModoAdmin && seccionActiva === 'menu' && (
                 <>
                   <button
                     type="button"
@@ -971,9 +1080,11 @@ export default function ChatbotFlotante() {
                       ? "Debes iniciar sesión para chatear..."
                       : cargandoBot
                         ? "Esperando respuesta del asistente..."
-                        : seccionActiva === 'contacto'
-                          ? "Escribe o usa el formulario arriba..."
-                          : "Ej: Reservar en San Juan Pablo II hoy a las 11:00..."
+                        : esModoAdmin
+                          ? "Consulta sobre el reglamento o normativas oficiales..."
+                          : seccionActiva === 'contacto'
+                            ? "Escribe o usa el formulario arriba..."
+                            : "Ej: Reservar en San Juan Pablo II hoy a las 11:00..."
                   }
                   className="w-full px-4 py-2.5 pr-14 text-sm border border-slate-200 bg-slate-50/70 focus:bg-white rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#00629B] transition-all disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed dark:border-slate-700 dark:bg-slate-800/80 dark:focus:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:disabled:bg-slate-800/50 dark:disabled:text-slate-600"
                 />
