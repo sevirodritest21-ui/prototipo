@@ -165,12 +165,15 @@ export default function ChatbotFlotante() {
       ]);
     } else if (opcion === 'taller') {
       setSeccionActiva('taller');
+      const introTalleres = user?.carrera
+        ? `¡Excelente! Te puedo ayudar a solicitar y coordinar cualquiera de nuestros 6 talleres especializados de biblioteca:\n\n1️⃣ Conoce tu biblioteca: Taller de inicio\n2️⃣ Búsqueda y evaluación de información\n3️⃣ Gestión de referencias y estilo de citas\n4️⃣ Uso ético de la información\n5️⃣ Introducción a Leganto\n6️⃣ ORCID\n\n📌 Requisitos generales:\n• Grupo mínimo: 4 personas (hasta 9 o más)\n• Modalidad: Presencial o Virtual\n• Carrera: ${user.carrera}\n\n¿Cuál de estos talleres te gustaría solicitar y en qué modalidad (presencial o virtual)?`
+        : `¡Excelente! Te puedo ayudar a solicitar y coordinar cualquiera de nuestros 6 talleres especializados de biblioteca:\n\n1️⃣ Conoce tu biblioteca: Taller de inicio\n2️⃣ Búsqueda y evaluación de información\n3️⃣ Gestión de referencias y estilo de citas\n4️⃣ Uso ético de la información\n5️⃣ Introducción a Leganto\n6️⃣ ORCID\n\n📌 Requisitos generales:\n• Grupo mínimo: 4 personas (hasta 9 o más)\n• Modalidad: Presencial o Virtual\n\n¿Cuál de estos talleres te gustaría solicitar y cuál es tu carrera?`;
       setMensajes((prev) => [
         ...prev,
         { id: Date.now(), texto: '🎓 Gestionar un taller', esBot: false },
         {
           id: Date.now() + 1,
-          texto: `¡Excelente! Te puedo ayudar a solicitar y coordinar cualquiera de nuestros 6 talleres especializados de biblioteca:\n\n1️⃣ Conoce tu biblioteca: Taller de inicio\n2️⃣ Búsqueda y evaluación de información\n3️⃣ Gestión de referencias y estilo de citas\n4️⃣ Uso ético de la información\n5️⃣ Introducción a Leganto\n6️⃣ ORCID\n\n📌 Requisitos generales:\n• Grupo mínimo: 4 personas (hasta 9 o más)\n• Modalidad: Presencial o Virtual\n\n¿Cuál de estos talleres te gustaría solicitar y cuál es tu carrera?`,
+          texto: introTalleres,
           esBot: true
         }
       ]);
@@ -273,6 +276,7 @@ export default function ChatbotFlotante() {
             rut: user.rut,
             nombre: user.nombre,
             email: user.email,
+            carrera: user.carrera || '',
           };
 
       const data = await apiPost(endpoint, payload, {

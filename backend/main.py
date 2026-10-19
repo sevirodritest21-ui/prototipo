@@ -409,6 +409,13 @@ async def startup():
                 created_at DATETIME2 DEFAULT GETDATE()
             );
         """)
+        await conn.execute("""
+            IF COL_LENGTH('usuarios', 'carrera') IS NULL
+                ALTER TABLE usuarios ADD carrera NVARCHAR(150) NULL;
+            IF COL_LENGTH('estudiante', 'carrera') IS NULL
+                ALTER TABLE estudiante ADD carrera NVARCHAR(150) NULL;
+        """)
+
 
 
     global tarea_limpieza_bg, tarea_monitor_terminal_bg
@@ -977,12 +984,15 @@ class CrearUsuarioRequest(BaseModel):
     nombre: str
     rut: Optional[str] = None
     rol: str = "estudiante"
+    carrera: Optional[str] = None
 
     @root_validator(pre=True)
     def sanitizar_usuario(cls, values):
         if isinstance(values, dict):
             if "nombre" in values and values["nombre"] is not None:
                 values["nombre"] = sanitizar_texto(values["nombre"], max_length=150)
+            if "carrera" in values and values["carrera"] is not None:
+                values["carrera"] = sanitizar_texto(values["carrera"], max_length=150)
             if "email" in values and values["email"] is not None:
                 values["email"] = str(values["email"]).strip().lower()
         return values
@@ -1050,7 +1060,7 @@ async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] =
             u.rut, 
             u.rol, 
             COALESCE(u.idmatricula, CAST(ec.estu_registro AS VARCHAR(50))) AS idmatricula,
-            cp.carr_nombre AS carrera,
+            COALESCE(u.carrera, cp.carr_nombre) AS carrera,
             sa.salu_nombre AS situacion
         FROM usuarios u
         LEFT JOIN estudiante e ON REPLACE(REPLACE(REPLACE(UPPER(u.rut), '.', ''), '-', ''), ' ', '') = CONCAT(e.estd_rut, e.estd_dv)
@@ -1084,7 +1094,7 @@ async def get_current_user_optional(credentials: Optional[HTTPAuthorizationCrede
                 u.rut, 
                 u.rol, 
                 COALESCE(u.idmatricula, CAST(ec.estu_registro AS VARCHAR(50))) AS idmatricula,
-                cp.carr_nombre AS carrera,
+                COALESCE(u.carrera, cp.carr_nombre) AS carrera,
                 sa.salu_nombre AS situacion
             FROM usuarios u
             LEFT JOIN estudiante e ON REPLACE(REPLACE(REPLACE(UPPER(u.rut), '.', ''), '-', ''), ' ', '') = CONCAT(e.estd_rut, e.estd_dv)
@@ -1117,11 +1127,11 @@ async def registrar_usuario(data: CrearUsuarioRequest, request: Request):
         try:
             row = await conn.fetchrow(
                 """
-                INSERT INTO usuarios (email, hashed_password, nombre, rut, rol)
-                VALUES ($1, $2, $3, $4, $5)
-                RETURNING id, email, nombre, rut, rol
+                INSERT INTO usuarios (email, hashed_password, nombre, rut, rol, carrera)
+                VALUES ($1, $2, $3, $4, $5, $6)
+                RETURNING id, email, nombre, rut, rol, carrera
                 """,
-                data.email, hashed, data.nombre, data.rut, data.rol
+                data.email, hashed, data.nombre, data.rut, data.rol, data.carrera
             )
             return dict(row)
         except asyncpg.UniqueViolationError:
@@ -2149,7 +2159,7 @@ async def buscar_estudiantes(q: str, current_user: dict = Depends(get_current_us
                 RTRIM(CONCAT(e.estd_nombre1, ' ', COALESCE(e.estd_nombre2, ''), ' ', e.estd_paterno, ' ', COALESCE(e.estd_materno, ''))) AS nombre_completo,
                 e.estd_email_inst AS email,
                 ec.estu_registro AS idmatricula,
-                cp.carr_nombre AS carrera,
+                COALESCE(e.carrera, cp.carr_nombre) AS carrera,
                 sa.salu_nombre AS situacion
             FROM estudiante e
             LEFT JOIN estudiante_carrera ec ON e.estd_rut = ec.estd_rut
@@ -3132,6 +3142,19 @@ async def solicitar_taller(data: TallerSolicitudRequest, background_tasks: Backg
     carrera_limpia = sanitizar_texto(data.carrera, max_length=150)
     modalidad_limpia = sanitizar_texto(data.modalidad, max_length=50)
     participantes_limpio = sanitizar_texto(data.participantes, max_length=50)
+
+    if not carrera_limpia and (email_limpio or rut_limpio):
+        async with pool.acquire() as conn:
+            row_u = await conn.fetchrow(
+                """
+                SELECT carrera FROM usuarios 
+                WHERE email = $1 
+                   OR REPLACE(REPLACE(REPLACE(UPPER(rut), '.', ''), '-', ''), ' ', '') = REPLACE(REPLACE(REPLACE(UPPER($2), '.', ''), '-', ''), ' ', '')
+                """,
+                email_limpio, rut_limpio
+            )
+            if row_u and row_u["carrera"]:
+                carrera_limpia = row_u["carrera"]
 
     if not taller_limpio or not nombre_limpio or not email_limpio or not rut_limpio or not carrera_limpia:
         raise HTTPException(status_code=400, detail="Faltan datos obligatorios para la solicitud del taller (taller, nombre, email, rut o carrera).")
