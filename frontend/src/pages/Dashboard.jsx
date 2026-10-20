@@ -261,6 +261,8 @@ export default function Dashboard() {
   const [cargandoTalleres, setCargandoTalleres] = useState(false);
   const [filtroEstadoTaller, setFiltroEstadoTaller] = useState("");
   const [busquedaTaller, setBusquedaTaller] = useState("");
+  const [paginaTalleres, setPaginaTalleres] = useState(1);
+  const [limiteTalleres, setLimiteTalleres] = useState(10);
 
   const fetchSolicitudesTalleres = async () => {
     setCargandoTalleres(true);
@@ -270,6 +272,7 @@ export default function Dashboard() {
       if (busquedaTaller.trim()) q.append("busqueda", busquedaTaller.trim());
       const data = await apiGet(`/api/talleres/solicitudes?${q.toString()}`);
       setSolicitudesTalleres(data?.solicitudes || []);
+      setPaginaTalleres(1);
     } catch {
       setSolicitudesTalleres([]);
     } finally {
@@ -302,6 +305,62 @@ export default function Dashboard() {
         }
       }
     });
+  };
+
+  const [modalResponderTaller, setModalResponderTaller] = useState({
+    open: false,
+    solicitud: null,
+    asunto: "",
+    mensaje: "",
+    nuevoEstado: "pendiente",
+    enviando: false,
+  });
+
+  const handleAbrirModalResponder = (solicitud) => {
+    setModalResponderTaller({
+      open: true,
+      solicitud,
+      asunto: `Coordinación Taller #${solicitud.id}: ${solicitud.taller}`,
+      mensaje: `Estimado/a ${solicitud.nombre},\n\nNos comunicamos desde el equipo de Biblioteca de la Universidad Católica de Temuco en relación a tu solicitud para el taller "${solicitud.taller}".\n\n`,
+      nuevoEstado: solicitud.estado || "pendiente",
+      enviando: false,
+    });
+  };
+
+  const handleEnviarRespuestaTaller = async (e) => {
+    e.preventDefault();
+    if (!modalResponderTaller.solicitud) return;
+    if (!modalResponderTaller.asunto.trim() || !modalResponderTaller.mensaje.trim()) {
+      setToastNotificacion({ tipo: "error", texto: "Debes completar el asunto y el mensaje." });
+      return;
+    }
+    setModalResponderTaller((prev) => ({ ...prev, enviando: true }));
+    try {
+      await apiPost(`/api/talleres/solicitudes/${modalResponderTaller.solicitud.id}/responder`, {
+        asunto: modalResponderTaller.asunto.trim(),
+        mensaje: modalResponderTaller.mensaje.trim(),
+        nuevo_estado: modalResponderTaller.nuevoEstado,
+      });
+      setToastNotificacion({
+        tipo: "exito",
+        texto: `Respuesta enviada exitosamente a ${modalResponderTaller.solicitud.email} mediante n8n.`,
+      });
+      setModalResponderTaller({
+        open: false,
+        solicitud: null,
+        asunto: "",
+        mensaje: "",
+        nuevoEstado: "pendiente",
+        enviando: false,
+      });
+      fetchSolicitudesTalleres();
+    } catch (err) {
+      setToastNotificacion({
+        tipo: "error",
+        texto: `Error al enviar respuesta: ${err.message || "Error"}`,
+      });
+      setModalResponderTaller((prev) => ({ ...prev, enviando: false }));
+    }
   };
 
   const handleMantenimientoDesdeIncidencia = async (inc) => {
@@ -4552,7 +4611,9 @@ export default function Dashboard() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 bg-white">
-                      {solicitudesTalleres.map((s) => (
+                      {solicitudesTalleres
+                        .slice((paginaTalleres - 1) * limiteTalleres, paginaTalleres * limiteTalleres)
+                        .map((s) => (
                         <tr key={s.id} className="hover:bg-slate-50/70 transition-colors">
                           <td className="py-3.5 px-4 font-mono font-bold text-slate-500">#{s.id}</td>
                           <td className="py-3.5 px-4 font-semibold text-slate-900 max-w-[220px]">
@@ -4628,6 +4689,14 @@ export default function Dashboard() {
                               )}
                               <button
                                 type="button"
+                                onClick={() => handleAbrirModalResponder(s)}
+                                className="px-2 py-1 rounded-lg bg-sky-50 text-[#00629B] hover:bg-sky-100 border border-sky-200 text-[10px] font-bold cursor-pointer transition-colors inline-flex items-center gap-1"
+                                title="Responder por correo al estudiante"
+                              >
+                                ✉️ Responder
+                              </button>
+                              <button
+                                type="button"
                                 onClick={() => handleEliminarSolicitudTaller(s.id, s.nombre, s.taller)}
                                 className="p-1 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 cursor-pointer transition-colors"
                                 title="Eliminar registro"
@@ -4640,6 +4709,53 @@ export default function Dashboard() {
                       ))}
                     </tbody>
                   </table>
+
+                  {solicitudesTalleres.length > 0 && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3.5 bg-slate-50 border-t border-slate-200 text-xs text-slate-600 rounded-b-2xl">
+                      <div className="flex items-center gap-2">
+                        <span>Mostrar</span>
+                        <select
+                          value={limiteTalleres}
+                          onChange={(e) => {
+                            setLimiteTalleres(Number(e.target.value));
+                            setPaginaTalleres(1);
+                          }}
+                          className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl font-bold text-slate-800 outline-none cursor-pointer shadow-2xs hover:border-slate-300"
+                        >
+                          <option value={5}>5</option>
+                          <option value={10}>10</option>
+                          <option value={20}>20</option>
+                          <option value={50}>50</option>
+                        </select>
+                        <span className="font-medium">por página</span>
+                        <span className="text-slate-400 ml-2 font-mono text-[11px]">
+                          ({(paginaTalleres - 1) * limiteTalleres + 1} - {Math.min(paginaTalleres * limiteTalleres, solicitudesTalleres.length)} de {solicitudesTalleres.length})
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={paginaTalleres <= 1 || cargandoTalleres}
+                          onClick={() => setPaginaTalleres((p) => Math.max(1, p - 1))}
+                          className="px-3.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shadow-2xs"
+                        >
+                          ◀ Anterior
+                        </button>
+                        <span className="px-3 py-1.5 font-bold text-[#00629B] bg-sky-50 rounded-xl border border-sky-100 font-mono text-xs">
+                          {paginaTalleres} / {Math.max(1, Math.ceil(solicitudesTalleres.length / limiteTalleres))}
+                        </span>
+                        <button
+                          type="button"
+                          disabled={paginaTalleres >= Math.ceil(solicitudesTalleres.length / limiteTalleres) || cargandoTalleres}
+                          onClick={() => setPaginaTalleres((p) => Math.min(Math.ceil(solicitudesTalleres.length / limiteTalleres), p + 1))}
+                          className="px-3.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shadow-2xs"
+                        >
+                          Siguiente ▶
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -5326,6 +5442,118 @@ export default function Dashboard() {
                 Entendido
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {modalResponderTaller.open && modalResponderTaller.solicitud && (
+        <div className={OVERLAY}>
+          <div className={`${MODAL} max-w-xl p-6 md:p-7 space-y-5 animate-slideUp`}>
+            <div className="flex items-start justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-sky-50 border border-sky-200 text-[#00629B] flex items-center justify-center text-xl shadow-xs">
+                  ✉️
+                </div>
+                <div>
+                  <div className="text-[10px] font-mono font-bold text-[#00629B] uppercase">
+                    Solicitud #{modalResponderTaller.solicitud.id}
+                  </div>
+                  <h3 className="font-serif font-bold text-lg text-slate-900 leading-tight">
+                    Responder al Estudiante
+                  </h3>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalResponderTaller((prev) => ({ ...prev, open: false }))}
+                className="text-slate-400 hover:text-slate-700 font-bold text-sm cursor-pointer p-1 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 font-medium">Estudiante:</span>
+                <span className="font-bold text-slate-900">{modalResponderTaller.solicitud.nombre}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 font-medium">Correo:</span>
+                <span className="font-mono text-[#00629B] font-semibold">{modalResponderTaller.solicitud.email}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 font-medium">Taller:</span>
+                <span className="font-semibold text-slate-800">{modalResponderTaller.solicitud.taller}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 font-medium">Carrera / Modalidad:</span>
+                <span className="text-slate-700">{modalResponderTaller.solicitud.carrera} • {modalResponderTaller.solicitud.modalidad}</span>
+              </div>
+            </div>
+
+            <form onSubmit={handleEnviarRespuestaTaller} className="space-y-4">
+              <div>
+                <label className={LABEL}>
+                  Asunto del Correo *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={modalResponderTaller.asunto}
+                  onChange={(e) => setModalResponderTaller((prev) => ({ ...prev, asunto: e.target.value }))}
+                  placeholder="Ej: Confirmación y horario de taller de biblioteca..."
+                  className={INPUT}
+                />
+              </div>
+
+              <div>
+                <label className={LABEL}>
+                  Mensaje para el Estudiante *
+                </label>
+                <textarea
+                  rows={6}
+                  required
+                  value={modalResponderTaller.mensaje}
+                  onChange={(e) => setModalResponderTaller((prev) => ({ ...prev, mensaje: e.target.value }))}
+                  placeholder="Escribe la respuesta indicando fecha, lugar o enlace para el taller..."
+                  className={`${INPUT} min-h-[130px] font-sans`}
+                />
+              </div>
+
+              <div>
+                <label className={LABEL}>
+                  Actualizar estado de la solicitud
+                </label>
+                <select
+                  value={modalResponderTaller.nuevoEstado}
+                  onChange={(e) => setModalResponderTaller((prev) => ({ ...prev, nuevoEstado: e.target.value }))}
+                  className={INPUT}
+                >
+                  <option value="pendiente">Mantener como Pendiente ⏳</option>
+                  <option value="aprobado">Aprobado ✅</option>
+                  <option value="realizado">Realizado 🎯</option>
+                  <option value="rechazado">Rechazado ❌</option>
+                </select>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setModalResponderTaller((prev) => ({ ...prev, open: false }))}
+                  disabled={modalResponderTaller.enviando}
+                  className={BTN_GHOST}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={modalResponderTaller.enviando}
+                  className={BTN_PRIMARY}
+                >
+                  {modalResponderTaller.enviando ? "Enviando vía n8n..." : "Enviar Respuesta ✉️"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

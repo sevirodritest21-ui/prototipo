@@ -64,6 +64,138 @@ const extraerDatosReserva = (texto) => {
   };
 };
 
+const formatearTextoMarkdown = (texto) => {
+  if (!texto) return texto;
+  const regex = /(\*\*.*?\*\*|\*.*?\*|`.*?`)/g;
+  const partes = texto.split(regex);
+  return partes.map((parte, i) => {
+    if (parte.startsWith('**') && parte.endsWith('**') && parte.length >= 4) {
+      return <strong key={i} className="font-semibold text-slate-900 dark:text-white">{parte.slice(2, -2)}</strong>;
+    }
+    if (parte.startsWith('*') && parte.endsWith('*') && parte.length >= 2) {
+      return <em key={i} className="italic text-slate-700 dark:text-slate-300">{parte.slice(1, -1)}</em>;
+    }
+    if (parte.startsWith('`') && parte.endsWith('`') && parte.length >= 2) {
+      return <code key={i} className="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-900 text-xs font-mono text-sky-700 dark:text-sky-300">{parte.slice(1, -1)}</code>;
+    }
+    return parte;
+  });
+};
+
+const renderizarMensajeChat = (texto, esBot) => {
+  if (!texto) return null;
+  if (!esBot || texto === 'Escribiendo...') return <span className="whitespace-pre-line">{texto}</span>;
+
+  const lineas = texto.split('\n');
+  const bloques = [];
+  let bufferTabla = [];
+
+  const procesarBufferTabla = () => {
+    if (bufferTabla.length === 0) return;
+    if (bufferTabla.length >= 2) {
+      const parsedRows = bufferTabla.map(l =>
+        l.trim()
+          .replace(/^\|/, '')
+          .replace(/\|$/, '')
+          .split('|')
+          .map(c => c.trim())
+      );
+      const headerRow = parsedRows[0];
+      const dataRows = parsedRows.slice(1).filter(r => !r.every(c => /^[-:\s]+$/.test(c)));
+      bloques.push({
+        tipo: 'tabla',
+        headers: headerRow,
+        rows: dataRows
+      });
+    } else {
+      bloques.push({
+        tipo: 'lineas',
+        lineas: [...bufferTabla]
+      });
+    }
+    bufferTabla = [];
+  };
+
+  for (let i = 0; i < lineas.length; i++) {
+    const l = lineas[i];
+    const esLineaTabla = l.trim().startsWith('|') && l.trim().endsWith('|') && l.includes('|');
+    if (esLineaTabla) {
+      bufferTabla.push(l);
+    } else {
+      if (bufferTabla.length > 0) {
+        procesarBufferTabla();
+      }
+      if (bloques.length > 0 && bloques[bloques.length - 1].tipo === 'lineas') {
+        bloques[bloques.length - 1].lineas.push(l);
+      } else {
+        bloques.push({ tipo: 'lineas', lineas: [l] });
+      }
+    }
+  }
+  if (bufferTabla.length > 0) {
+    procesarBufferTabla();
+  }
+
+  return (
+    <div className="space-y-2 leading-relaxed">
+      {bloques.map((b, bIdx) => {
+        if (b.tipo === 'tabla') {
+          return (
+            <div key={bIdx} className="overflow-x-auto my-2 rounded-xl border border-sky-200/80 dark:border-slate-700 bg-white/70 dark:bg-slate-900/60 shadow-xs">
+              <table className="w-full text-xs text-left border-collapse">
+                <thead>
+                  <tr className="bg-sky-100/70 dark:bg-slate-800 border-b border-sky-200 dark:border-slate-700">
+                    {b.headers.map((h, hIdx) => (
+                      <th key={hIdx} className="px-3 py-2 font-bold text-[#00629B] dark:text-sky-300">
+                        {formatearTextoMarkdown(h)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {b.rows.map((row, rIdx) => (
+                    <tr key={rIdx} className={rIdx % 2 === 1 ? 'bg-sky-50/40 dark:bg-slate-800/40' : ''}>
+                      {row.map((cell, cIdx) => (
+                        <td key={cIdx} className="px-3 py-2 text-slate-700 dark:text-slate-200 align-top">
+                          {formatearTextoMarkdown(cell)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        }
+
+        return (
+          <div key={bIdx} className="space-y-1">
+            {b.lineas.map((linea, lIdx) => {
+              const lineaTrim = linea.trim();
+              if (!lineaTrim) return <div key={lIdx} className="h-1" />;
+              const esItemLista = /^[-*•]\s+/.test(lineaTrim);
+              if (esItemLista) {
+                const contenido = lineaTrim.replace(/^[-*•]\s+/, '');
+                return (
+                  <div key={lIdx} className="flex items-start gap-1.5 pl-1 text-slate-800 dark:text-slate-200">
+                    <span className="text-[#00629B] dark:text-sky-400 font-bold select-none">•</span>
+                    <span className="flex-1">{formatearTextoMarkdown(contenido)}</span>
+                  </div>
+                );
+              }
+              return (
+                <div key={lIdx} className="text-slate-800 dark:text-slate-200">
+                  {formatearTextoMarkdown(linea)}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 export default function ChatbotFlotante() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -112,9 +244,8 @@ export default function ChatbotFlotante() {
       setMensajes([
         {
           id: 1,
-          texto: `${getSaludo()}, ${user.nombre || 'asistente'}! 🛡️ Te doy la bienvenida al Asistente de Reglamento y Normativas de Biblioteca UCT.\n\nPuedes hacerme consultas directas sobre el reglamento oficial, políticas de sanciones, liberación de cubículos y normativas institucionales basadas en los documentos oficiales:`,
-          esBot: true,
-          esMenuAdmin: true
+          texto: `${getSaludo()}, ${user.nombre || 'asistente'}! 🛡️ Te doy la bienvenida al Asistente de Reglamento y Normativas de Biblioteca UCT.\n\nPuedes hacerme consultas directas sobre el reglamento oficial, políticas de sanciones, liberación de cubículos y normativas institucionales.`,
+          esBot: true
         }
       ]);
     } else {
@@ -573,74 +704,12 @@ export default function ChatbotFlotante() {
 
                 return (
                   <div key={msg.id} className={`flex flex-col ${msg.esBot ? 'items-start' : 'items-end'}`}>
-                    <div className={`max-w-[88%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-line backdrop-blur-md transition-all ${msg.esBot
+                    <div className={`max-w-[88%] rounded-2xl px-4 py-2.5 text-sm backdrop-blur-md transition-all ${msg.esBot
                       ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-tl-sm border border-slate-200/70 dark:border-slate-700/80 shadow-[0_4px_16px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_16px_rgba(0,0,0,0.3)]'
                       : 'bg-gradient-to-r from-[#00629B] to-[#007AB8] text-white rounded-tr-sm shadow-[0_4px_16px_rgba(0,98,155,0.25)] border border-sky-400/30'
                       } ${msg.texto === 'Escribiendo...' ? 'text-slate-400 italic bg-white/50 dark:bg-slate-800/50 dark:text-slate-400 animate-pulse' : ''}`}>
-                      {msg.texto}
+                      {renderizarMensajeChat(msg.texto, msg.esBot)}
                     </div>
-
-                    {msg.esMenuAdmin && (
-                      <div className="w-full max-w-[95%] mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 animate-fadeIn">
-                        {[
-                          {
-                            icono: "⏱️",
-                            titulo: "Tolerancia de 15 minutos",
-                            sub: "Margen de llegada y liberación",
-                            pregunta: "¿Cuál es el margen de tolerancia y cómo funciona la liberación automática de cubículos según el reglamento?"
-                          },
-                          {
-                            icono: "🚫",
-                            titulo: "Inasistencias y Sanción",
-                            sub: "Suspensión de 3 días y causales",
-                            pregunta: "¿Qué sanciones se aplican a los estudiantes por acumulación de inasistencias a cubículos y cuánto tiempo duran?"
-                          },
-                          {
-                            icono: "👥",
-                            titulo: "Reglas de acompañantes",
-                            sub: "Registro y límites por cubículo",
-                            pregunta: "¿Cuáles son las normas y requisitos para los acompañantes en las reservas de cubículos?"
-                          },
-                          {
-                            icono: "🛠️",
-                            titulo: "Incidencias técnicas",
-                            sub: "Protocolo de reporte y mantención",
-                            pregunta: "¿Cuál es el protocolo de atención para asistentes ante fallas técnicas o daños en los cubículos?"
-                          },
-                          {
-                            icono: "🏛️",
-                            titulo: "Horarios y sedes",
-                            sub: "Horarios de apertura oficiales",
-                            pregunta: "¿Cuáles son los horarios de atención y normativas generales de las bibliotecas de la universidad?"
-                          },
-                          {
-                            icono: "🎓",
-                            titulo: "Talleres especializados",
-                            sub: "Requisitos de grupos y modalidades",
-                            pregunta: "¿Cuáles son los requisitos y modalidades de talleres especializados de biblioteca disponibles para estudiantes?"
-                          }
-                        ].map((item, i) => (
-                          <button
-                            key={i}
-                            type="button"
-                            onClick={() => enviarMensajeTexto(item.pregunta)}
-                            className="flex items-start gap-2.5 p-3 rounded-2xl bg-white/95 dark:bg-slate-800/90 border border-sky-200/80 dark:border-slate-700 hover:border-[#00629B] dark:hover:border-sky-400 hover:shadow-md hover:scale-[1.01] active:scale-[0.99] transition-all text-left cursor-pointer group"
-                          >
-                            <span className="text-xl p-1.5 rounded-xl bg-sky-100/70 dark:bg-sky-950/60 group-hover:scale-110 transition-transform">
-                              {item.icono}
-                            </span>
-                            <div className="flex-1 min-w-0">
-                              <span className="block font-bold text-xs text-slate-800 dark:text-slate-100 group-hover:text-[#00629B] dark:group-hover:text-sky-300">
-                                {item.titulo}
-                              </span>
-                              <span className="block text-[11px] text-slate-500 dark:text-slate-400 leading-tight mt-0.5">
-                                {item.sub}
-                              </span>
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    )}
 
                     {msg.esMenuOpciones && (
                       <div className="w-full max-w-[95%] mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 animate-fadeIn">
@@ -956,29 +1025,9 @@ export default function ChatbotFlotante() {
             </div>
           )}
 
-          {user && !cargandoBot && (
+          {user && !cargandoBot && !esModoAdmin && (
             <div className="px-3 pt-2 pb-1 flex items-center gap-1.5 overflow-x-auto bg-white/80 dark:bg-slate-900/90 backdrop-blur-md border-t border-slate-100 dark:border-slate-800 scrollbar-none">
-              {esModoAdmin && (
-                <>
-                  {[
-                    { label: "⏱️ Tolerancia 15m", texto: "¿Cuál es el margen de tolerancia para la validación presencial de cubículos?" },
-                    { label: "🚫 Sanciones", texto: "¿Cuáles son las causales y duración de las suspensiones por inasistencia?" },
-                    { label: "👥 Acompañantes", texto: "¿Qué normas aplican a los acompañantes de cubículos?" },
-                    { label: "🛠️ Incidencias", texto: "¿Cómo se gestiona una incidencia técnica en un cubículo?" },
-                    { label: "🏛️ Sedes y Horarios", texto: "¿Cuáles son los horarios de atención oficiales de las bibliotecas?" },
-                  ].map((chip, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => enviarMensajeTexto(chip.texto)}
-                      className="px-2.5 py-1 bg-sky-50/60 hover:bg-sky-100/70 border border-sky-200/70 hover:border-[#FFC20E] rounded-full text-[11px] font-semibold text-slate-700 hover:text-sky-900 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:border-slate-700 dark:hover:border-[#FFC20E] dark:text-slate-200 dark:hover:text-white whitespace-nowrap active:scale-95 transition-all cursor-pointer shadow-2xs"
-                    >
-                      {chip.label}
-                    </button>
-                  ))}
-                </>
-              )}
-              {!esModoAdmin && seccionActiva === 'menu' && (
+              {seccionActiva === 'menu' && (
                 <>
                   <button
                     type="button"
