@@ -266,6 +266,18 @@ async def notificar_taller_n8n(detalle: dict):
         print(f"⚠️ Error notificando taller a n8n: {e}")
 
 
+async def notificar_respuesta_taller_n8n(detalle: dict):
+    webhook_url = os.getenv("N8N_TALLER_RESPUESTA_WEBHOOK_URL") or "http://n8n:5678/webhook/responder-taller"
+    if not webhook_url or not httpx_client or not detalle:
+        return
+
+    try:
+        payload_bytes, headers = generar_headers_webhook_n8n(detalle)
+        await httpx_client.post(webhook_url, content=payload_bytes, headers=headers, timeout=10.0)
+    except Exception as e:
+        print(f"⚠️ Error notificando respuesta de taller a n8n: {e}")
+
+
 
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
@@ -646,6 +658,12 @@ class TallerSolicitudRequest(BaseModel):
 class ActualizarEstadoTallerRequest(BaseModel):
     estado: str
     observaciones: Optional[str] = None
+
+
+class ResponderSolicitudTallerRequest(BaseModel):
+    asunto: str
+    mensaje: str
+    nuevo_estado: Optional[str] = None
 
 
 class ReservaBase(BaseModel):
@@ -3246,6 +3264,58 @@ async def actualizar_estado_solicitud_taller(solicitud_id: int, data: Actualizar
         if not row:
             raise HTTPException(status_code=404, detail="Solicitud de taller no encontrada.")
         return {"status": "ok", "solicitud": dict(row)}
+
+
+@app.post("/api/talleres/solicitudes/{solicitud_id}/responder")
+async def responder_solicitud_taller(
+    solicitud_id: int,
+    data: ResponderSolicitudTallerRequest,
+    background_tasks: BackgroundTasks,
+    current_user: dict = Depends(get_current_user)
+):
+    if current_user.get("rol") != "admin":
+        raise HTTPException(status_code=403, detail="Acceso denegado.")
+
+    asunto_limpio = sanitizar_texto(data.asunto, max_length=255)
+    mensaje_limpio = sanitizar_texto(data.mensaje, max_length=5000)
+    if not asunto_limpio or not mensaje_limpio:
+        raise HTTPException(status_code=400, detail="El asunto y el mensaje son obligatorios.")
+
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT id, taller, nombre, email, rut, carrera, modalidad, participantes, estado FROM solicitudes_talleres WHERE id = $1",
+            solicitud_id
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="Solicitud de taller no encontrada.")
+
+        nuevo_estado = data.nuevo_estado if data.nuevo_estado in ["pendiente", "aprobado", "rechazado", "realizado"] else row["estado"]
+        if nuevo_estado != row["estado"]:
+            await conn.execute("UPDATE solicitudes_talleres SET estado = $1 WHERE id = $2", nuevo_estado, solicitud_id)
+
+    detalle = {
+        "event": "respuesta_solicitud_taller",
+        "solicitud_id": row["id"],
+        "taller": row["taller"],
+        "estudiante_nombre": row["nombre"],
+        "estudiante_email": row["email"],
+        "estudiante_rut": row["rut"],
+        "carrera": row["carrera"],
+        "modalidad": row["modalidad"],
+        "participantes": row["participantes"],
+        "asunto": asunto_limpio,
+        "mensaje": mensaje_limpio,
+        "estado": nuevo_estado,
+        "respondido_por": current_user.get("email"),
+        "fecha_respuesta": datetime.now().isoformat()
+    }
+    background_tasks.add_task(notificar_respuesta_taller_n8n, detalle)
+
+    return {
+        "status": "ok",
+        "message": f"Respuesta enviada con éxito a {row['email']}.",
+        "detalle": detalle
+    }
 
 
 @app.get("/api/talleres/mis-solicitudes")

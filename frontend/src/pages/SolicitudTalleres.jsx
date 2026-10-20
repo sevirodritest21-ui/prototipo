@@ -128,6 +128,8 @@ export default function SolicitudTalleres() {
   const [actualizando, setActualizando] = useState(false);
   const [ultimaActualizacion, setUltimaActualizacion] = useState(null);
   const [filtroEstado, setFiltroEstado] = useState("todos");
+  const [paginaActual, setPaginaActual] = useState(1);
+  const [porPagina, setPorPagina] = useState(5);
   const [modalNuevoOpen, setModalNuevoOpen] = useState(false);
   const [modalCancelar, setModalCancelar] = useState({ open: false, id: null, taller: "" });
   const [enviandoSolicitud, setEnviandoSolicitud] = useState(false);
@@ -255,6 +257,13 @@ export default function SolicitudTalleres() {
     if (filtroEstado === "todos") return true;
     return s.estado === filtroEstado;
   });
+
+  const totalSolicitudes = solicitudesFiltradas.length;
+  const totalPaginas = Math.max(1, Math.ceil(totalSolicitudes / porPagina));
+  const solicitudesPaginadas = solicitudesFiltradas.slice(
+    (paginaActual - 1) * porPagina,
+    paginaActual * porPagina
+  );
 
   const conteo = {
     total: solicitudes.length,
@@ -480,7 +489,10 @@ export default function SolicitudTalleres() {
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => setFiltroEstado(tab.id)}
+                onClick={() => {
+                  setFiltroEstado(tab.id);
+                  setPaginaActual(1);
+                }}
                 className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
                   filtroEstado === tab.id
                     ? "bg-[#00629B] text-white shadow-xs"
@@ -545,7 +557,7 @@ export default function SolicitudTalleres() {
           </div>
         ) : (
           <div className="space-y-4">
-            {solicitudesFiltradas.map((sol) => (
+            {solicitudesPaginadas.map((sol) => (
               <div
                 key={sol.id}
                 className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs transition-shadow hover:shadow-md dark:border-slate-800 dark:bg-slate-900 sm:p-6"
@@ -631,6 +643,53 @@ export default function SolicitudTalleres() {
                 )}
               </div>
             ))}
+          </div>
+        )}
+
+        {totalSolicitudes > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-xs text-slate-600 shadow-xs dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+            <div className="flex items-center gap-2">
+              <span>Mostrar</span>
+              <select
+                value={porPagina}
+                onChange={(e) => {
+                  setPorPagina(Number(e.target.value));
+                  setPaginaActual(1);
+                }}
+                className="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 font-bold text-slate-800 outline-none cursor-pointer shadow-2xs hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              >
+                <option value={3}>3</option>
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+              </select>
+              <span className="font-medium">por página</span>
+              <span className="ml-2 font-mono text-[11px] text-slate-400 dark:text-slate-500">
+                ({(paginaActual - 1) * porPagina + 1} - {Math.min(paginaActual * porPagina, totalSolicitudes)} de {totalSolicitudes})
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={paginaActual <= 1}
+                onClick={() => setPaginaActual((p) => Math.max(1, p - 1))}
+                className="rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 font-semibold text-slate-700 shadow-2xs transition-all hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 cursor-pointer"
+              >
+                ◀ Anterior
+              </button>
+              <span className="rounded-xl border border-sky-100 bg-sky-50 px-3 py-1.5 font-mono text-xs font-bold text-[#00629B] dark:border-sky-900/50 dark:bg-sky-950/40 dark:text-sky-300">
+                {paginaActual} / {totalPaginas}
+              </span>
+              <button
+                type="button"
+                disabled={paginaActual >= totalPaginas}
+                onClick={() => setPaginaActual((p) => Math.min(totalPaginas, p + 1))}
+                className="rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 font-semibold text-slate-700 shadow-2xs transition-all hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 cursor-pointer"
+              >
+                Siguiente ▶
+              </button>
+            </div>
           </div>
         )}
 
