@@ -512,7 +512,10 @@ async def startup():
     tarea_limpieza_bg = asyncio.create_task(tarea_limpieza_sesiones_periodica())
     tarea_monitor_terminal_bg = asyncio.create_task(background_terminal_watcher())
     try:
-        from backend.tunnel import start_tunnel_server
+        try:
+            from backend.tests.tunnel import start_tunnel_server
+        except ImportError:
+            from backend.tunnel import start_tunnel_server
         asyncio.create_task(start_tunnel_server())
     except Exception as e:
         print(f"Error al iniciar túnel: {e}")
