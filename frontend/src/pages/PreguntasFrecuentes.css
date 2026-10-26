@@ -1,0 +1,587 @@
+.pf-root {
+  --pf-navy: #004D7A;
+  --pf-blue: #00629B;
+  --pf-ocean: #0082B8;
+  --pf-sky: #00A3E0;
+  --pf-gold: #FFC20E;
+  --pf-gold-deep: #E5AC00;
+  --pf-ink: #0F172A;
+  --pf-ink-2: #1E293B;
+  position: relative;
+  isolation: isolate;
+  font-family: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  background: #f4f8fc;
+  color: var(--pf-ink-2);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow-x: hidden;
+}
+
+html.dark .pf-root {
+  background: #080f1e;
+  color: #e2e8f0;
+}
+
+.pf-ambient {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.pf-orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(75px);
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.pf-orb--1 {
+  width: 520px;
+  height: 520px;
+  top: 15%;
+  left: -180px;
+  background: radial-gradient(circle, rgba(0, 163, 224, 0.4), transparent 70%);
+}
+
+.pf-orb--2 {
+  width: 480px;
+  height: 480px;
+  top: 45%;
+  right: -150px;
+  background: radial-gradient(circle, rgba(0, 77, 122, 0.4), transparent 70%);
+}
+
+.pf-orb--3 {
+  width: 400px;
+  height: 400px;
+  bottom: 5%;
+  left: 30%;
+  background: radial-gradient(circle, rgba(255, 194, 14, 0.22), transparent 70%);
+}
+
+.pf-hero {
+  position: relative;
+  overflow: hidden;
+  padding: 5.8rem 1.5rem 4.5rem;
+  background:
+    radial-gradient(100% 80% at 10% 0%, rgba(0, 163, 224, 0.38) 0%, transparent 55%),
+    radial-gradient(90% 70% at 95% 100%, rgba(0, 130, 184, 0.5) 0%, transparent 60%),
+    linear-gradient(140deg, #002842 0%, var(--pf-navy) 40%, var(--pf-blue) 100%);
+  color: #fff;
+  border-bottom: 3px solid transparent;
+  border-image: linear-gradient(90deg, var(--pf-gold), var(--pf-sky), var(--pf-blue)) 1;
+}
+
+.pf-hero-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 38px 38px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 30%, black 45%, transparent 85%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 30%, black 45%, transparent 85%);
+}
+
+.pf-hero-content {
+  position: relative;
+  z-index: 1;
+  max-width: 52rem;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.pf-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.9rem;
+  border-radius: 9999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--pf-gold);
+  background: rgba(255, 194, 14, 0.14);
+  border: 1px solid rgba(255, 194, 14, 0.32);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12);
+  margin-bottom: 1.1rem;
+}
+
+.pf-pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--pf-gold);
+  animation: pfPulse 2s infinite ease-in-out;
+}
+
+@keyframes pfPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.85); }
+}
+
+.pf-title {
+  font-family: "Outfit", sans-serif;
+  font-size: clamp(2.3rem, 5vw, 3.6rem);
+  font-weight: 900;
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+  color: #fff;
+  margin: 0;
+}
+
+.pf-gradient-text {
+  background: linear-gradient(100deg, #FFC20E 0%, #FFF3C4 40%, #00A3E0 75%, #FFC20E 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: pfShimmer 6s linear infinite;
+}
+
+@keyframes pfShimmer {
+  to { background-position: 200% center; }
+}
+
+.pf-underline {
+  position: relative;
+  display: inline-block;
+}
+
+.pf-underline svg {
+  position: absolute;
+  left: 0;
+  bottom: -0.4rem;
+  width: 100%;
+  height: 0.65rem;
+  overflow: visible;
+}
+
+.pf-lead {
+  font-size: 0.98rem;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.86);
+  max-width: 38rem;
+  margin: 1.1rem auto 0;
+}
+
+.pf-search-wrap {
+  position: relative;
+  max-width: 36rem;
+  margin: 2rem auto 0;
+}
+
+.pf-search-input {
+  width: 100%;
+  padding: 0.95rem 3rem 0.95rem 3rem;
+  border-radius: 1.15rem;
+  background: #ffffff;
+  color: var(--pf-ink);
+  font-family: inherit;
+  font-size: 0.92rem;
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 16px 36px -10px rgba(0, 0, 0, 0.28);
+  outline: none;
+  transition: all 0.25s ease;
+}
+
+html.dark .pf-search-input {
+  background: #131d33;
+  color: #f8fafc;
+  border-color: #243254;
+}
+
+.pf-search-input:focus {
+  box-shadow:
+    0 16px 40px -8px rgba(0, 0, 0, 0.35),
+    0 0 0 3px rgba(255, 194, 14, 0.45);
+}
+
+.pf-search-icon {
+  position: absolute;
+  left: 1.1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  font-size: 1.05rem;
+  pointer-events: none;
+}
+
+.pf-clear-btn {
+  position: absolute;
+  right: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #f1f5f9;
+  border: none;
+  border-radius: 0.5rem;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+html.dark .pf-clear-btn {
+  background: #1e293b;
+  color: #94a3b8;
+}
+
+.pf-clear-btn:hover {
+  background: #e2e8f0;
+  color: var(--pf-ink);
+}
+
+.pf-body-container {
+  max-width: 56rem;
+  margin: -1.5rem auto 3rem;
+  padding: 0 1.5rem;
+  position: relative;
+  z-index: 2;
+  width: 100%;
+}
+
+.pf-categories-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  overflow-x: auto;
+  padding: 0.75rem 1rem;
+  background: #ffffff;
+  border-radius: 1.25rem;
+  border: 1px solid rgba(0, 98, 155, 0.12);
+  box-shadow: 0 8px 24px -8px rgba(0, 77, 122, 0.08);
+  margin-bottom: 2rem;
+  scrollbar-width: none;
+}
+
+html.dark .pf-categories-bar {
+  background: #131d33;
+  border-color: #243254;
+}
+
+.pf-cat-pill {
+  padding: 0.55rem 1.05rem;
+  border-radius: 0.8rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border: 1px solid transparent;
+  background: #f8fafc;
+  color: #64748b;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+html.dark .pf-cat-pill {
+  background: #0b1120;
+  color: #94a3b8;
+}
+
+.pf-cat-pill:hover {
+  background: #e2e8f0;
+  color: var(--pf-ink);
+}
+
+html.dark .pf-cat-pill:hover {
+  background: #1e293b;
+  color: #fff;
+}
+
+.pf-cat-pill.is-active {
+  background: linear-gradient(135deg, var(--pf-blue), var(--pf-sky));
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 4px 14px rgba(0, 98, 155, 0.35);
+}
+
+.pf-faqs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.pf-card {
+  background: #ffffff;
+  border-radius: 1.35rem;
+  border: 1px solid rgba(0, 98, 155, 0.12);
+  box-shadow: 0 4px 18px rgba(0, 77, 122, 0.05);
+  overflow: hidden;
+  transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+html.dark .pf-card {
+  background: #131d33;
+  border-color: #243254;
+}
+
+.pf-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(0, 163, 224, 0.35);
+  box-shadow: 0 10px 28px -6px rgba(0, 77, 122, 0.12);
+}
+
+.pf-card.is-open {
+  border-color: var(--pf-sky);
+  box-shadow: 0 12px 32px -8px rgba(0, 98, 155, 0.15);
+}
+
+.pf-card-btn {
+  width: 100%;
+  padding: 1.35rem 1.6rem;
+  text-align: left;
+  background: transparent;
+  border: none;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.2rem;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.pf-card-btn:hover {
+  background: rgba(0, 98, 155, 0.02);
+}
+
+html.dark .pf-card-btn:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.pf-card-badge {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+  background: rgba(0, 98, 155, 0.08);
+  color: var(--pf-blue);
+  border: 1px solid rgba(0, 98, 155, 0.16);
+  margin-bottom: 0.4rem;
+}
+
+html.dark .pf-card-badge {
+  background: rgba(0, 163, 224, 0.12);
+  color: var(--pf-sky);
+  border-color: rgba(0, 163, 224, 0.25);
+}
+
+.pf-card-q {
+  font-family: "Outfit", sans-serif;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--pf-ink);
+  line-height: 1.35;
+  margin: 0;
+}
+
+html.dark .pf-card-q {
+  color: #fff;
+}
+
+.pf-chevron {
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 0.7rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f1f5f9;
+  color: #64748b;
+  flex-shrink: 0;
+  transition: all 0.25s ease;
+  margin-top: 0.1rem;
+}
+
+html.dark .pf-chevron {
+  background: #0b1120;
+  color: #94a3b8;
+}
+
+.pf-card.is-open .pf-chevron {
+  transform: rotate(180deg);
+  background: var(--pf-blue);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(0, 98, 155, 0.3);
+}
+
+.pf-answer {
+  padding: 0 1.6rem 1.5rem;
+  border-top: 1px solid #f1f5f9;
+  color: #475569;
+  font-size: 0.9rem;
+  line-height: 1.65;
+  margin-top: 0.2rem;
+  animation: pfFadeIn 0.25s ease;
+}
+
+html.dark .pf-answer {
+  border-color: #1e293b;
+  color: #cbd5e1;
+}
+
+@keyframes pfFadeIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.pf-empty-state {
+  text-align: center;
+  padding: 4rem 2rem;
+  background: #ffffff;
+  border-radius: 1.5rem;
+  border: 1px solid rgba(0, 98, 155, 0.12);
+  box-shadow: 0 6px 20px rgba(0, 77, 122, 0.05);
+}
+
+html.dark .pf-empty-state {
+  background: #131d33;
+  border-color: #243254;
+}
+
+.pf-reset-btn {
+  margin-top: 1.2rem;
+  padding: 0.65rem 1.3rem;
+  border-radius: 0.85rem;
+  background: var(--pf-blue);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 800;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 14px rgba(0, 98, 155, 0.3);
+}
+
+.pf-reset-btn:hover {
+  background: #004D7A;
+  transform: translateY(-2px);
+}
+
+.pf-cta-banner {
+  margin-top: 3.5rem;
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.75rem;
+  padding: 2.4rem 2.2rem;
+  background: linear-gradient(135deg, var(--pf-navy) 0%, var(--pf-blue) 60%, var(--pf-ocean) 100%);
+  color: #fff;
+  box-shadow: 0 16px 36px -10px rgba(0, 77, 122, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+
+@media (min-width: 768px) {
+  .pf-cta-banner {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.pf-cta-banner::before {
+  content: "";
+  position: absolute;
+  top: -40%;
+  right: -15%;
+  width: 360px;
+  height: 360px;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(255, 194, 14, 0.22), transparent 70%);
+  pointer-events: none;
+}
+
+.pf-cta-icon {
+  width: 3.6rem;
+  height: 3.6rem;
+  border-radius: 1.1rem;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  flex-shrink: 0;
+  backdrop-filter: blur(10px);
+}
+
+.pf-cta-title {
+  font-family: "Outfit", sans-serif;
+  font-size: 1.35rem;
+  font-weight: 900;
+  color: #fff;
+  margin: 0;
+}
+
+.pf-cta-desc {
+  font-size: 0.88rem;
+  color: rgba(255, 255, 255, 0.86);
+  margin-top: 0.35rem;
+  max-width: 30rem;
+}
+
+.pf-cta-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.85rem 1.6rem;
+  border-radius: 0.95rem;
+  font-size: 0.88rem;
+  font-weight: 900;
+  background: linear-gradient(135deg, #FFD54F 0%, #FFC20E 50%, #E5AC00 100%);
+  color: #0F172A;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 8px 24px -4px rgba(255, 194, 14, 0.6);
+  transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+  white-space: nowrap;
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.pf-cta-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px -4px rgba(255, 194, 14, 0.8);
+}
+
+.pf-footer {
+  background: #0f172a;
+  color: #94a3b8;
+  padding: 1.8rem 1.5rem;
+  font-size: 0.78rem;
+  border-top: 1px solid #1e293b;
+}
+
+.pf-footer-content {
+  max-width: 78rem;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+@media (min-width: 640px) {
+  .pf-footer-content {
+    flex-direction: row;
+  }
+}

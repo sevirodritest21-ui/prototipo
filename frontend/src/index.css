@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -226,4 +227,22 @@ html.dark .react-datepicker__triangle {
 
 .animate-audio-ripple {
   animation: audioRipple 1.4s cubic-bezier(0, 0.2, 0.8, 1) infinite;
+}
+
+@keyframes uctRgbShine {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.avatar-rgb-gradient {
+  background: linear-gradient(115deg, #FFC20E 0%, #ffffff 25%, #00A3E0 50%, #FFC20E 75%, #ffffff 100%);
+  background-size: 250% 250%;
+  animation: uctRgbShine 4s ease infinite;
 }

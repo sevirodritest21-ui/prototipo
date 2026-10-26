@@ -41,6 +41,14 @@ export default function Dashboard() {
   const hoyStr = new Date().toISOString().split("T")[0];
   const [fechaSeleccionada, setFechaSeleccionada] = useState(hoyStr);
   const [activeTab, setActiveTab] = useState("monitoreo");
+  const [busquedaOrdenes, setBusquedaOrdenes] = useState("");
+  const [busquedaCubiculos, setBusquedaCubiculos] = useState("");
+  const [busquedaGlobal, setBusquedaGlobal] = useState("");
+  const [miniCalMes, setMiniCalMes] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  });
+  const [mostrarCronogramaCompleto, setMostrarCronogramaCompleto] = useState(true);
 
   const [modalMantenimiento, setModalMantenimiento] = useState({
     open: false,
@@ -165,6 +173,7 @@ export default function Dashboard() {
     fetchDiasBloqueados();
     fetchIncidencias();
     fetchSolicitudesTalleres();
+    fetchHistorial(1, 10);
   }, []);
 
   useEffect(() => {
@@ -198,6 +207,8 @@ export default function Dashboard() {
   const [busquedaIncidencia, setBusquedaIncidencia] = useState("");
   const [alertaIncidenciasPopUp, setAlertaIncidenciasPopUp] = useState(false);
   const [incidenciasCriticasVencidas, setIncidenciasCriticasVencidas] = useState([]);
+  const [talleresPendientesVencidos, setTalleresPendientesVencidos] = useState([]);
+  const [filtroAlertaModal, setFiltroAlertaModal] = useState("todos");
 
   const calcularDiasSinResolverIncidencia = (fechaStr) => {
     if (!fechaStr) return 0;
@@ -226,16 +237,6 @@ export default function Dashboard() {
       });
 
       setIncidenciasCriticasVencidas(vencidas);
-
-      const yaMostrada = sessionStorage.getItem("alerta_incidencias_admin_mostrada");
-      if (vencidas.length > 0 && !yaMostrada) {
-        setAlertaIncidenciasPopUp(true);
-        sessionStorage.setItem("alerta_incidencias_admin_mostrada", "true");
-        setToastNotificacion({
-          tipo: "error",
-          texto: `⚠️ Hay incidencias disponibles: existen ${vencidas.length} reporte(s) con al menos dos días sin resolver.`
-        });
-      }
     } catch {
       setIncidencias([]);
       setIncidenciasCriticasVencidas([]);
@@ -271,14 +272,36 @@ export default function Dashboard() {
       if (filtroEstadoTaller) q.append("estado", filtroEstadoTaller);
       if (busquedaTaller.trim()) q.append("busqueda", busquedaTaller.trim());
       const data = await apiGet(`/api/talleres/solicitudes?${q.toString()}`);
-      setSolicitudesTalleres(data?.solicitudes || []);
+      const lista = data?.solicitudes || [];
+      setSolicitudesTalleres(lista);
       setPaginaTalleres(1);
+
+      const vencidos = lista.filter((t) => {
+        if (t.estado !== "pendiente") return false;
+        return calcularDiasSinResolverIncidencia(t.created_at) >= 2;
+      });
+      setTalleresPendientesVencidos(vencidos);
     } catch {
       setSolicitudesTalleres([]);
+      setTalleresPendientesVencidos([]);
     } finally {
       setCargandoTalleres(false);
     }
   };
+
+  useEffect(() => {
+    const yaMostrada = sessionStorage.getItem("alerta_admin_pendientes_mostrada") || sessionStorage.getItem("alerta_incidencias_admin_mostrada");
+    const totalVencidos = incidenciasCriticasVencidas.length + talleresPendientesVencidos.length;
+    if (totalVencidos > 0 && !yaMostrada) {
+      setAlertaIncidenciasPopUp(true);
+      sessionStorage.setItem("alerta_admin_pendientes_mostrada", "true");
+      sessionStorage.setItem("alerta_incidencias_admin_mostrada", "true");
+      setToastNotificacion({
+        tipo: "error",
+        texto: `⚠️ Hay tareas con retraso: ${incidenciasCriticasVencidas.length} incidencia(s) y ${talleresPendientesVencidos.length} taller(es) con 2+ días sin atención.`
+      });
+    }
+  }, [incidenciasCriticasVencidas, talleresPendientesVencidos]);
 
   const handleCambiarEstadoTaller = async (id, nuevoEstado) => {
     try {
@@ -322,7 +345,7 @@ export default function Dashboard() {
       solicitud,
       asunto: `Coordinación Taller #${solicitud.id}: ${solicitud.taller}`,
       mensaje: `Estimado/a ${solicitud.nombre},\n\nNos comunicamos desde el equipo de Biblioteca de la Universidad Católica de Temuco en relación a tu solicitud para el taller "${solicitud.taller}".\n\n`,
-      nuevoEstado: solicitud.estado || "pendiente",
+      nuevoEstado: solicitud.estado === "pendiente" ? "aprobado" : (solicitud.estado || "aprobado"),
       enviando: false,
     });
   };
@@ -404,6 +427,7 @@ export default function Dashboard() {
   };
 
   const [metricas, setMetricas] = useState(null);
+  const [tipoMetricas, setTipoMetricas] = useState("selector");
   const [cargandoMetricas, setCargandoMetricas] = useState(false);
   const [mostrarGraficoMetricas, setMostrarGraficoMetricas] = useState(false);
   const [periodoMetricas, setPeriodoMetricas] = useState("dia");
@@ -412,12 +436,18 @@ export default function Dashboard() {
   const [bloqueHoverMetricas, setBloqueHoverMetricas] = useState(null);
   const [exportandoGraficoPNG, setExportandoGraficoPNG] = useState(false);
   const [exportandoMetricasExcel, setExportandoMetricasExcel] = useState(false);
+  const [limiteCarrerasMetricas, setLimiteCarrerasMetricas] = useState(8);
+  const [modoGraficoCarrera, setModoGraficoCarrera] = useState("columnas");
+  const [carreraHoverMetricas, setCarreraHoverMetricas] = useState(null);
+  const [busquedaCarreraMetricas, setBusquedaCarreraMetricas] = useState("");
+  const [ordenCarrerasMetricas, setOrdenCarrerasMetricas] = useState("total");
 
   const [historial, setHistorial] = useState([]);
   const [cargandoHistorial, setCargandoHistorial] = useState(false);
   const [busquedaHistorial, setBusquedaHistorial] = useState("");
   const [mostrarHistorial, setMostrarHistorial] = useState(true);
   const [campusFiltroHistorial, setCampusFiltroHistorial] = useState("todos");
+  const [filtroEstadoHistorial, setFiltroEstadoHistorial] = useState("todos");
   const [paginaHistorial, setPaginaHistorial] = useState(1);
   const [limiteHistorial, setLimiteHistorial] = useState(25);
   const [totalHistorial, setTotalHistorial] = useState(0);
@@ -494,7 +524,7 @@ export default function Dashboard() {
     return map[String(d).trim().toLowerCase()] || d;
   };
 
-  const fetchHistorial = async (pagina = paginaHistorial, limite = limiteHistorial) => {
+  const fetchHistorial = async (pagina = paginaHistorial, limite = limiteHistorial, estadoFiltro = filtroEstadoHistorial) => {
     setCargandoHistorial(true);
     try {
       const params = new URLSearchParams();
@@ -502,6 +532,9 @@ export default function Dashboard() {
         params.append("campus_id", campusFiltroHistorial);
       }
       if (busquedaHistorial) params.append("busqueda", busquedaHistorial);
+      if (estadoFiltro && estadoFiltro !== "todos") {
+        params.append("estado", estadoFiltro);
+      }
       params.append("limit", String(limite));
       params.append("offset", String((pagina - 1) * limite));
 
@@ -526,6 +559,9 @@ export default function Dashboard() {
         params.append("campus_id", campusFiltroHistorial);
       }
       if (busquedaHistorial) params.append("busqueda", busquedaHistorial);
+      if (filtroEstadoHistorial && filtroEstadoHistorial !== "todos") {
+        params.append("estado", filtroEstadoHistorial);
+      }
       params.append("limit", "10000");
       params.append("offset", "0");
 
@@ -542,10 +578,20 @@ export default function Dashboard() {
         "ID Reserva": h.reserva_id || h.id,
         "Estudiante": h.nombre,
         "RUT": h.rut,
+        "Carrera": h.carrera || "General",
         "Sede / Campus": h.campus_nombre || "General",
         "Fecha Reserva": h.fecha,
         "Horario": h.hora,
-        "Estado": h.estado ? h.estado.toUpperCase() : "N/A",
+        "Estado": (() => {
+          const est = (h.estado || "").toLowerCase();
+          if (est === "inasistencia") return "INASISTENCIA";
+          if (est === "cancelada") return "CANCELADA POR ADMIN";
+          if (est === "liberada") return "LIBERADA POR ESTUDIANTE";
+          if (est === "completada" || est === "expirada") return "COMPLETADA CON ÉXITO";
+          if (est === "justificada") return "JUSTIFICADA";
+          if (est === "activa") return "ACTIVA";
+          return (h.estado || "N/A").toUpperCase();
+        })(),
         "Fecha Registro / Archivo": h.fecha_registro || "N/A"
       }));
 
@@ -557,6 +603,7 @@ export default function Dashboard() {
         { wch: 12 },
         { wch: 28 },
         { wch: 14 },
+        { wch: 32 },
         { wch: 22 },
         { wch: 14 },
         { wch: 16 },
@@ -603,7 +650,7 @@ export default function Dashboard() {
       setPaginaHistorial(1);
       fetchHistorial(1, limiteHistorial);
     }
-  }, [campusFiltroHistorial, busquedaHistorial, limiteHistorial, activeTab]);
+  }, [campusFiltroHistorial, busquedaHistorial, filtroEstadoHistorial, limiteHistorial, activeTab]);
 
   // Cargar lista de campus
   const fetchCampus = async () => {
@@ -798,12 +845,147 @@ export default function Dashboard() {
       ];
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Ocupación por Horas");
+
+      const carrerasData = metricas?.reservas_por_carrera || [];
+      if (carrerasData.length > 0) {
+        const filasCarreras = carrerasData.map((c, idx) => ({
+          "N°": idx + 1,
+          "Carrera / Programa": c.carrera,
+          "Total Reservas": c.total,
+          "Reservas Activas": c.actuales,
+          "Reservas Históricas": c.historicas,
+          "Sede": info.campus_nombre || "Todas las sedes"
+        }));
+        const wsCarreras = XLSX.utils.json_to_sheet(filasCarreras);
+        wsCarreras["!cols"] = [
+          { wch: 6 },
+          { wch: 40 },
+          { wch: 16 },
+          { wch: 18 },
+          { wch: 20 },
+          { wch: 24 }
+        ];
+        XLSX.utils.book_append_sheet(wb, wsCarreras, "Reservas por Carrera");
+      }
+
       XLSX.writeFile(wb, `Reporte_Ocupacion_Horarios_UCT_${periodoMetricas}_${fechaMetricas}.xlsx`);
       setToastNotificacion({ tipo: "exito", texto: "Planilla Excel generada y descargada exitosamente." });
     } catch (err) {
       setToastNotificacion({ tipo: "error", texto: "Error al exportar a Excel: " + err.message });
     } finally {
       setExportandoMetricasExcel(false);
+    }
+  };
+
+  const handleExportarMetricasTalleresExcel = () => {
+    try {
+      const wb = XLSX.utils.book_new();
+      const totalTalleres = solicitudesTalleres.length;
+      const pendientesTalleres = solicitudesTalleres.filter((t) => t.estado === "pendiente").length;
+      const aprobadosTalleres = solicitudesTalleres.filter((t) => t.estado === "aprobado").length;
+      const realizadosTalleres = solicitudesTalleres.filter((t) => t.estado === "realizado").length;
+      const rechazadosTalleres = solicitudesTalleres.filter((t) => t.estado === "rechazado").length;
+      const resueltosTalleres = aprobadosTalleres + realizadosTalleres;
+      const tasaExitoTalleres = totalTalleres > 0 ? Math.round((resueltosTalleres / totalTalleres) * 100) : 0;
+      const totalParticipantesTalleres = solicitudesTalleres.reduce((acc, t) => {
+        const p = parseInt(t.participantes, 10);
+        return acc + (isNaN(p) || p <= 0 ? 1 : p);
+      }, 0);
+      const presencialTalleres = solicitudesTalleres.filter((t) => (t.modalidad || "").toLowerCase().includes("presencial")).length;
+      const virtualTalleres = solicitudesTalleres.filter((t) => (t.modalidad || "").toLowerCase().includes("virtual") || (t.modalidad || "").toLowerCase().includes("online")).length;
+      const pctPresencial = totalTalleres > 0 ? Math.round((presencialTalleres / totalTalleres) * 100) : 0;
+      const pctVirtual = totalTalleres > 0 ? 100 - pctPresencial : 0;
+
+      const talleresCountMap = {};
+      solicitudesTalleres.forEach((t) => {
+        const nombre = (t.taller || "Sin especificar").trim();
+        talleresCountMap[nombre] = (talleresCountMap[nombre] || 0) + 1;
+      });
+
+      const rankingTalleres = Object.entries(talleresCountMap)
+        .map(([nombre, count]) => ({
+          nombre,
+          count,
+          pct: totalTalleres > 0 ? Math.round((count / totalTalleres) * 100) : 0
+        }))
+        .sort((a, b) => b.count - a.count);
+
+      const topTaller = rankingTalleres[0] && rankingTalleres[0].count > 0 ? rankingTalleres[0].nombre : "Sin datos";
+
+      const carrerasTalleresMap = {};
+      solicitudesTalleres.forEach((t) => {
+        const c = (t.carrera || "Sin carrera informada").trim();
+        carrerasTalleresMap[c] = (carrerasTalleresMap[c] || 0) + 1;
+      });
+      const rankingCarrerasTalleres = Object.entries(carrerasTalleresMap)
+        .map(([carrera, count]) => ({
+          carrera,
+          count,
+          pct: totalTalleres > 0 ? Math.round((count / totalTalleres) * 100) : 0
+        }))
+        .sort((a, b) => b.count - a.count);
+
+      const resumenData = [
+        { "Métrica": "Total de Solicitudes Registradas", "Valor": totalTalleres },
+        { "Métrica": "Solicitudes Realizadas", "Valor": realizadosTalleres },
+        { "Métrica": "Solicitudes Aprobadas", "Valor": aprobadosTalleres },
+        { "Métrica": "Solicitudes Pendientes", "Valor": pendientesTalleres },
+        { "Métrica": "Solicitudes Rechazadas", "Valor": rechazadosTalleres },
+        { "Métrica": "Tasa de Aprobación/Realización", "Valor": `${tasaExitoTalleres}%` },
+        { "Métrica": "Participantes Totales Estimados", "Valor": totalParticipantesTalleres },
+        { "Métrica": "Modalidad Presencial", "Valor": `${presencialTalleres} (${pctPresencial}%)` },
+        { "Métrica": "Modalidad Virtual", "Valor": `${virtualTalleres} (${pctVirtual}%)` },
+        { "Métrica": "Taller Más Solicitado", "Valor": topTaller }
+      ];
+      const wsResumen = XLSX.utils.json_to_sheet(resumenData);
+      wsResumen["!cols"] = [{ wch: 35 }, { wch: 30 }];
+      XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen General");
+
+      const talleresSheetData = rankingTalleres.map((t, idx) => ({
+        "N°": idx + 1,
+        "Taller Especializado": t.nombre,
+        "Total Solicitudes": t.count,
+        "Porcentaje Demanda": `${t.pct}%`
+      }));
+      const wsTalleres = XLSX.utils.json_to_sheet(talleresSheetData);
+      wsTalleres["!cols"] = [{ wch: 6 }, { wch: 45 }, { wch: 18 }, { wch: 20 }];
+      XLSX.utils.book_append_sheet(wb, wsTalleres, "Demanda por Taller");
+
+      const carrerasSheetData = rankingCarrerasTalleres.map((c, idx) => ({
+        "N°": idx + 1,
+        "Carrera / Programa": c.carrera,
+        "Solicitudes": c.count,
+        "Porcentaje": `${c.pct}%`
+      }));
+      const wsCarreras = XLSX.utils.json_to_sheet(carrerasSheetData);
+      wsCarreras["!cols"] = [{ wch: 6 }, { wch: 40 }, { wch: 15 }, { wch: 15 }];
+      XLSX.utils.book_append_sheet(wb, wsCarreras, "Demanda por Carrera");
+
+      if (solicitudesTalleres.length > 0) {
+        const detalleData = solicitudesTalleres.map((s) => ({
+          "ID": s.id,
+          "Taller": s.taller,
+          "Solicitante": s.nombre,
+          "RUT": s.rut || "-",
+          "Email": s.email,
+          "Carrera": s.carrera,
+          "Modalidad": s.modalidad,
+          "Participantes": s.participantes,
+          "Estado": s.estado,
+          "Fecha Creación": s.created_at || "-"
+        }));
+        const wsDetalle = XLSX.utils.json_to_sheet(detalleData);
+        wsDetalle["!cols"] = [
+          { wch: 8 }, { wch: 40 }, { wch: 25 }, { wch: 14 }, { wch: 28 }, { wch: 30 }, { wch: 14 }, { wch: 15 }, { wch: 14 }, { wch: 20 }
+        ];
+        XLSX.utils.book_append_sheet(wb, wsDetalle, "Detalle Solicitudes");
+      }
+
+      const fechaHoy = new Date().toISOString().split("T")[0];
+      XLSX.writeFile(wb, `Reporte_Metricas_Talleres_UCT_${fechaHoy}.xlsx`);
+      setToastNotificacion({ tipo: "exito", texto: "Reporte de talleres exportado a Excel exitosamente." });
+    } catch (err) {
+      setToastNotificacion({ tipo: "error", texto: "Error al exportar métricas de talleres: " + err.message });
     }
   };
 
@@ -852,8 +1034,8 @@ export default function Dashboard() {
   const handleEliminarReserva = (reservaId) => {
     setConfirmModal({
       open: true,
-      titulo: "Eliminar Reserva",
-      mensaje: `¿Estás seguro de que deseas eliminar la reserva ID ${reservaId}?`,
+      titulo: "Cancelar Reserva (Administrador)",
+      mensaje: `¿Estás seguro de que deseas cancelar la reserva ID ${reservaId}? Se registrará en el historial como 'Cancelada' por administración y el cupo quedará liberado.`,
       onConfirm: () => ejecutarEliminacionReserva(reservaId)
     });
   };
@@ -1404,29 +1586,53 @@ export default function Dashboard() {
   const cubiculosActuales = resumen?.cubiculas_fisicos ?? 10;
   const campusSeleccionadoObj = campus.find((c) => c.id === campusSeleccionado);
 
-  // ---- Tokens visuales reutilizables (solo estilo) ----
-  const CARD = "bg-white border border-slate-200/80 rounded-2xl shadow-[0_1px_2px_rgba(15,23,42,0.04),0_12px_32px_-18px_rgba(15,23,42,0.25)]";
-  const INPUT = "w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-[#00629B] focus:ring-4 focus:ring-[#00629B]/10";
-  const BTN_PRIMARY = "inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#00629B] hover:bg-[#004E7C] text-white text-xs font-semibold shadow-[0_6px_16px_-8px_rgba(0,98,155,0.9)] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none";
-  const BTN_ACCENT = "inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#FFC20E] hover:bg-[#EDB100] text-slate-950 text-xs font-bold shadow-[0_6px_16px_-8px_rgba(255,194,14,0.9)] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none";
-  const BTN_GHOST = "inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-700 text-xs font-semibold transition-all cursor-pointer";
-  const BTN_DANGER = "inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl border border-rose-200 bg-white hover:bg-rose-50 text-rose-600 text-xs font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed";
-  const EYEBROW = "inline-flex items-center gap-2 rounded-full border border-sky-100 bg-sky-50/80 px-3 py-1 text-[11px] font-semibold text-[#00629B]";
-  const SECTION_TITLE = "text-xl md:text-2xl font-serif font-bold text-slate-900 tracking-tight";
-  const LABEL = "block text-[11px] font-semibold text-slate-600 mb-1.5";
-  const OVERLAY = "fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 backdrop-blur-md p-4 animate-fadeIn";
-  const MODAL = "w-full bg-white rounded-2xl shadow-[0_32px_80px_-24px_rgba(15,23,42,0.5)] border border-white/60 ring-1 ring-slate-900/5";
+  const handleMiniCalPrev = () => {
+    setMiniCalMes((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  };
+
+  const handleMiniCalNext = () => {
+    setMiniCalMes((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+  };
+
+  const getMiniCalDias = () => {
+    const year = miniCalMes.getFullYear();
+    const month = miniCalMes.getMonth();
+    const firstDayIndex = new Date(year, month, 1).getDay();
+    const totalDays = new Date(year, month + 1, 0).getDate();
+    const days = [];
+    for (let i = 0; i < firstDayIndex; i++) {
+      days.push(null);
+    }
+    for (let d = 1; d <= totalDays; d++) {
+      const fechaIso = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      days.push({ dayNumber: d, fechaIso });
+    }
+    return days;
+  };
+
+  // ---- Tokens visuales reutilizables (Estilo UCT Premium) ----
+  const CARD = "bg-white border border-slate-200/90 rounded-2xl shadow-[0_4px_20px_-4px_rgba(0,77,122,0.08),0_1px_3px_rgba(15,23,42,0.04)] hover:shadow-[0_8px_28px_-6px_rgba(0,77,122,0.14)] transition-all duration-200";
+  const INPUT = "w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-[#00A3E0] focus:ring-4 focus:ring-[#00A3E0]/15 shadow-2xs";
+  const BTN_PRIMARY = "inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#004D7A] via-[#00629B] to-[#0082B8] hover:from-[#003a5c] hover:to-[#00629B] text-white text-xs font-bold shadow-[0_6px_18px_-6px_rgba(0,98,155,0.7)] hover:shadow-[0_10px_24px_-6px_rgba(0,98,155,0.85)] transition-all transform hover:-translate-y-0.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none";
+  const BTN_ACCENT = "inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#FFD54A] via-[#FFC20E] to-[#E5AC00] hover:from-[#FFC20E] hover:to-[#EDB100] text-[#0F172A] text-xs font-extrabold shadow-[0_6px_18px_-6px_rgba(255,194,14,0.75)] hover:shadow-[0_10px_24px_-6px_rgba(255,194,14,0.9)] transition-all transform hover:-translate-y-0.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none";
+  const BTN_GHOST = "inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-700 text-xs font-bold transition-all cursor-pointer shadow-2xs";
+  const BTN_DANGER = "inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl border border-rose-200 bg-white hover:bg-rose-50 text-rose-600 text-xs font-bold transition-all cursor-pointer shadow-2xs disabled:opacity-40 disabled:cursor-not-allowed";
+  const EYEBROW = "inline-flex items-center gap-2 rounded-full border border-sky-200/70 bg-sky-50/80 px-3.5 py-1 text-[11px] font-extrabold text-[#00629B] tracking-wide uppercase";
+  const SECTION_TITLE = "text-xl md:text-2xl font-bold font-sans text-slate-900 tracking-tight";
+  const LABEL = "block text-[11px] font-bold text-slate-600 mb-1.5 uppercase tracking-wider";
+  const OVERLAY = "fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-md p-4 animate-fadeIn";
+  const MODAL = "w-full bg-white rounded-3xl shadow-[0_32px_80px_-24px_rgba(0,45,76,0.55)] border border-slate-200/80 ring-1 ring-slate-900/5";
 
   const navTabs = [
-    { id: "monitoreo", label: "Actividad y Monitoreo", icon: "🌐" },
+    { id: "monitoreo", label: "Actividad y Monitoreo", icon: "📊" },
+    { id: "calendario", label: "Calendario y Bloqueos", icon: "📅" },
     { id: "sedes", label: "Sedes y Cubículos", icon: "🏛️" },
     { id: "talleres", label: "Talleres Solicitados", icon: "🎓", badge: solicitudesTalleres.filter((s) => s.estado === "pendiente").length },
-    { id: "calendario", label: "Calendario y Bloqueos", icon: "📅" },
     { id: "incidencias", label: "Incidencias de Cubículos", icon: "⚠️", badge: incidencias.filter((i) => i.estado === "pendiente").length },
     { id: "sanciones", label: "Sanciones y Disciplina", icon: "⚖️" },
     { id: "metricas", label: "Métricas y Análisis", icon: "📈" },
     { id: "camara", label: "Cámara Terminal", icon: "📹" },
-    { id: "cms", label: "Portal Inicio (CMS)", icon: "🖼️" },
+    { id: "cms", label: "Portal Inicio", icon: "🖼️" },
     { id: "faqs", label: "Preguntas Frecuentes", icon: "❓" },
     { id: "historial", label: "Historial de Registros", icon: "📜" },
   ];
@@ -1440,10 +1646,14 @@ export default function Dashboard() {
     if (tabId === "historial") fetchHistorial();
     if (tabId === "sanciones") fetchSancionados();
     if (tabId === "incidencias") fetchIncidencias();
+    if (tabId === "metricas") {
+      setTipoMetricas("selector");
+      fetchSolicitudesTalleres();
+    }
   };
 
   return (
-    <div className="min-h-screen bg-[#F6F8FB] font-sans text-slate-800 selection:bg-[#00629B]/15 flex flex-col lg:flex-row">
+    <div className="min-h-screen bg-[#F4F6F9] font-sans text-slate-800 selection:bg-[#00A3E0]/20 flex flex-col lg:flex-row">
       {sidebarMobileOpen && (
         <div
           onClick={() => setSidebarMobileOpen(false)}
@@ -1452,73 +1662,55 @@ export default function Dashboard() {
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#002D4C] text-white flex flex-col transition-transform duration-300 ease-in-out lg:translate-x-0 ${sidebarMobileOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"
+        className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#002D4C] text-white flex flex-col border-r border-white/10 transition-transform duration-300 ease-in-out lg:translate-x-0 ${sidebarMobileOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"
           }`}
       >
-        <div className="p-5 border-b border-white/10 flex items-center justify-between">
-          <div className="flex items-center">
-            <img
-              src={logoUCT}
-              alt="Logo Universidad Católica de Temuco"
-              className="h-11 w-auto object-contain max-h-12"
-            />
-          </div>
+        <div className="pt-6 pb-4 px-5 flex flex-col items-center relative border-b border-white/10">
           <button
             onClick={() => setSidebarMobileOpen(false)}
-            className="lg:hidden p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-white/10 cursor-pointer"
+            className="lg:hidden absolute top-4 right-4 p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-white/10 cursor-pointer"
           >
             ✕
           </button>
-        </div>
 
-        <div className="px-5 py-4 border-b border-white/10 flex items-center gap-3 bg-white/[0.04]">
-          <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#FFC20E] to-[#FFA000] text-slate-950 font-bold flex items-center justify-center text-xs shadow-inner shrink-0">
-            {user?.nombre ? user.nombre.slice(0, 2).toUpperCase() : "AD"}
+          <div className="w-full flex items-center justify-center py-3 px-2">
+            <img
+              src={logoUCT}
+              alt="Universidad Católica de Temuco"
+              className="h-[74px] w-auto max-w-[245px] object-contain drop-shadow-md filter brightness-105"
+            />
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-xs font-bold text-white truncate tracking-wide uppercase">
-              {user?.nombre || "ADMINISTRADOR"}
-            </div>
-            <div className="text-[10px] text-sky-200/70 truncate flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-              <span>{user?.rol || "Administrador"}</span>
-            </div>
+
+          <div className="mt-2 text-center">
+            <h2 className="text-xs font-black text-white tracking-widest uppercase">
+              BIBLIOTECA UCT
+            </h2>
+            <p className="text-[10px] text-sky-200/80 font-semibold tracking-wide mt-0.5">
+              Centro de Control Universitario
+            </p>
+            <div className="w-16 h-0.5 mx-auto mt-2 rounded-full bg-gradient-to-r from-[#00A3E0] via-[#FFC20E] to-[#00A3E0]" />
           </div>
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          <Link
-            to="/"
-            className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-medium text-sky-100/80 hover:text-white hover:bg-white/10 transition-colors"
-          >
-            <span className="text-sm">🏛️</span>
-            <span>Página de la institución</span>
-          </Link>
-
-          <div className="pt-2 pb-1 px-3.5">
-            <span className="text-[9px] font-bold text-sky-200/50 uppercase tracking-wider">
-              Navegación del Sistema
-            </span>
-          </div>
-
           {navTabs.map((tab) => {
             const isSelected = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
                 onClick={() => handleSelectTab(tab.id)}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${isSelected
-                    ? "bg-[#004E7C] text-white shadow-sm ring-1 ring-white/20"
-                    : "text-sky-100/80 hover:text-white hover:bg-white/10"
+                className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${isSelected
+                  ? "bg-gradient-to-r from-[#00629B] to-[#0082B8] text-white shadow-md border-l-4 border-[#FFC20E] ring-1 ring-white/20 translate-x-1"
+                  : "text-sky-100/80 hover:text-white hover:bg-white/10"
                   }`}
               >
                 <div className="flex items-center gap-3">
-                  <span className="text-sm">{tab.icon}</span>
+                  <span className="text-sm opacity-90">{tab.icon}</span>
                   <span>{tab.label}</span>
                 </div>
                 {tab.badge > 0 && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500 text-white shadow-xs">
-                    +{tab.badge}
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-[#FFC20E] text-[#002D4C] shadow-xs">
+                    {tab.badge}
                   </span>
                 )}
               </button>
@@ -1526,7 +1718,14 @@ export default function Dashboard() {
           })}
         </nav>
 
-        <div className="p-4 border-t border-white/10 space-y-3 bg-white/[0.03]">
+        <div className="p-4 border-t border-white/10 space-y-2 bg-black/10">
+          <Link
+            to="/"
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-sky-200/80 hover:text-white hover:bg-white/5 transition-all"
+          >
+            <span>🏛️</span>
+            <span>Portal Institucional</span>
+          </Link>
           <button
             onClick={logout}
             className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-rose-300 hover:text-white hover:bg-rose-500/20 transition-all cursor-pointer"
@@ -1536,19 +1735,11 @@ export default function Dashboard() {
             </svg>
             <span>Cerrar sesión</span>
           </button>
-          <div className="flex items-center justify-between text-[10px] text-sky-200/60 px-1 pt-1 border-t border-white/5">
-            <button onClick={() => setAyudaModalOpen(true)} className="hover:text-white cursor-pointer">
-              Privacidad • Condiciones
-            </button>
-            <button onClick={() => setAyudaModalOpen(true)} className="hover:text-white cursor-pointer">
-              Accesibilidad
-            </button>
-          </div>
         </div>
       </aside>
 
       <div className="flex-1 min-w-0 flex flex-col min-h-screen lg:pl-72">
-        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-5 sm:px-8 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-2xs">
+        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-6 sm:px-8 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-2xs">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSidebarMobileOpen(true)}
@@ -1560,57 +1751,63 @@ export default function Dashboard() {
               </svg>
             </button>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl sm:text-2xl font-serif font-bold text-slate-900 tracking-tight">
-                  {activeTab === "monitoreo" ? "Flujo de actividades" :
-                    activeTab === "camara" ? "Cámara Terminal" :
-                      activeTab === "incidencias" ? "Incidencias de Cubículos" :
-                        activeTab === "talleres" ? "Talleres Solicitados" :
-                          activeTab === "metricas" ? "Métricas y Análisis" :
-                          activeTab === "sanciones" ? "Sanciones y Disciplina" :
-                            activeTab === "calendario" ? "Calendario y Bloqueos" :
-                              activeTab === "sedes" ? "Sedes y Cubículos" :
-                                activeTab === "cms" ? "Portal Inicio (CMS)" :
-                                  activeTab === "faqs" ? "Preguntas Frecuentes" : "Historial de Registros"}
+              <div className="flex items-center gap-2.5">
+                <h1 className="text-xl sm:text-2xl font-black font-sans text-slate-800 tracking-wider uppercase">
+                  {activeTab === "monitoreo" ? "PANEL DE CONTROL" :
+                    activeTab === "camara" ? "CÁMARA TERMINAL" :
+                      activeTab === "incidencias" ? "INCIDENCIAS" :
+                        activeTab === "talleres" ? "TALLERES" :
+                          activeTab === "metricas" ? (tipoMetricas === "talleres" ? "MÉTRICAS · TALLERES" : tipoMetricas === "reservas" ? "MÉTRICAS · RESERVAS" : "MÉTRICAS Y ANÁLISIS") :
+                            activeTab === "sanciones" ? "SANCIONES" :
+                              activeTab === "calendario" ? "CALENDARIO" :
+                                activeTab === "sedes" ? "SEDES Y CUBÍCULOS" :
+                                  activeTab === "cms" ? "PORTAL INICIO" :
+                                    activeTab === "faqs" ? "PREGUNTAS FRECUENTES" : "HISTORIAL"}
                 </h1>
                 {activeTab === "monitoreo" && (
-                  <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-[#FFC20E]/20 text-amber-900 border border-[#FFC20E]/50 shadow-2xs">
+                    <span className="w-2 h-2 rounded-full bg-[#FFC20E] animate-pulse" />
                     En vivo
                   </span>
                 )}
               </div>
-              <p className="text-[11px] text-slate-500 hidden sm:block">
-                {campusSeleccionadoObj?.nombre ? `Sede actual: ${campusSeleccionadoObj.nombre} · ` : ""}Centro de Control Universitario
+              <p className="text-[11px] text-slate-500 font-medium">
+                {campusSeleccionadoObj?.nombre ? `Sede: ${campusSeleccionadoObj.nombre} · ` : ""}Bienvenido/a, {user?.nombre || "Administrador"}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-3 self-end sm:self-auto">
+            <div className="relative hidden md:flex items-center">
+              <input
+                type="text"
+                placeholder="Buscar en el sistema..."
+                value={busquedaGlobal}
+                onChange={(e) => setBusquedaGlobal(e.target.value)}
+                className="w-48 lg:w-64 pl-4 pr-10 py-2 rounded-full bg-slate-100/90 border border-slate-200 text-xs font-medium text-slate-700 placeholder:text-slate-400 focus:bg-white focus:border-[#00A3E0] focus:ring-2 focus:ring-[#00A3E0]/20 outline-none transition-all"
+              />
+              <span className="absolute right-3.5 text-slate-400 text-xs pointer-events-none">🔍</span>
+            </div>
+
             <div className="relative">
-              <label className="absolute -top-2 left-2.5 px-1 bg-white text-[9px] font-bold uppercase tracking-wider text-slate-500 z-10">
-                Filtrar Sede
-              </label>
-              <div className="relative flex items-center">
-                <select
-                  value={campusSeleccionado || ""}
-                  onChange={(e) => setCampusSeleccionado(Number(e.target.value))}
-                  className="appearance-none pl-3 pr-8 py-2 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-800 shadow-2xs hover:border-[#00629B] focus:border-[#00629B] focus:ring-2 focus:ring-[#00629B]/20 outline-none transition-all cursor-pointer min-w-[170px]"
-                >
-                  {campus.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.nombre}
-                    </option>
-                  ))}
-                </select>
-                <span className="pointer-events-none absolute right-2.5 text-slate-400 text-xs">▼</span>
-              </div>
+              <select
+                value={campusSeleccionado || ""}
+                onChange={(e) => setCampusSeleccionado(Number(e.target.value))}
+                className="appearance-none pl-4 pr-8 py-2 rounded-full border border-slate-200 bg-white text-xs font-bold text-slate-700 shadow-2xs hover:border-[#00629B] focus:border-[#00A3E0] focus:ring-2 focus:ring-[#00A3E0]/20 outline-none transition-all cursor-pointer min-w-[140px]"
+              >
+                {campus.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nombre}
+                  </option>
+                ))}
+              </select>
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">▼</span>
             </div>
 
             <div className="relative">
               <button
                 onClick={() => setSettingsDropdownOpen(!settingsDropdownOpen)}
-                className="w-9 h-9 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 flex items-center justify-center text-sm shadow-2xs transition-all cursor-pointer"
+                className="w-9 h-9 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 flex items-center justify-center text-sm shadow-2xs transition-all cursor-pointer"
                 title="Acciones rápidas"
               >
                 ⚙️
@@ -2532,9 +2729,9 @@ export default function Dashboard() {
                       <button
                         key={d.fechaStr}
                         onClick={() => setFechaSeleccionada(d.fechaStr)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold capitalize transition-all cursor-pointer ${esActivo
-                            ? "bg-[#00629B] text-white font-bold shadow-xs scale-[1.02]"
-                            : "bg-white border border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold capitalize transition-all cursor-pointer ${esActivo
+                          ? "bg-gradient-to-r from-[#FFC20E] via-[#FFD034] to-[#FFC20E] text-slate-950 font-black shadow-[0_4px_12px_-2px_rgba(255,194,14,0.5)] scale-[1.02] border border-[#FFC20E]"
+                          : "bg-white border border-slate-200 text-slate-700 hover:border-amber-300 hover:bg-amber-50/50"
                           }`}
                       >
                         {d.label}
@@ -2545,7 +2742,7 @@ export default function Dashboard() {
                     type="date"
                     value={fechaSeleccionada}
                     onChange={(e) => e.target.value && setFechaSeleccionada(e.target.value)}
-                    className="bg-white border border-slate-200 text-slate-800 rounded-xl px-2.5 py-1.5 text-xs font-medium outline-none focus:border-[#00629B] focus:ring-2 focus:ring-[#00629B]/10 shadow-2xs cursor-pointer transition-all ml-1"
+                    className="bg-white border border-slate-200 text-slate-800 rounded-xl px-2.5 py-1.5 text-xs font-semibold outline-none focus:border-[#FFC20E] focus:ring-2 focus:ring-[#FFC20E]/20 shadow-2xs cursor-pointer transition-all ml-1"
                   />
                 </div>
 
@@ -2553,9 +2750,9 @@ export default function Dashboard() {
                   <button
                     type="button"
                     onClick={() => setActiveTab("camara")}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#00629B] to-[#0284C7] hover:from-[#004E7C] hover:to-[#00629B] text-white text-xs font-bold shadow-xs transition-all cursor-pointer whitespace-nowrap"
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-[#FFC20E] via-[#FFCA28] to-[#FFC20E] hover:from-[#e5ad0d] hover:to-[#FFC20E] text-slate-950 text-xs font-extrabold shadow-[0_4px_16px_-3px_rgba(255,194,14,0.65)] border border-[#FFC20E] hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer whitespace-nowrap"
                   >
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                    <span className="w-2 h-2 rounded-full bg-emerald-600 animate-ping"></span>
                     📹 Cámara Terminal
                   </button>
                 </div>
@@ -2602,279 +2799,452 @@ export default function Dashboard() {
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 mb-8">
-                    <div className={`lg:col-span-6 ${CARD} p-6 flex flex-col sm:flex-row items-center justify-between gap-6 overflow-hidden`}>
-                      <div className="flex-1 space-y-4 text-center sm:text-left">
-                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-[11px] font-bold tracking-wide">
-                          <span className="w-2 h-2 rounded-full bg-[#00629B] animate-pulse" />
-                          OCUPACIÓN TOTAL DEL DÍA
-                        </div>
-                        <div>
-                          <div className="flex items-baseline gap-2 justify-center sm:justify-start">
-                            <span className="text-4xl font-extrabold text-slate-900 tracking-tight">{porcentaje}%</span>
-                            <span className="text-xs font-semibold text-slate-500">del aforo diario</span>
-                          </div>
-                          <p className="text-xs text-slate-500 mt-1">
-                            {resumen.total_reservas_dia} reservas registradas sobre {resumen.cupos_totales_diarios} cupos totales posibles
-                          </p>
-                        </div>
-                        <div className="space-y-2 pt-1">
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="text-slate-600 font-medium">Cupos agendados</span>
-                            <span className="font-bold text-[#00629B]">{resumen.total_reservas_dia}</span>
-                          </div>
-                          <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-gradient-to-r from-[#00629B] via-[#00A3E0] to-[#FFC20E] rounded-full transition-all duration-700"
-                              style={{ width: `${porcentaje}%` }}
-                            />
-                          </div>
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="text-slate-600 font-medium">Cupos libres restantes</span>
-                            <span className="font-bold text-emerald-600">{resumen.cupos_disponibles_dia}</span>
-                          </div>
-                        </div>
+                  {/* Layout Superior: 3 Tarjetas (Mini Calendar a la izquierda, Multi-Color Bar Chart al centro, Aforo a la derecha) */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 mb-6">
+                    <div className="lg:col-span-4 bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden flex flex-col justify-between">
+                      <div className="bg-gradient-to-r from-[#004D7A] via-[#00629B] to-[#00A3E0] text-white px-4 py-3 flex items-center justify-between">
+                        <button
+                          onClick={handleMiniCalPrev}
+                          className="p-1 hover:bg-white/15 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                          title="Mes anterior"
+                        >
+                          &lt;
+                        </button>
+                        <span className="text-xs font-black tracking-widest uppercase">
+                          {miniCalMes.toLocaleDateString("es-CL", { month: "long", year: "numeric" }).toUpperCase()}
+                        </span>
+                        <button
+                          onClick={handleMiniCalNext}
+                          className="p-1 hover:bg-white/15 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                          title="Mes siguiente"
+                        >
+                          &gt;
+                        </button>
                       </div>
 
-                      <div className="relative flex-shrink-0 flex items-center justify-center">
-                        <svg className="w-36 h-36 transform -rotate-90" viewBox="0 0 120 120">
-                          <circle
-                            cx="60"
-                            cy="60"
-                            r="48"
-                            className="text-slate-100"
-                            strokeWidth="10"
-                            stroke="currentColor"
-                            fill="transparent"
-                          />
-                          <circle
-                            cx="60"
-                            cy="60"
-                            r="48"
-                            className="text-[#00629B] transition-all duration-1000 ease-out"
-                            strokeWidth="10"
-                            strokeDasharray={301.6}
-                            strokeDashoffset={301.6 - (301.6 * Math.min(porcentaje, 100)) / 100}
-                            strokeLinecap="round"
-                            stroke="currentColor"
-                            fill="transparent"
-                          />
-                        </svg>
-                        <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                          <span className="text-2xl font-black text-slate-900">{porcentaje}%</span>
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Demanda</span>
+                      <div className="p-3.5">
+                        <div className="grid grid-cols-7 gap-1 text-center mb-2">
+                          {["D", "L", "M", "M", "J", "V", "S"].map((d, i) => (
+                            <span key={i} className="text-[11px] font-bold text-slate-400">
+                              {d}
+                            </span>
+                          ))}
+                        </div>
+
+                        <div className="grid grid-cols-7 gap-1 text-center">
+                          {getMiniCalDias().map((d, idx) => {
+                            if (!d) return <div key={idx} className="h-7 w-7 mx-auto" />;
+
+                            const esSeleccionado = d.fechaIso === fechaSeleccionada;
+                            const esHoy = d.fechaIso === hoyStr;
+                            const esBloqueado = diasBloqueados.some((b) => b.fecha === d.fechaIso);
+                            const tieneHistorial = historial.some((h) => h.fecha === d.fechaIso);
+
+                            let badgeStyle = "text-slate-600 hover:bg-slate-100";
+                            if (esSeleccionado) {
+                              badgeStyle = "bg-[#FFC20E] text-[#002D4C] font-black shadow-sm ring-2 ring-[#FFC20E]/40";
+                            } else if (esHoy) {
+                              badgeStyle = "bg-[#00A3E0] text-white font-bold shadow-xs";
+                            } else if (esBloqueado) {
+                              badgeStyle = "bg-rose-500 text-white font-bold shadow-xs";
+                            } else if (tieneHistorial) {
+                              badgeStyle = "bg-[#00629B] text-white font-bold shadow-xs";
+                            }
+
+                            return (
+                              <button
+                                key={idx}
+                                onClick={() => setFechaSeleccionada(d.fechaIso)}
+                                className={`h-7 w-7 mx-auto rounded-full text-xs font-semibold flex items-center justify-center transition-all cursor-pointer ${badgeStyle}`}
+                              >
+                                {d.dayNumber}
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                     </div>
 
-                    <div className="lg:col-span-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
-                      <div className={`${CARD} p-5 flex flex-col justify-between group hover:border-[#00629B]/30 hover:shadow-md transition-all`}>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Agendadas</span>
-                          <span className="w-8 h-8 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sm shadow-2xs">📋</span>
+                    <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs flex flex-col justify-between">
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-1 rounded-md bg-[#00A3E0] text-white text-[10px] font-bold">
+                            Turnos de Hoy
+                          </span>
                         </div>
-                        <div className="my-3">
-                          <span className="text-3xl font-extrabold text-[#00629B] tracking-tight">{resumen.total_reservas_dia}</span>
-                          <p className="text-[11px] text-slate-500 mt-1 font-medium">Reservas activas para hoy</p>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => handleSelectTab("metricas")}
+                            className="px-2.5 py-1 rounded-md bg-[#00629B] hover:bg-[#004D7A] text-white text-[10px] font-bold transition-all cursor-pointer"
+                          >
+                            Ver Métricas →
+                          </button>
                         </div>
-                        <span className="text-[10px] font-bold text-sky-800 bg-sky-50 border border-sky-100 px-2.5 py-1 rounded-lg w-fit">
-                          Confirmadas
-                        </span>
                       </div>
 
-                      <div className={`${CARD} p-5 flex flex-col justify-between group hover:border-emerald-300 hover:shadow-md transition-all`}>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Disponibles</span>
-                          <span className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-sm shadow-2xs">🟢</span>
+                      <div className="relative pt-4 pb-1">
+                        <div className="flex items-end justify-between gap-2 h-44 border-b border-slate-200/80 px-2">
+                          {(resumen.bloques && resumen.bloques.length > 0 ? resumen.bloques.slice(0, 8) : [
+                            { rango: "08:30", ocupados: 4, disponibles: 6 },
+                            { rango: "10:00", ocupados: 7, disponibles: 3 },
+                            { rango: "11:30", ocupados: 9, disponibles: 1 },
+                            { rango: "13:00", ocupados: 3, disponibles: 7 },
+                            { rango: "14:30", ocupados: 8, disponibles: 2 },
+                            { rango: "16:00", ocupados: 6, disponibles: 4 },
+                            { rango: "17:30", ocupados: 5, disponibles: 5 }
+                          ]).map((b, idx) => {
+                            const barPalette = ["#00A3E0", "#00629B", "#FFC20E", "#0082B8", "#00A3E0", "#004D7A", "#FFC20E", "#0082B8"];
+                            const color = barPalette[idx % barPalette.length];
+                            const maxVal = Math.max(cubiculosActuales, 10);
+                            const hOcupados = Math.max((b.ocupados / maxVal) * 100, 10);
+                            const hDisponibles = Math.max((b.disponibles / maxVal) * 100, 6);
+
+                            return (
+                              <div key={idx} className="flex-1 flex flex-col items-center h-full justify-end group relative">
+                                <div className="absolute -top-7 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 text-white text-[10px] px-2 py-0.5 rounded shadow pointer-events-none whitespace-nowrap z-20">
+                                  {b.rango || b.hora}: {b.ocupados} ocupados / {cubiculosActuales} cupos
+                                </div>
+                                <div className="w-full flex items-end justify-center gap-1 h-36">
+                                  <div
+                                    className="w-2.5 sm:w-3 rounded-t-sm transition-all duration-300 hover:brightness-110"
+                                    style={{ height: `${hOcupados}%`, backgroundColor: color }}
+                                  />
+                                  <div
+                                    className="w-2.5 sm:w-3 rounded-t-sm bg-slate-200 transition-all duration-300"
+                                    style={{ height: `${hDisponibles}%` }}
+                                  />
+                                </div>
+                                <span className="text-[10px] text-slate-500 font-medium mt-2 truncate w-full text-center">
+                                  {(b.rango || b.hora || "").split("-")[0]?.trim()}
+                                </span>
+                              </div>
+                            );
+                          })}
                         </div>
-                        <div className="my-3">
-                          <span className="text-3xl font-extrabold text-emerald-600 tracking-tight">{resumen.cupos_disponibles_dia}</span>
-                          <p className="text-[11px] text-slate-500 mt-1 font-medium">Cupos libres de reserva</p>
-                        </div>
-                        <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-lg w-fit">
-                          Para agendar
+                      </div>
+                    </div>
+
+                    <div className="lg:col-span-3 bg-gradient-to-br from-[#002D4C] via-[#00385E] to-[#001D33] text-white rounded-2xl p-5 shadow-sm border border-[#004E7C]/60 flex flex-col justify-between">
+                      <div>
+                        <span className="text-[11px] font-semibold text-sky-200/80 uppercase tracking-wider">
+                          Aforo & Ocupación Diaria :
                         </span>
+                        <div className="text-3xl font-black text-white tracking-tight mt-1 mb-4">
+                          {porcentaje}% Ocupación
+                        </div>
                       </div>
 
-                      <div className={`${CARD} p-5 flex flex-col justify-between group hover:border-amber-300 hover:shadow-md transition-all`}>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Capacidad</span>
-                          <span className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-sm shadow-2xs">🏢</span>
+                      <div className="space-y-1.5 pt-3 border-t border-white/10 text-xs font-mono">
+                        <div className="flex justify-between items-center text-slate-300">
+                          <span className="text-[11px]">item #1 Reservas activas</span>
+                          <span className="text-white font-bold">: {resumen.total_reservas_dia}</span>
                         </div>
-                        <div className="my-3">
-                          <span className="text-3xl font-extrabold text-slate-900 tracking-tight">{resumen.cubiculas_fisicos}</span>
-                          <p className="text-[11px] text-slate-500 mt-1 font-medium">Cubículos en la sede</p>
+                        <div className="flex justify-between items-center text-slate-300">
+                          <span className="text-[11px]">item #2 Cupos disponibles</span>
+                          <span className="text-white font-bold">: {resumen.cupos_disponibles_dia}</span>
                         </div>
-                        <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-100 px-2.5 py-1 rounded-lg w-fit">
-                          Simultáneos
-                        </span>
+                        <div className="flex justify-between items-center text-slate-300">
+                          <span className="text-[11px]">item #3 Cubículos en sede</span>
+                          <span className="text-white font-bold">: {cubiculosActuales}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-slate-300">
+                          <span className="text-[11px]">item #4 Turnos con demanda</span>
+                          <span className="text-white font-bold">: {resumen.bloques?.filter((b) => b.ocupados > 0).length || 0}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-slate-300">
+                          <span className="text-[11px]">item #5 Incidencias activas</span>
+                          <span className="text-white font-bold">: {incidencias.filter((i) => i.estado === "pendiente").length}</span>
+                        </div>
+                        <div className="flex justify-between items-center pt-2.5 border-t border-white/10 font-bold text-[#FFC20E] text-[11px]">
+                          <span>Total aforo diario</span>
+                          <span>: {resumen.cupos_totales_diarios}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className={`${CARD} p-6 md:p-8 space-y-6 mb-8`}>
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
-                      <div>
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-[#00629B] block">Supervisión en Línea</span>
-                        <h3 className="text-lg font-serif font-bold text-slate-900">Flujo de Actividades y Novedades</h3>
-                        <p className="text-xs text-slate-500">Línea de tiempo de eventos críticos, incidencias reportadas y actividad horaria de la sede.</p>
+                  {/* Layout Inferior: 2 Columnas (Reservas Recientes y Cubículos a la izq, Novedades a la der) */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 mb-8">
+                    {/* Columna Izquierda: Reservas Recientes + Cubículos */}
+                    <div className="lg:col-span-7 space-y-5">
+                      {/* Reservas Recientes */}
+                      <div className={`${CARD} p-5`}>
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-100 gap-3">
+                          <h3 className="text-sm font-bold text-slate-800 tracking-tight">
+                            Reservas Recientes
+                          </h3>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              placeholder="Buscar reserva..."
+                              value={busquedaOrdenes}
+                              onChange={(e) => setBusquedaOrdenes(e.target.value)}
+                              className="pl-3 pr-7 py-1 rounded-full bg-slate-100 text-[11px] font-medium text-slate-700 placeholder:text-slate-400 outline-none w-36 sm:w-44 focus:bg-white focus:border-[#00A3E0] border border-slate-200 transition-all"
+                            />
+                            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none">🔍</span>
+                          </div>
+                        </div>
+
+                        <div className="overflow-x-auto mt-2">
+                          <table className="w-full text-left text-xs">
+                            <thead>
+                              <tr className="text-[11px] text-slate-400 border-b border-slate-100">
+                                <th className="py-2.5 font-normal">Estudiante</th>
+                                <th className="py-2.5 font-normal">Nº Reserva</th>
+                                <th className="py-2.5 font-normal">Fecha y Horario</th>
+                                <th className="py-2.5 font-normal">Estado</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50">
+                              {(historial && historial.length > 0 ? (
+                                historial
+                                  .filter((h) => {
+                                    if (!busquedaOrdenes) return true;
+                                    const t = busquedaOrdenes.toLowerCase();
+                                    return (
+                                      (h.nombre && h.nombre.toLowerCase().includes(t)) ||
+                                      (h.rut && h.rut.toLowerCase().includes(t)) ||
+                                      (h.cubiculo_codigo && h.cubiculo_codigo.toLowerCase().includes(t)) ||
+                                      String(h.reserva_id || h.id || "").includes(t)
+                                    );
+                                  })
+                                  .slice(0, 5)
+                              ) : (
+                                [
+                                  { id: 1, nombre: "Daniel Fuentes", reserva_id: 1293078, fecha: "Hoy · 08:30 hrs", estado: "completada" },
+                                  { id: 2, nombre: "Tomas Navarro", reserva_id: 1293079, fecha: "Hoy · 10:00 hrs", estado: "activa" },
+                                  { id: 3, nombre: "Valeria Gomez", reserva_id: 1293080, fecha: "Hoy · 11:30 hrs", estado: "liberada" },
+                                  { id: 4, nombre: "Diego Silva", reserva_id: 1293081, fecha: "Hoy · 13:00 hrs", estado: "en_curso" },
+                                  { id: 5, nombre: "Marcos Soto", reserva_id: 1293082, fecha: "Hoy · 14:30 hrs", estado: "inasistencia" }
+                                ]
+                              )).map((h, i) => {
+                                const est = (h.estado || "").toLowerCase();
+                                let dotColor = "bg-slate-400";
+                                let labelStatus = "Finalizada";
+
+                                if (est === "activa" || est === "confirmada") {
+                                  dotColor = "bg-[#00A3E0]";
+                                  labelStatus = "Confirmada";
+                                } else if (est === "en_curso" || est === "progress") {
+                                  dotColor = "bg-[#FFC20E]";
+                                  labelStatus = "En curso";
+                                } else if (est === "completada" || est === "completed" || est === "expirada") {
+                                  dotColor = "bg-emerald-500";
+                                  labelStatus = "Completada";
+                                } else if (est === "liberada") {
+                                  dotColor = "bg-amber-400";
+                                  labelStatus = "Liberada";
+                                } else if (est === "cancelada") {
+                                  dotColor = "bg-rose-500";
+                                  labelStatus = "Cancelada";
+                                } else if (est === "inasistencia") {
+                                  dotColor = "bg-rose-600";
+                                  labelStatus = "Inasistencia";
+                                }
+
+                                return (
+                                  <tr key={h.id || i} className="hover:bg-slate-50/60 transition-colors">
+                                    <td className="py-2.5 font-bold text-slate-800">
+                                      {h.nombre}
+                                    </td>
+                                    <td className="py-2.5 font-mono text-slate-500 text-[11px]">
+                                      #{h.reserva_id || h.id}
+                                    </td>
+                                    <td className="py-2.5 text-slate-500 text-[11px]">
+                                      {h.fecha}{h.hora ? ` · ${h.hora} hrs` : ""}
+                                    </td>
+                                    <td className="py-2.5">
+                                      <span className="inline-flex items-center gap-1.5 text-[11px] text-slate-600 font-medium">
+                                        <span className={`w-2 h-2 rounded-full ${dotColor}`} />
+                                        {labelStatus}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => {
-                            fetchIncidencias();
-                            fetchResumen();
-                          }}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition-all cursor-pointer"
-                        >
-                          <span>🔄 Actualizar flujo</span>
-                        </button>
+
+                      {/* Cubículos de la Sede */}
+                      <div className={`${CARD} p-5`}>
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-100 gap-3">
+                          <h3 className="text-sm font-bold text-slate-800 tracking-tight">
+                            Cubículos de la Sede
+                          </h3>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              placeholder="Buscar cubículo..."
+                              value={busquedaCubiculos}
+                              onChange={(e) => setBusquedaCubiculos(e.target.value)}
+                              className="pl-3 pr-7 py-1 rounded-full bg-slate-100 text-[11px] font-medium text-slate-700 placeholder:text-slate-400 outline-none w-36 sm:w-44 focus:bg-white focus:border-[#00A3E0] border border-slate-200 transition-all"
+                            />
+                            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none">🔍</span>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                          {(cubiculosCampus && cubiculosCampus.length > 0
+                            ? cubiculosCampus
+                            : [
+                              { id: 1, codigo: "CB-01", en_mantenimiento: false },
+                              { id: 2, codigo: "CB-02", en_mantenimiento: false },
+                              { id: 3, codigo: "CB-03", en_mantenimiento: false },
+                              { id: 4, codigo: "CB-04", en_mantenimiento: false }
+                            ]
+                          )
+                            .filter((c) => {
+                              if (!busquedaCubiculos) return true;
+                              return c.codigo && c.codigo.toLowerCase().includes(busquedaCubiculos.toLowerCase());
+                            })
+                            .slice(0, 4)
+                            .map((c, idx) => {
+                              const contactColors = ["#00629B", "#00A3E0", "#FFC20E", "#004E7C"];
+                              const color = contactColors[idx % contactColors.length];
+
+                              return (
+                                <div key={c.id || idx} className="flex items-center gap-3 p-2.5 rounded-xl border border-slate-100 hover:bg-slate-50 transition-colors">
+                                  <div
+                                    className="w-10 h-10 rounded-full flex items-center justify-center text-xs font-black shadow-xs shrink-0"
+                                    style={{ backgroundColor: color, color: color === "#FFC20E" ? "#002D4C" : "#ffffff" }}
+                                  >
+                                    {c.codigo ? c.codigo.slice(0, 3) : "CB"}
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="text-xs font-bold text-slate-800 truncate">
+                                      Cubículo {c.codigo}
+                                    </div>
+                                    <div className="text-[10px] text-slate-400 truncate">
+                                      {c.en_mantenimiento ? "En mantenimiento" : "Capacidad 6 estudiantes"}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                        </div>
                       </div>
                     </div>
 
-                    <div className="relative pl-6 sm:pl-32 space-y-8 before:absolute before:left-2 sm:before:left-28 before:top-3 before:bottom-3 before:w-0.5 before:bg-slate-200">
-                      <div className="space-y-4">
-                        <div className="relative flex items-center">
-                          <span className="absolute -left-6 sm:-left-32 w-5 h-5 rounded-full bg-rose-100 border-2 border-rose-500 flex items-center justify-center text-[10px] text-rose-600 font-bold z-10 translate-x-[2px] sm:translate-x-[102px]">
-                            !
-                          </span>
-                          <h4 className="text-sm font-bold text-rose-600 uppercase tracking-wider ml-2 sm:ml-4">
-                            Importante
-                          </h4>
-                        </div>
+                    <div className="lg:col-span-5">
+                      <div className={`${CARD} p-5 h-full flex flex-col justify-between`}>
+                        <div>
+                          <div className="border-b border-slate-100 pb-3 mb-4">
+                            <h3 className="text-sm font-bold text-slate-800 tracking-tight">
+                              Novedades e Incidencias
+                            </h3>
+                          </div>
 
-                        {incidencias.filter((i) => i.estado === "pendiente").length > 0 ? (
-                          incidencias
-                            .filter((i) => i.estado === "pendiente")
-                            .slice(0, 3)
-                            .map((inc) => (
-                              <div key={inc.id} className="relative group flex items-start">
-                                <span className="hidden sm:block absolute -left-28 top-3 text-[11px] font-medium text-slate-400 text-right w-24 pr-4">
-                                  {inc.created_at ? String(inc.created_at).split(" ")[0] : "Reciente"}
-                                </span>
-
-                                <div className="absolute -left-6 sm:-left-6 top-3 w-5 h-5 rounded-md bg-rose-50 border border-rose-300 flex items-center justify-center text-xs text-rose-600 shadow-2xs z-10 -translate-x-1 sm:translate-x-[2px]">
-                                  ⚠️
-                                </div>
-
-                                <div className="ml-2 sm:ml-4 flex-1 bg-white border border-slate-200/80 border-l-4 border-l-rose-500 rounded-xl p-4 shadow-2xs hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                                  <div className="space-y-1">
-                                    <div className="flex items-center gap-2">
-                                      <span className="font-mono text-xs font-bold text-slate-900 bg-rose-50 text-rose-700 px-2 py-0.5 rounded">
-                                        {inc.cubiculo_codigo}
-                                      </span>
-                                      <span className="text-xs font-bold text-slate-800">
-                                        Incidencia: {inc.categoria}
-                                      </span>
-                                      <span className="text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
-                                        Pendiente
-                                      </span>
+                          <div className="space-y-5">
+                            {incidencias.filter((i) => i.estado === "pendiente").length > 0 ? (
+                              incidencias
+                                .filter((i) => i.estado === "pendiente")
+                                .slice(0, 2)
+                                .map((inc, idx) => (
+                                  <div key={inc.id || idx} className="space-y-2 pb-4 border-b border-slate-100 last:border-b-0 last:pb-0">
+                                    <div className="flex items-center gap-3">
+                                      <div
+                                        className="w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-bold shadow-xs shrink-0"
+                                        style={{ backgroundColor: idx % 2 === 0 ? "#00A3E0" : "#FFC20E", color: idx % 2 === 0 ? "#ffffff" : "#002D4C" }}
+                                      >
+                                        {inc.estudiante_nombre ? inc.estudiante_nombre.slice(0, 2).toUpperCase() : "AL"}
+                                      </div>
+                                      <div className="min-w-0 flex-1">
+                                        <div className="text-xs font-bold text-slate-800 truncate">
+                                          {inc.estudiante_nombre || "Estudiante"}{" "}
+                                          <span className="font-semibold text-[#00629B] cursor-pointer hover:underline">
+                                            en {inc.cubiculo_codigo || "Cubículo"}
+                                          </span>
+                                        </div>
+                                        <div className="text-[10px] text-slate-400">
+                                          {inc.created_at ? String(inc.created_at).split(" ")[0] : "Reciente"}
+                                        </div>
+                                      </div>
                                     </div>
-                                    <p className="text-xs text-slate-600 line-clamp-2">
-                                      {inc.descripcion}
-                                    </p>
-                                    <p className="text-[10px] text-slate-400">
-                                      Reportado por {inc.estudiante_nombre} · {inc.campus_nombre}
-                                    </p>
-                                  </div>
 
-                                  <div className="flex items-center gap-2 shrink-0">
+                                    <p className="text-[11px] text-slate-600 line-clamp-2 leading-relaxed pl-12">
+                                      {inc.descripcion || "Reporte de incidencia registrado para supervisión técnica en biblioteca."}
+                                    </p>
+
+                                    <div className="pl-12 pt-1">
+                                      <button
+                                        onClick={() => handleSelectTab("incidencias")}
+                                        className="px-3.5 py-1 rounded-full bg-[#00629B] hover:bg-[#004D7A] text-white text-[10px] font-bold shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                                      >
+                                        <span>Revisar</span>
+                                        <span>➔</span>
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))
+                            ) : (
+                              <div className="space-y-4">
+                                <div className="space-y-2 pb-4 border-b border-slate-100">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-9 h-9 rounded-full bg-[#00629B] flex items-center justify-center text-white text-[11px] font-bold shadow-xs shrink-0">
+                                      SB
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <div className="text-xs font-bold text-slate-800 truncate">
+                                        Supervisión de Sede{" "}
+                                        <span className="font-semibold text-[#00629B] cursor-pointer hover:underline">
+                                          en Cubículos de Biblioteca
+                                        </span>
+                                      </div>
+                                      <div className="text-[10px] text-slate-400">
+                                        Actualizado hoy
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <p className="text-[11px] text-slate-600 line-clamp-2 leading-relaxed pl-12">
+                                    Cubículos operativos y con aforo asignado de acuerdo a los turnos horarios del día.
+                                  </p>
+                                  <div className="pl-12 pt-1">
                                     <button
                                       onClick={() => handleSelectTab("incidencias")}
-                                      className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-all cursor-pointer"
+                                      className="px-3.5 py-1 rounded-full bg-[#00629B] hover:bg-[#004D7A] text-white text-[10px] font-bold shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
                                     >
-                                      Revisar
-                                    </button>
-                                    <button
-                                      onClick={() => handleCambiarEstadoIncidencia(inc.id, "resuelta")}
-                                      className="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold transition-all cursor-pointer"
-                                    >
-                                      Descartar
+                                      <span>Revisar</span>
+                                      <span>➔</span>
                                     </button>
                                   </div>
                                 </div>
-                              </div>
-                            ))
-                        ) : (
-                          <div className="relative group flex items-start">
-                            <span className="hidden sm:block absolute -left-28 top-3 text-[11px] font-medium text-slate-400 text-right w-24 pr-4">
-                              Hoy
-                            </span>
-                            <div className="absolute -left-6 sm:-left-6 top-3 w-5 h-5 rounded-md bg-emerald-50 border border-emerald-300 flex items-center justify-center text-xs text-emerald-600 shadow-2xs z-10 -translate-x-1 sm:translate-x-[2px]">
-                              ✓
-                            </div>
-                            <div className="ml-2 sm:ml-4 flex-1 bg-white border border-slate-200/80 border-l-4 border-l-emerald-500 rounded-xl p-4 shadow-2xs flex items-center justify-between">
-                              <div>
-                                <p className="text-xs font-bold text-slate-800">Sin incidencias críticas pendientes</p>
-                                <p className="text-[11px] text-slate-500">Todos los cubículos reportados se encuentran operativos o atendidos.</p>
-                              </div>
-                              <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-                                Operativo
-                              </span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
 
-                      <div className="space-y-4 pt-4">
-                        <div className="relative flex items-center">
-                          <span className="absolute -left-6 sm:-left-32 w-5 h-5 rounded-full bg-slate-100 border-2 border-slate-400 flex items-center justify-center text-[10px] text-slate-600 font-bold z-10 translate-x-[2px] sm:translate-x-[102px]">
-                            •
-                          </span>
-                          <h4 className="text-sm font-bold text-slate-700 uppercase tracking-wider ml-2 sm:ml-4">
-                            Reciente
-                          </h4>
-                        </div>
-
-                        {resumen?.bloques && resumen.bloques.filter((b) => b.ocupados > 0).length > 0 ? (
-                          resumen.bloques
-                            .filter((b) => b.ocupados > 0)
-                            .slice(0, 4)
-                            .map((b, idx) => (
-                              <div key={idx} className="relative group flex items-start">
-                                <span className="hidden sm:block absolute -left-28 top-3 text-[11px] font-semibold text-slate-500 text-right w-24 pr-4">
-                                  {(b.rango || b.hora || "").split("-")[0]?.trim() || "Turno"}
-                                </span>
-                                <div className="absolute -left-6 sm:-left-6 top-3 w-5 h-5 rounded-md bg-sky-50 border border-sky-300 flex items-center justify-center text-xs text-[#00629B] shadow-2xs z-10 -translate-x-1 sm:translate-x-[2px]">
-                                  📋
-                                </div>
-                                <div className="ml-2 sm:ml-4 flex-1 bg-white border border-slate-200/80 border-l-4 border-l-[#00A3E0] rounded-xl p-4 shadow-2xs hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                                  <div className="space-y-0.5">
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-xs font-bold text-slate-900">
-                                        Turno: {b.rango || b.hora || "Horario"}
-                                      </span>
-                                      <span className="text-[10px] font-bold text-[#00629B] bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full">
-                                        {b.ocupados} cubículo{b.ocupados > 1 ? "s" : ""} reservado{b.ocupados > 1 ? "s" : ""}
-                                      </span>
+                                <div className="space-y-2">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-9 h-9 rounded-full bg-[#00A3E0] flex items-center justify-center text-white text-[11px] font-bold shadow-xs shrink-0">
+                                      TM
                                     </div>
-                                    <p className="text-xs text-slate-500">
-                                      Disponibilidad: {b.disponibles} cupos libres de un aforo de {cubiculosActuales} unidades.
-                                    </p>
+                                    <div className="min-w-0 flex-1">
+                                      <div className="text-xs font-bold text-slate-800 truncate">
+                                        Terminal MinMoe{" "}
+                                        <span className="font-semibold text-[#00629B] cursor-pointer hover:underline">
+                                          en Control de Acceso
+                                        </span>
+                                      </div>
+                                      <div className="text-[10px] text-slate-400">
+                                        En línea (172.29.0.70)
+                                      </div>
+                                    </div>
                                   </div>
-                                  <button
-                                    onClick={() => handleAbrirDetalleBloque(b)}
-                                    className="px-3.5 py-1.5 rounded-lg bg-white border border-slate-300 hover:border-[#00629B] hover:text-[#00629B] text-slate-700 text-xs font-semibold transition-all cursor-pointer whitespace-nowrap"
-                                  >
-                                    Auditar alumnos →
-                                  </button>
+                                  <p className="text-[11px] text-slate-600 line-clamp-2 leading-relaxed pl-12">
+                                    Acceso por reconocimiento facial funcionando con normalidad en relé principal.
+                                  </p>
+                                  <div className="pl-12 pt-1">
+                                    <button
+                                      onClick={() => handleSelectTab("camara")}
+                                      className="px-3.5 py-1 rounded-full bg-[#00629B] hover:bg-[#004D7A] text-white text-[10px] font-bold shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                                    >
+                                      <span>Ver cámara</span>
+                                      <span>➔</span>
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
-                            ))
-                        ) : (
-                          <div className="relative group flex items-start">
-                            <span className="hidden sm:block absolute -left-28 top-3 text-[11px] font-medium text-slate-400 text-right w-24 pr-4">
-                              Hoy
-                            </span>
-                            <div className="absolute -left-6 sm:-left-6 top-3 w-5 h-5 rounded-md bg-slate-100 border border-slate-300 flex items-center justify-center text-xs text-slate-500 shadow-2xs z-10 -translate-x-1 sm:translate-x-[2px]">
-                              🕒
-                            </div>
-                            <div className="ml-2 sm:ml-4 flex-1 bg-white border border-slate-200/80 border-l-4 border-l-slate-300 rounded-xl p-4 shadow-2xs flex items-center justify-between">
-                              <p className="text-xs text-slate-600">No hay reservas registradas aún para los bloques de hoy en esta sede.</p>
-                              <span className="text-[11px] text-slate-400 font-medium">Libre demanda</span>
-                            </div>
+                            )}
                           </div>
-                        )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -3012,8 +3382,153 @@ export default function Dashboard() {
           )}
 
           {(activeTab === "metricas") && (
-            <div className={`${CARD} p-6 md:p-8 mb-8 space-y-7 animate-fadeIn`}>
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+            <>
+              {tipoMetricas === "selector" && (
+                <div className={`${CARD} p-6 md:p-10 mb-8 space-y-8 animate-fadeIn`}>
+                  <div className="text-center max-w-3xl mx-auto space-y-3">
+                    <span className={EYEBROW}>📊 Inteligencia y Analítica Institucional UCT</span>
+                    <h2 className="text-2xl sm:text-3xl font-black text-[#002D4C] tracking-tight">
+                      Selecciona el Módulo de Métricas
+                    </h2>
+                    <p className="text-sm text-slate-500 leading-relaxed">
+                      Elige el tipo de analítica que deseas visualizar para explorar estadísticas en tiempo real, tasas de ocupación o demanda formativa, y generar reportes oficiales.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto pt-2">
+                    <div
+                      onClick={() => setTipoMetricas("reservas")}
+                      className="group relative p-7 rounded-3xl bg-gradient-to-br from-white to-slate-50 border-2 border-slate-200 hover:border-[#00629B] hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden"
+                    >
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-sky-500/5 rounded-full blur-2xl group-hover:bg-[#00629B]/10 transition-all pointer-events-none" />
+                      <div className="space-y-4 relative z-10">
+                        <div className="flex items-center justify-between">
+                          <div className="w-14 h-14 rounded-2xl bg-[#002D4C] text-white flex items-center justify-center text-2xl shadow-md group-hover:scale-105 transition-transform">
+                            🏢
+                          </div>
+                          <span className="px-3 py-1 rounded-full text-[11px] font-extrabold bg-[#00629B]/10 text-[#00629B]">
+                            Espacios Físicos
+                          </span>
+                        </div>
+                        <div>
+                          <h3 className="text-xl font-black text-slate-800 group-hover:text-[#00629B] transition-colors">
+                            Métricas de Reservas
+                          </h3>
+                          <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+                            Monitoreo interactivo de ocupación de cubículos por bloque horario versus capacidad instalada, desglose por sede, aforo diario y análisis por carreras.
+                          </p>
+                        </div>
+                        <div className="space-y-2 pt-2 border-t border-slate-100 text-xs font-semibold text-slate-600">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[#00A3E0]">✓</span>
+                            <span>Inteligencia de afluencia por bloques y horas peak</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[#00A3E0]">✓</span>
+                            <span>Demanda y participación por carreras universitarias</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[#00A3E0]">✓</span>
+                            <span>Exportación en alta resolución (PNG y Excel .xlsx)</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="pt-6 relative z-10">
+                        <button
+                          type="button"
+                          className="w-full py-3 px-4 rounded-xl font-black text-xs bg-[#002D4C] hover:bg-[#00629B] text-white shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer group-hover:translate-x-1"
+                        >
+                          <span>Ver Métricas de Reservas</span>
+                          <span>→</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div
+                      onClick={() => setTipoMetricas("talleres")}
+                      className="group relative p-7 rounded-3xl bg-gradient-to-br from-white to-slate-50 border-2 border-slate-200 hover:border-[#FFC20E] hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden"
+                    >
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl group-hover:bg-[#FFC20E]/20 transition-all pointer-events-none" />
+                      <div className="space-y-4 relative z-10">
+                        <div className="flex items-center justify-between">
+                          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#FFC20E] to-amber-500 text-[#002D4C] flex items-center justify-center text-2xl shadow-md group-hover:scale-105 transition-transform">
+                            🎓
+                          </div>
+                          <span className="px-3 py-1 rounded-full text-[11px] font-extrabold bg-[#FFC20E]/20 text-amber-900">
+                            Formación & Capacitación
+                          </span>
+                        </div>
+                        <div>
+                          <h3 className="text-xl font-black text-slate-800 group-hover:text-amber-800 transition-colors">
+                            Métricas de Talleres
+                          </h3>
+                          <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+                            Analítica de solicitudes de formación académica especializada, índice de aprobación, distribución temática de los 6 talleres y modalidades solicitadas.
+                          </p>
+                        </div>
+                        <div className="space-y-2 pt-2 border-t border-slate-100 text-xs font-semibold text-slate-600">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[#00629B]">✓</span>
+                            <span>Demanda por taller temático y temas más solicitados</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[#00629B]">✓</span>
+                            <span>Distribución por modalidad (Presencial vs Virtual)</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[#00629B]">✓</span>
+                            <span>Tasa de aprobación, estado de solicitudes y exportación Excel</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="pt-6 relative z-10">
+                        <button
+                          type="button"
+                          className="w-full py-3 px-4 rounded-xl font-black text-xs bg-[#FFC20E] hover:bg-amber-400 text-[#002D4C] shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer group-hover:translate-x-1"
+                        >
+                          <span>Ver Métricas de Talleres</span>
+                          <span>→</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {tipoMetricas === "reservas" && (
+                <div className={`${CARD} p-6 md:p-8 mb-8 space-y-7 animate-fadeIn`}>
+                  <div className="flex flex-wrap items-center justify-between gap-3 pb-5 border-b border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setTipoMetricas("selector")}
+                      className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-all flex items-center gap-2 cursor-pointer shadow-2xs"
+                    >
+                      <span>←</span>
+                      <span>Cambiar tipo de métricas</span>
+                    </button>
+                    <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200 shadow-xs">
+                      <button
+                        type="button"
+                        onClick={() => setTipoMetricas("reservas")}
+                        className="px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 bg-[#002D4C] text-white shadow-xs"
+                      >
+                        <span>🏢</span>
+                        <span>Métricas de Reservas</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTipoMetricas("talleres")}
+                        className="px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 text-slate-600 hover:text-slate-900"
+                      >
+                        <span>🎓</span>
+                        <span>Métricas de Talleres</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-100 pb-5">
                 <div className="space-y-1.5">
                   <span className={EYEBROW}>📈 Análisis institucional de ocupación</span>
                   <h2 className={SECTION_TITLE}>Inteligencia de Ocupación y Demanda Horaria</h2>
@@ -3046,8 +3561,8 @@ export default function Dashboard() {
                   <button
                     onClick={() => setPeriodoMetricas("dia")}
                     className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${periodoMetricas === "dia"
-                        ? "bg-[#00629B] text-white shadow-xs"
-                        : "text-slate-600 hover:text-slate-900"
+                      ? "bg-[#00629B] text-white shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
                       }`}
                   >
                     📅 Por Día
@@ -3055,8 +3570,8 @@ export default function Dashboard() {
                   <button
                     onClick={() => setPeriodoMetricas("semana")}
                     className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${periodoMetricas === "semana"
-                        ? "bg-[#00629B] text-white shadow-xs"
-                        : "text-slate-600 hover:text-slate-900"
+                      ? "bg-[#00629B] text-white shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
                       }`}
                   >
                     📆 Por Semana
@@ -3064,8 +3579,8 @@ export default function Dashboard() {
                   <button
                     onClick={() => setPeriodoMetricas("mes")}
                     className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${periodoMetricas === "mes"
-                        ? "bg-[#00629B] text-white shadow-xs"
-                        : "text-slate-600 hover:text-slate-900"
+                      ? "bg-[#00629B] text-white shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
                       }`}
                   >
                     🗓️ Por Mes
@@ -3354,9 +3869,9 @@ export default function Dashboard() {
                               <span><strong>Ocupación:</strong> {bh.porcentaje_ocupacion}%</span>
                               <span><strong>Disponibles:</strong> {bh.cupos_disponibles} de {bh.capacidad_total}</span>
                               <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] ${bh.nivel_demanda === "Pico" ? "bg-rose-100 text-rose-800" :
-                                  bh.nivel_demanda === "Alta" ? "bg-amber-100 text-amber-800" :
-                                    bh.nivel_demanda === "Media" ? "bg-sky-100 text-sky-800" :
-                                      "bg-emerald-100 text-emerald-800"
+                                bh.nivel_demanda === "Alta" ? "bg-amber-100 text-amber-800" :
+                                  bh.nivel_demanda === "Media" ? "bg-sky-100 text-sky-800" :
+                                    "bg-emerald-100 text-emerald-800"
                                 }`}>
                                 Demanda {bh.nivel_demanda}
                               </span>
@@ -3417,8 +3932,8 @@ export default function Dashboard() {
                               onMouseEnter={() => setBloqueHoverMetricas(b.hora)}
                               onMouseLeave={() => setBloqueHoverMetricas(null)}
                               className={`transition-colors cursor-pointer ${isHovered
-                                  ? "bg-sky-50 text-[#00629B] font-bold"
-                                  : "hover:bg-slate-50/70"
+                                ? "bg-sky-50 text-[#00629B] font-bold"
+                                : "hover:bg-slate-50/70"
                                 }`}
                             >
                               <td className="py-2.5 px-3">
@@ -3438,12 +3953,12 @@ export default function Dashboard() {
                                   <div className="w-12 h-2 bg-slate-100 rounded-full overflow-hidden">
                                     <div
                                       className={`h-full rounded-full transition-all duration-300 ${b.porcentaje_ocupacion >= 80
-                                          ? "bg-rose-500"
-                                          : b.porcentaje_ocupacion >= 50
-                                            ? "bg-amber-500"
-                                            : b.porcentaje_ocupacion >= 20
-                                              ? "bg-[#00A3E0]"
-                                              : "bg-emerald-500"
+                                        ? "bg-rose-500"
+                                        : b.porcentaje_ocupacion >= 50
+                                          ? "bg-amber-500"
+                                          : b.porcentaje_ocupacion >= 20
+                                            ? "bg-[#00A3E0]"
+                                            : "bg-emerald-500"
                                         }`}
                                       style={{ width: `${Math.min(100, b.porcentaje_ocupacion)}%` }}
                                     />
@@ -3455,12 +3970,12 @@ export default function Dashboard() {
                               </td>
                               <td className="py-2.5 px-3 text-center">
                                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide border ${b.nivel_demanda === "Pico"
-                                    ? "bg-rose-50 text-rose-700 border-rose-200"
-                                    : b.nivel_demanda === "Alta"
-                                      ? "bg-amber-50 text-amber-700 border-amber-200"
-                                      : b.nivel_demanda === "Media"
-                                        ? "bg-sky-50 text-[#00629B] border-sky-200"
-                                        : "bg-slate-50 text-slate-600 border-slate-200"
+                                  ? "bg-rose-50 text-rose-700 border-rose-200"
+                                  : b.nivel_demanda === "Alta"
+                                    ? "bg-amber-50 text-amber-700 border-amber-200"
+                                    : b.nivel_demanda === "Media"
+                                      ? "bg-sky-50 text-[#00629B] border-sky-200"
+                                      : "bg-slate-50 text-slate-600 border-slate-200"
                                   }`}>
                                   {b.nivel_demanda === "Pico" ? "🔥 Pico" : b.nivel_demanda}
                                 </span>
@@ -3626,8 +4141,1063 @@ export default function Dashboard() {
                   </div>
                 </div>
               </div>
+
+              {/* Gráfico y Ranking de Reservas por Carrera (Histórico + Actuales) */}
+              <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-200/80 shadow-xs space-y-6">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                  <div className="space-y-1">
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-50 text-[#00629B] border border-sky-100 text-[11px] font-black uppercase tracking-wider">
+                      <span>🎓</span> Métricas Académicas
+                    </div>
+                    <h3 className="text-base sm:text-lg font-serif font-bold text-slate-900 flex items-center gap-2">
+                      Demanda y Ocupación por Carrera
+                    </h3>
+                    <p className="text-xs text-slate-500 max-w-2xl leading-relaxed">
+                      Comparativa gráfica de demanda estudiantil segmentada por reservas en curso y registros históricos consolidados.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 self-start lg:self-auto">
+                    <div className="flex items-center p-1 bg-slate-100 rounded-xl text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setModoGraficoCarrera("columnas")}
+                        className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1.5 ${modoGraficoCarrera === "columnas"
+                          ? "bg-white text-[#00629B] shadow-xs"
+                          : "text-slate-600 hover:text-slate-900"
+                          }`}
+                      >
+                        <span>📊</span> Columnas
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setModoGraficoCarrera("barras")}
+                        className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1.5 ${modoGraficoCarrera === "barras"
+                          ? "bg-white text-[#00629B] shadow-xs"
+                          : "text-slate-600 hover:text-slate-900"
+                          }`}
+                      >
+                        <span>📈</span> Barras Apiladas
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setModoGraficoCarrera("donut")}
+                        className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1.5 ${modoGraficoCarrera === "donut"
+                          ? "bg-white text-[#00629B] shadow-xs"
+                          : "text-slate-600 hover:text-slate-900"
+                          }`}
+                      >
+                        <span>🍩</span> Distribución
+                      </button>
+                    </div>
+
+                    <div className="flex items-center p-1 bg-slate-100 rounded-xl text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setLimiteCarrerasMetricas(5)}
+                        className={`px-2.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${limiteCarrerasMetricas === 5
+                          ? "bg-white text-[#00629B] shadow-xs"
+                          : "text-slate-600 hover:text-slate-900"
+                          }`}
+                      >
+                        Top 5
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLimiteCarrerasMetricas(8)}
+                        className={`px-2.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${limiteCarrerasMetricas === 8
+                          ? "bg-white text-[#00629B] shadow-xs"
+                          : "text-slate-600 hover:text-slate-900"
+                          }`}
+                      >
+                        Top 8
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLimiteCarrerasMetricas(12)}
+                        className={`px-2.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${limiteCarrerasMetricas === 12
+                          ? "bg-white text-[#00629B] shadow-xs"
+                          : "text-slate-600 hover:text-slate-900"
+                          }`}
+                      >
+                        Top 12
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLimiteCarrerasMetricas(0)}
+                        className={`px-2.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${limiteCarrerasMetricas === 0
+                          ? "bg-white text-[#00629B] shadow-xs"
+                          : "text-slate-600 hover:text-slate-900"
+                          }`}
+                      >
+                        Todas
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {(() => {
+                  const listaBase = metricas?.reservas_por_carrera || [];
+                  if (listaBase.length === 0) {
+                    return (
+                      <div className="p-8 text-center bg-slate-50/70 rounded-2xl border border-slate-100 space-y-2">
+                        <span className="text-3xl">🎓</span>
+                        <p className="text-xs font-bold text-slate-700">No se registran reservas con carreras asociadas</p>
+                        <p className="text-[11px] text-slate-400">Los datos se consolidarán conforme los estudiantes generen reservas en el sistema.</p>
+                      </div>
+                    );
+                  }
+
+                  let listaFiltrada = listaBase;
+                  if (busquedaCarreraMetricas.trim()) {
+                    const q = busquedaCarreraMetricas.toLowerCase().trim();
+                    listaFiltrada = listaFiltrada.filter((c) => (c.carrera || "").toLowerCase().includes(q));
+                  }
+
+                  if (ordenCarrerasMetricas === "actuales") {
+                    listaFiltrada = [...listaFiltrada].sort((a, b) => (b.actuales || 0) - (a.actuales || 0));
+                  } else if (ordenCarrerasMetricas === "alfabetico") {
+                    listaFiltrada = [...listaFiltrada].sort((a, b) => (a.carrera || "").localeCompare(b.carrera || ""));
+                  } else {
+                    listaFiltrada = [...listaFiltrada].sort((a, b) => (b.total || 0) - (a.total || 0));
+                  }
+
+                  const totalGlobalReservas = listaBase.reduce((acc, c) => acc + (c.total || 0), 0);
+                  const totalActuales = listaBase.reduce((acc, c) => acc + (c.actuales || 0), 0);
+                  const totalHistoricas = listaBase.reduce((acc, c) => acc + (c.historicas || 0), 0);
+                  const maxReservas = listaBase[0]?.total || 1;
+                  const itemsAMostrar = limiteCarrerasMetricas > 0 ? listaFiltrada.slice(0, limiteCarrerasMetricas) : listaFiltrada;
+
+                  const medallas = [
+                    { badge: "🥇", bg: "bg-amber-100 text-amber-900 border-amber-200" },
+                    { badge: "🥈", bg: "bg-slate-200 text-slate-800 border-slate-300" },
+                    { badge: "🥉", bg: "bg-amber-200 text-amber-950 border-amber-300" }
+                  ];
+
+                  const paletaColores = [
+                    "#00629B", "#00A3E0", "#FFC20E", "#004D7A", "#0082B8",
+                    "#10B981", "#6366F1", "#EC4899", "#8B5CF6", "#F97316",
+                    "#14B8A6", "#E5AC00", "#64748B"
+                  ];
+
+                  return (
+                    <div className="space-y-6">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                        <div className="p-4 rounded-2xl bg-gradient-to-br from-sky-50 to-white border border-sky-100 shadow-2xs">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-[#00629B] block">Carrera Líder</span>
+                          <div className="text-sm font-extrabold text-slate-900 mt-1 truncate" title={listaBase[0]?.carrera}>
+                            👑 {listaBase[0]?.carrera || "N/A"}
+                          </div>
+                          <span className="text-[11px] text-slate-500 font-semibold mt-0.5 block">
+                            {listaBase[0]?.total || 0} reservas ({totalGlobalReservas > 0 ? Math.round(((listaBase[0]?.total || 0) / totalGlobalReservas) * 100) : 0}% de participación)
+                          </span>
+                        </div>
+
+                        <div className="p-4 rounded-2xl bg-gradient-to-br from-white to-slate-50 border border-slate-200/80 shadow-2xs">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">Reservas en Curso</span>
+                          <div className="text-xl font-black text-emerald-600 mt-1 flex items-center gap-1.5">
+                            <span>⚡</span> {totalActuales} <span className="text-xs font-semibold text-slate-500">activas</span>
+                          </div>
+                          <span className="text-[11px] text-slate-500 font-semibold mt-0.5 block">
+                            {totalGlobalReservas > 0 ? Math.round((totalActuales / totalGlobalReservas) * 100) : 0}% del volumen total en uso
+                          </span>
+                        </div>
+
+                        <div className="p-4 rounded-2xl bg-gradient-to-br from-white to-slate-50 border border-slate-200/80 shadow-2xs">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">Volumen Consolidado</span>
+                          <div className="text-xl font-black text-[#00629B] mt-1">
+                            {totalGlobalReservas} <span className="text-xs font-semibold text-slate-500">reservas</span>
+                          </div>
+                          <div className="flex items-center gap-2 mt-0.5 text-[11px] font-medium text-slate-600">
+                            <span className="text-slate-500 font-bold">📜 {totalHistoricas} históricas</span>
+                            <span>•</span>
+                            <span className="text-[#00629B] font-bold">{listaBase.length} carreras</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-50/70 p-3 rounded-2xl border border-slate-200/60 text-xs">
+                        <div className="relative flex-1 max-w-sm">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🔍</span>
+                          <input
+                            type="text"
+                            placeholder="Buscar carrera académica..."
+                            value={busquedaCarreraMetricas}
+                            onChange={(e) => setBusquedaCarreraMetricas(e.target.value)}
+                            className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#00629B] focus:ring-1 focus:ring-[#00629B] transition-all"
+                          />
+                          {busquedaCarreraMetricas && (
+                            <button
+                              type="button"
+                              onClick={() => setBusquedaCarreraMetricas("")}
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2 text-slate-600">
+                          <span className="text-[11px] font-bold text-slate-500 shrink-0">Ordenar:</span>
+                          <div className="flex items-center gap-1 p-0.5 bg-slate-200/60 rounded-lg">
+                            <button
+                              type="button"
+                              onClick={() => setOrdenCarrerasMetricas("total")}
+                              className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all ${ordenCarrerasMetricas === "total"
+                                ? "bg-white text-[#00629B] shadow-2xs"
+                                : "text-slate-600 hover:text-slate-900"
+                                }`}
+                            >
+                              Demanda Total
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setOrdenCarrerasMetricas("actuales")}
+                              className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all ${ordenCarrerasMetricas === "actuales"
+                                ? "bg-white text-emerald-700 shadow-2xs"
+                                : "text-slate-600 hover:text-slate-900"
+                                }`}
+                            >
+                              Más Activas
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setOrdenCarrerasMetricas("alfabetico")}
+                              className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all ${ordenCarrerasMetricas === "alfabetico"
+                                ? "bg-white text-slate-900 shadow-2xs"
+                                : "text-slate-600 hover:text-slate-900"
+                                }`}
+                            >
+                              A - Z
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {modoGraficoCarrera === "columnas" && (
+                        <div className="space-y-4">
+                          <div className="relative w-full overflow-x-auto bg-slate-50/60 rounded-3xl p-4 sm:p-6 border border-slate-200/70">
+                            {(() => {
+                              const svgW = 860;
+                              const svgH = 340;
+                              const padL = 45;
+                              const padR = 25;
+                              const padT = 30;
+                              const padB = 85;
+                              const usableW = svgW - padL - padR;
+                              const usableH = svgH - padT - padB;
+                              const y0 = svgH - padB;
+
+                              const maxVal = Math.max(
+                                ...itemsAMostrar.map((c) => Math.max(c.actuales || 0, c.historicas || 0, c.total || 0)),
+                                10
+                              );
+                              const stepX = usableW / Math.max(1, itemsAMostrar.length);
+                              const colW = Math.min(26, Math.max(12, stepX * 0.32));
+
+                              const lineasGuia = [0, 0.25, 0.5, 0.75, 1].map((pct) => ({
+                                y: y0 - pct * usableH,
+                                val: Math.round(pct * maxVal)
+                              }));
+
+                              const hoverItem = itemsAMostrar.find((x) => x.carrera === carreraHoverMetricas);
+
+                              return (
+                                <svg viewBox={`0 0 ${svgW} ${svgH}`} className="w-full h-auto select-none overflow-visible">
+                                  <defs>
+                                    <linearGradient id="uctColActivas" x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="0%" stopColor="#00A3E0" />
+                                      <stop offset="100%" stopColor="#00629B" />
+                                    </linearGradient>
+                                    <linearGradient id="uctColHistoricas" x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="0%" stopColor="#004D7A" />
+                                      <stop offset="100%" stopColor="#1E293B" />
+                                    </linearGradient>
+                                    <linearGradient id="uctColOro" x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="0%" stopColor="#FFC20E" />
+                                      <stop offset="100%" stopColor="#E5AC00" />
+                                    </linearGradient>
+                                    <filter id="uctSoftShadow" x="-20%" y="-20%" width="140%" height="140%">
+                                      <feDropShadow dx="0" dy="4" stdDeviation="4" floodOpacity="0.15" />
+                                    </filter>
+                                  </defs>
+
+                                  {lineasGuia.map((g, i) => (
+                                    <g key={i}>
+                                      <line
+                                        x1={padL}
+                                        y1={g.y}
+                                        x2={svgW - padR}
+                                        y2={g.y}
+                                        stroke={i === 0 ? "#cbd5e1" : "#e2e8f0"}
+                                        strokeWidth="1"
+                                        strokeDasharray={i === 0 ? "0" : "4 4"}
+                                      />
+                                      <text x={padL - 8} y={g.y + 3.5} textAnchor="end" fontSize="10" fontWeight="600" fill="#94a3b8">
+                                        {g.val}
+                                      </text>
+                                    </g>
+                                  ))}
+
+                                  {itemsAMostrar.map((c, i) => {
+                                    const cx = padL + (i + 0.5) * stepX;
+                                    const isHover = carreraHoverMetricas === c.carrera;
+                                    const actH = Math.max(3, ((c.actuales || 0) / maxVal) * usableH);
+                                    const histH = Math.max(3, ((c.historicas || 0) / maxVal) * usableH);
+                                    const xAct = cx - colW - 2;
+                                    const yAct = y0 - actH;
+                                    const xHist = cx + 2;
+                                    const yHist = y0 - histH;
+
+                                    const nombreCorto = c.carrera.length > 18
+                                      ? c.carrera.slice(0, 16).trim() + "…"
+                                      : c.carrera;
+
+                                    return (
+                                      <g
+                                        key={i}
+                                        className="cursor-pointer transition-opacity"
+                                        onMouseEnter={() => setCarreraHoverMetricas(c.carrera)}
+                                        onMouseLeave={() => setCarreraHoverMetricas(null)}
+                                      >
+                                        {isHover && (
+                                          <rect
+                                            x={cx - stepX / 2 + 2}
+                                            y={padT - 6}
+                                            width={stepX - 4}
+                                            height={usableH + 12}
+                                            rx="12"
+                                            fill="#00629B"
+                                            opacity="0.06"
+                                          />
+                                        )}
+
+                                        {i === 0 && (
+                                          <text
+                                            x={cx}
+                                            y={Math.min(yAct, yHist) - 18}
+                                            textAnchor="middle"
+                                            fontSize="13"
+                                          >
+                                            👑
+                                          </text>
+                                        )}
+
+                                        <rect
+                                          x={xAct}
+                                          y={yAct}
+                                          width={colW}
+                                          height={actH}
+                                          rx="5"
+                                          fill="url(#uctColActivas)"
+                                          filter={isHover ? "url(#uctSoftShadow)" : undefined}
+                                          opacity={isHover || !carreraHoverMetricas ? 1 : 0.45}
+                                        />
+                                        <text
+                                          x={xAct + colW / 2}
+                                          y={yAct - 4}
+                                          textAnchor="middle"
+                                          fontSize="9"
+                                          fontWeight="800"
+                                          fill="#00629B"
+                                        >
+                                          {c.actuales}
+                                        </text>
+
+                                        <rect
+                                          x={xHist}
+                                          y={yHist}
+                                          width={colW}
+                                          height={histH}
+                                          rx="5"
+                                          fill="url(#uctColHistoricas)"
+                                          filter={isHover ? "url(#uctSoftShadow)" : undefined}
+                                          opacity={isHover || !carreraHoverMetricas ? 1 : 0.45}
+                                        />
+                                        <text
+                                          x={xHist + colW / 2}
+                                          y={yHist - 4}
+                                          textAnchor="middle"
+                                          fontSize="9"
+                                          fontWeight="800"
+                                          fill="#1e293b"
+                                        >
+                                          {c.historicas}
+                                        </text>
+
+                                        <text
+                                          x={cx}
+                                          y={y0 + 16}
+                                          textAnchor="end"
+                                          fontSize="10"
+                                          fontWeight={isHover ? "800" : "600"}
+                                          fill={isHover ? "#00629B" : "#334155"}
+                                          transform={`rotate(-32 ${cx} ${y0 + 16})`}
+                                        >
+                                          {nombreCorto}
+                                        </text>
+                                      </g>
+                                    );
+                                  })}
+
+                                  {hoverItem && (() => {
+                                    const hIdx = itemsAMostrar.findIndex((x) => x.carrera === hoverItem.carrera);
+                                    if (hIdx === -1) return null;
+                                    const hx = padL + (hIdx + 0.5) * stepX;
+                                    const boxW = 190;
+                                    const boxH = 70;
+                                    let bx = hx - boxW / 2;
+                                    if (bx < padL) bx = padL + 4;
+                                    if (bx + boxW > svgW - padR) bx = svgW - padR - boxW - 4;
+                                    const by = padT + 4;
+
+                                    return (
+                                      <g className="pointer-events-none animate-fadeIn">
+                                        <rect
+                                          x={bx}
+                                          y={by}
+                                          width={boxW}
+                                          height={boxH}
+                                          rx="12"
+                                          fill="#0F172A"
+                                          opacity="0.96"
+                                        />
+                                        <text
+                                          x={bx + 12}
+                                          y={by + 19}
+                                          fontSize="11"
+                                          fontWeight="800"
+                                          fill="#FFFFFF"
+                                        >
+                                          {hoverItem.carrera.length > 22
+                                            ? hoverItem.carrera.slice(0, 20) + "…"
+                                            : hoverItem.carrera}
+                                        </text>
+                                        <text
+                                          x={bx + 12}
+                                          y={by + 37}
+                                          fontSize="10.5"
+                                          fontWeight="700"
+                                          fill="#38BDF8"
+                                        >
+                                          ⚡ {hoverItem.actuales} activas · 📜 {hoverItem.historicas} históricas
+                                        </text>
+                                        <text
+                                          x={bx + 12}
+                                          y={by + 53}
+                                          fontSize="10"
+                                          fontWeight="600"
+                                          fill="#FCD34D"
+                                        >
+                                          Total: {hoverItem.total} reservas ({totalGlobalReservas > 0 ? Math.round((hoverItem.total / totalGlobalReservas) * 100) : 0}% institucional)
+                                        </text>
+                                      </g>
+                                    );
+                                  })()}
+                                </svg>
+                              );
+                            })()}
+                          </div>
+
+                          <div className="flex flex-wrap items-center justify-between gap-3 px-2 text-xs text-slate-500">
+                            <div className="flex items-center gap-4">
+                              <span className="flex items-center gap-2">
+                                <span className="w-3 h-3 rounded-md bg-gradient-to-r from-[#00629B] to-[#00A3E0]" />
+                                <strong className="text-slate-700">Reservas Activas (⚡)</strong>
+                              </span>
+                              <span className="flex items-center gap-2">
+                                <span className="w-3 h-3 rounded-md bg-gradient-to-r from-[#004D7A] to-[#1E293B]" />
+                                <strong className="text-slate-700">Registros Históricos (📜)</strong>
+                              </span>
+                            </div>
+                            <span className="text-[11px] text-slate-400">
+                              Pasa el cursor sobre cada columna para inspeccionar el desglose exacto
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {modoGraficoCarrera === "barras" && (
+                        <div className="space-y-3.5">
+                          {itemsAMostrar.map((c, idx) => {
+                            const pctRelativo = Math.round((c.total / maxReservas) * 100);
+                            const pctAbsoluto = totalGlobalReservas > 0 ? Math.round((c.total / totalGlobalReservas) * 100) : 0;
+                            const medalla = idx < 3 && ordenCarrerasMetricas === "total" ? medallas[idx] : null;
+                            const isHovered = carreraHoverMetricas === c.carrera;
+
+                            const actPctOfTotal = c.total > 0 ? (c.actuales / c.total) * 100 : 0;
+                            const histPctOfTotal = c.total > 0 ? (c.historicas / c.total) * 100 : 0;
+
+                            return (
+                              <div
+                                key={idx}
+                                onMouseEnter={() => setCarreraHoverMetricas(c.carrera)}
+                                onMouseLeave={() => setCarreraHoverMetricas(null)}
+                                className={`group p-4 rounded-2xl border transition-all space-y-2.5 cursor-pointer ${isHovered
+                                  ? "bg-sky-50/70 border-sky-300 shadow-xs"
+                                  : "bg-white hover:bg-slate-50/70 border-slate-100 hover:border-slate-200 shadow-2xs"
+                                  }`}
+                              >
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    <span
+                                      className={`w-6 h-6 rounded-lg text-[11px] font-black flex items-center justify-center shrink-0 border ${medalla ? medalla.bg : "bg-slate-100 text-slate-600 border-slate-200"
+                                        }`}
+                                    >
+                                      {medalla ? medalla.badge : idx + 1}
+                                    </span>
+                                    <span className="font-extrabold text-slate-900 group-hover:text-[#00629B] transition-colors truncate">
+                                      {c.carrera}
+                                    </span>
+                                  </div>
+
+                                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                      ⚡ {c.actuales} activas
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                                      📜 {c.historicas} históricas
+                                    </span>
+                                    <span className="px-2.5 py-1 rounded-lg text-xs font-black text-[#00629B] bg-sky-50 border border-sky-100 shadow-2xs">
+                                      {c.total} reservas ({pctAbsoluto}%)
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <div className="h-4 w-full bg-slate-100 rounded-xl overflow-hidden p-0.5 flex gap-0.5">
+                                    {c.actuales > 0 && (
+                                      <div
+                                        className="h-full bg-gradient-to-r from-[#00629B] to-[#00A3E0] rounded-l-lg transition-all duration-700 ease-out shadow-xs flex items-center justify-end px-1"
+                                        style={{ width: `${Math.max(4, (pctRelativo * actPctOfTotal) / 100)}%` }}
+                                        title={`${c.actuales} reservas activas`}
+                                      />
+                                    )}
+                                    {c.historicas > 0 && (
+                                      <div
+                                        className={`h-full bg-gradient-to-r from-[#004D7A] via-[#1E293B] to-[#334155] ${c.actuales === 0 ? "rounded-l-lg" : ""
+                                          } rounded-r-lg transition-all duration-700 ease-out shadow-xs flex items-center justify-end px-1`}
+                                        style={{ width: `${Math.max(4, (pctRelativo * histPctOfTotal) / 100)}%` }}
+                                        title={`${c.historicas} registros históricos`}
+                                      />
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {modoGraficoCarrera === "donut" && (
+                        <div className="bg-slate-50/60 rounded-3xl p-6 border border-slate-200/70">
+                          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+                            <div className="lg:col-span-6 flex items-center justify-center">
+                              {(() => {
+                                const size = 320;
+                                const cx = size / 2;
+                                const cy = size / 2;
+                                const rOut = 120;
+                                const rIn = 72;
+
+                                const topSliceItems = itemsAMostrar.slice(0, 7);
+                                const restoTotal = itemsAMostrar.slice(7).reduce((acc, x) => acc + (x.total || 0), 0);
+                                const slicesData = [...topSliceItems];
+                                if (restoTotal > 0) {
+                                  slicesData.push({ carrera: "Otras Carreras", total: restoTotal, actuales: 0, historicas: restoTotal });
+                                }
+
+                                const totalSlices = slicesData.reduce((acc, x) => acc + (x.total || 0), 0);
+                                let currentAngle = -Math.PI / 2;
+
+                                const hoveredSlice = slicesData.find((x) => x.carrera === carreraHoverMetricas);
+
+                                return (
+                                  <div className="relative">
+                                    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="overflow-visible select-none">
+                                      {slicesData.map((s, idx) => {
+                                        const fraction = totalSlices > 0 ? (s.total || 0) / totalSlices : 0;
+                                        const sliceAngle = fraction * 2 * Math.PI;
+                                        const startA = currentAngle;
+                                        const endA = currentAngle + sliceAngle;
+                                        currentAngle = endA;
+
+                                        const isHover = carreraHoverMetricas === s.carrera;
+                                        const color = paletaColores[idx % paletaColores.length];
+
+                                        const x1 = cx + rOut * Math.cos(startA);
+                                        const y1 = cy + rOut * Math.sin(startA);
+                                        const x2 = cx + rOut * Math.cos(endA);
+                                        const y2 = cy + rOut * Math.sin(endA);
+                                        const x3 = cx + rIn * Math.cos(endA);
+                                        const y3 = cy + rIn * Math.sin(endA);
+                                        const x4 = cx + rIn * Math.cos(startA);
+                                        const y4 = cy + rIn * Math.sin(startA);
+
+                                        const largeArc = sliceAngle > Math.PI ? 1 : 0;
+                                        const pathData = `M ${x1} ${y1} A ${rOut} ${rOut} 0 ${largeArc} 1 ${x2} ${y2} L ${x3} ${y3} A ${rIn} ${rIn} 0 ${largeArc} 0 ${x4} ${y4} Z`;
+
+                                        return (
+                                          <path
+                                            key={idx}
+                                            d={pathData}
+                                            fill={color}
+                                            stroke="#FFFFFF"
+                                            strokeWidth={isHover ? "3" : "1.5"}
+                                            opacity={isHover || !carreraHoverMetricas ? 1 : 0.4}
+                                            className="transition-all cursor-pointer"
+                                            onMouseEnter={() => setCarreraHoverMetricas(s.carrera)}
+                                            onMouseLeave={() => setCarreraHoverMetricas(null)}
+                                          />
+                                        );
+                                      })}
+                                    </svg>
+
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center px-4">
+                                      {hoveredSlice ? (
+                                        <>
+                                          <span className="text-[10px] font-black uppercase text-[#00629B] truncate max-w-[120px]">
+                                            {hoveredSlice.carrera}
+                                          </span>
+                                          <span className="text-2xl font-black text-slate-900 mt-0.5">
+                                            {hoveredSlice.total}
+                                          </span>
+                                          <span className="text-[10px] font-bold text-slate-500">
+                                            {totalSlices > 0 ? Math.round(((hoveredSlice.total || 0) / totalSlices) * 100) : 0}% del volumen
+                                          </span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <span className="text-[10px] font-black uppercase text-slate-400">Total</span>
+                                          <span className="text-2xl font-black text-slate-900 mt-0.5">{totalGlobalReservas}</span>
+                                          <span className="text-[10px] font-bold text-slate-500">Reservas</span>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+                            </div>
+
+                            <div className="lg:col-span-6 space-y-2 max-h-[320px] overflow-y-auto pr-2">
+                              {itemsAMostrar.map((c, idx) => {
+                                const color = paletaColores[idx % paletaColores.length];
+                                const isHover = carreraHoverMetricas === c.carrera;
+                                const pct = totalGlobalReservas > 0 ? Math.round((c.total / totalGlobalReservas) * 100) : 0;
+
+                                return (
+                                  <div
+                                    key={idx}
+                                    onMouseEnter={() => setCarreraHoverMetricas(c.carrera)}
+                                    onMouseLeave={() => setCarreraHoverMetricas(null)}
+                                    className={`flex items-center justify-between p-2.5 rounded-xl border text-xs transition-all cursor-pointer ${isHover
+                                      ? "bg-white border-sky-300 shadow-2xs"
+                                      : "bg-white/60 border-slate-100 hover:bg-white"
+                                      }`}
+                                  >
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                      <span className="w-3 h-3 rounded-full shrink-0 shadow-2xs" style={{ backgroundColor: color }} />
+                                      <span className="font-bold text-slate-800 truncate" title={c.carrera}>
+                                        {c.carrera}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      <span className="font-black text-slate-900">{c.total}</span>
+                                      <span className="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600">
+                                        {pct}%
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
             </div>
           )}
+
+          {tipoMetricas === "talleres" && (
+            <div className={`${CARD} p-6 md:p-8 mb-8 space-y-7 animate-fadeIn`}>
+              <div className="flex flex-wrap items-center justify-between gap-3 pb-5 border-b border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setTipoMetricas("selector")}
+                  className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-all flex items-center gap-2 cursor-pointer shadow-2xs"
+                >
+                  <span>←</span>
+                  <span>Cambiar tipo de métricas</span>
+                </button>
+                <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200 shadow-xs">
+                  <button
+                    type="button"
+                    onClick={() => setTipoMetricas("reservas")}
+                    className="px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 text-slate-600 hover:text-slate-900"
+                  >
+                    <span>🏢</span>
+                    <span>Métricas de Reservas</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTipoMetricas("talleres")}
+                    className="px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 bg-[#002D4C] text-white shadow-xs"
+                  >
+                    <span>🎓</span>
+                    <span>Métricas de Talleres</span>
+                  </button>
+                </div>
+              </div>
+
+              {(() => {
+                const totalTalleres = solicitudesTalleres.length;
+                const pendientesTalleres = solicitudesTalleres.filter((t) => t.estado === "pendiente").length;
+                const aprobadosTalleres = solicitudesTalleres.filter((t) => t.estado === "aprobado").length;
+                const realizadosTalleres = solicitudesTalleres.filter((t) => t.estado === "realizado").length;
+                const rechazadosTalleres = solicitudesTalleres.filter((t) => t.estado === "rechazado").length;
+                const resueltosTalleres = aprobadosTalleres + realizadosTalleres;
+                const tasaExitoTalleres = totalTalleres > 0 ? Math.round((resueltosTalleres / totalTalleres) * 100) : 0;
+
+                const totalParticipantesTalleres = solicitudesTalleres.reduce((acc, t) => {
+                  const p = parseInt(t.participantes, 10);
+                  return acc + (isNaN(p) || p <= 0 ? 1 : p);
+                }, 0);
+
+                const presencialTalleres = solicitudesTalleres.filter((t) => (t.modalidad || "").toLowerCase().includes("presencial")).length;
+                const virtualTalleres = solicitudesTalleres.filter((t) => (t.modalidad || "").toLowerCase().includes("virtual") || (t.modalidad || "").toLowerCase().includes("online")).length;
+                const pctPresencial = totalTalleres > 0 ? Math.round((presencialTalleres / totalTalleres) * 100) : 0;
+                const pctVirtual = totalTalleres > 0 ? 100 - pctPresencial : 0;
+
+                const talleresCountMap = {};
+                solicitudesTalleres.forEach((t) => {
+                  const nombre = (t.taller || "Sin especificar").trim();
+                  talleresCountMap[nombre] = (talleresCountMap[nombre] || 0) + 1;
+                });
+
+                const TALLERES_ESTANDAR = [
+                  { nombre: "Conoce tu biblioteca: Taller de inicio", icono: "🧭", tag: "Inducción" },
+                  { nombre: "Búsqueda y evaluación de información", icono: "🔎", tag: "Investigación" },
+                  { nombre: "Gestión de referencias y estilo de citas", icono: "📑", tag: "Citas y Normas" },
+                  { nombre: "Uso ético de la información", icono: "⚖️", tag: "Integridad" },
+                  { nombre: "Introducción a Leganto", icono: "📚", tag: "Plataforma" },
+                  { nombre: "ORCID", icono: "🆔", tag: "Identidad Digital" },
+                ];
+
+                TALLERES_ESTANDAR.forEach((t) => {
+                  if (talleresCountMap[t.nombre] === undefined) {
+                    talleresCountMap[t.nombre] = 0;
+                  }
+                });
+
+                const rankingTalleres = Object.entries(talleresCountMap)
+                  .map(([nombre, count]) => {
+                    const meta = TALLERES_ESTANDAR.find((m) => m.nombre === nombre) || { icono: "🎓", tag: "Taller" };
+                    return {
+                      nombre,
+                      count,
+                      icono: meta.icono,
+                      tag: meta.tag,
+                      pct: totalTalleres > 0 ? Math.round((count / totalTalleres) * 100) : 0
+                    };
+                  })
+                  .sort((a, b) => b.count - a.count);
+
+                const topTallerObj = rankingTalleres[0] && rankingTalleres[0].count > 0 ? rankingTalleres[0] : null;
+
+                const carrerasTalleresMap = {};
+                solicitudesTalleres.forEach((t) => {
+                  const c = (t.carrera || "Sin carrera informada").trim();
+                  carrerasTalleresMap[c] = (carrerasTalleresMap[c] || 0) + 1;
+                });
+                const rankingCarrerasTalleres = Object.entries(carrerasTalleresMap)
+                  .map(([carrera, count]) => ({
+                    carrera,
+                    count,
+                    pct: totalTalleres > 0 ? Math.round((count / totalTalleres) * 100) : 0
+                  }))
+                  .sort((a, b) => b.count - a.count);
+
+                return (
+                  <div className="space-y-7">
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+                      <div className="space-y-1.5">
+                        <span className={EYEBROW}>🎓 Formación y Competencias en Información</span>
+                        <h2 className={SECTION_TITLE}>Inteligencia y Demanda de Talleres Especializados</h2>
+                        <p className="text-xs text-slate-500 max-w-2xl leading-relaxed">
+                          Estadísticas consolidadas de solicitudes de capacitación, índice de atención, desglose temático por taller, modalidades solicitadas y carreras universitarias con mayor demanda.
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 self-start lg:self-auto">
+                        <button
+                          type="button"
+                          onClick={handleExportarMetricasTalleresExcel}
+                          className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors flex items-center gap-2 cursor-pointer"
+                        >
+                          <span>📑</span>
+                          <span>Exportar Excel (.xlsx)</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-500">Total Solicitudes</span>
+                          <span className="w-8 h-8 rounded-xl bg-blue-100 text-[#00629B] flex items-center justify-center text-sm font-bold">📚</span>
+                        </div>
+                        <div className="text-2xl font-black text-slate-900">{totalTalleres}</div>
+                        <p className="text-[11px] text-slate-500 font-medium">
+                          {realizadosTalleres} realizados · {aprobadosTalleres} aprobados
+                        </p>
+                      </div>
+
+                      <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-500">Tasa de Aprobación</span>
+                          <span className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center text-sm font-bold">🎯</span>
+                        </div>
+                        <div className="text-2xl font-black text-emerald-600">{tasaExitoTalleres}%</div>
+                        <p className="text-[11px] text-slate-500 font-medium">
+                          {pendientesTalleres} en espera de respuesta
+                        </p>
+                      </div>
+
+                      <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-500">Taller Más Solicitado</span>
+                          <span className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center text-sm font-bold">🏆</span>
+                        </div>
+                        <div className="text-sm font-black text-slate-900 line-clamp-1" title={topTallerObj ? topTallerObj.nombre : "Sin datos"}>
+                          {topTallerObj ? topTallerObj.nombre : "Sin datos"}
+                        </div>
+                        <p className="text-[11px] text-slate-500 font-medium">
+                          {topTallerObj ? `${topTallerObj.count} solicitudes (${topTallerObj.pct}%)` : "Sin solicitudes"}
+                        </p>
+                      </div>
+
+                      <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-500">Modalidad Preferida</span>
+                          <span className="w-8 h-8 rounded-xl bg-sky-100 text-[#00A3E0] flex items-center justify-center text-sm font-bold">💻</span>
+                        </div>
+                        <div className="text-2xl font-black text-[#00629B]">{pctPresencial}% Presencial</div>
+                        <p className="text-[11px] text-slate-500 font-medium">
+                          {pctVirtual}% Virtual · {totalParticipantesTalleres} participantes est.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="p-5 rounded-2xl bg-slate-50/80 border border-slate-200 space-y-4">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-800">Estado del Flujo de Solicitudes</h3>
+                          <p className="text-xs text-slate-500">Proporción según el ciclo de atención institucional</p>
+                        </div>
+                        <span className="text-xs font-bold text-slate-600">{totalTalleres} solicitudes totales</span>
+                      </div>
+
+                      {totalTalleres > 0 ? (
+                        <>
+                          <div className="w-full h-3.5 bg-slate-200 rounded-full overflow-hidden flex shadow-inner">
+                            {realizadosTalleres > 0 && (
+                              <div
+                                style={{ width: `${(realizadosTalleres / totalTalleres) * 100}%` }}
+                                className="bg-emerald-500 transition-all duration-500"
+                                title={`Realizados: ${realizadosTalleres}`}
+                              />
+                            )}
+                            {aprobadosTalleres > 0 && (
+                              <div
+                                style={{ width: `${(aprobadosTalleres / totalTalleres) * 100}%` }}
+                                className="bg-[#00A3E0] transition-all duration-500"
+                                title={`Aprobados: ${aprobadosTalleres}`}
+                              />
+                            )}
+                            {pendientesTalleres > 0 && (
+                              <div
+                                style={{ width: `${(pendientesTalleres / totalTalleres) * 100}%` }}
+                                className="bg-[#FFC20E] transition-all duration-500"
+                                title={`Pendientes: ${pendientesTalleres}`}
+                              />
+                            )}
+                            {rechazadosTalleres > 0 && (
+                              <div
+                                style={{ width: `${(rechazadosTalleres / totalTalleres) * 100}%` }}
+                                className="bg-rose-500 transition-all duration-500"
+                                title={`Rechazados: ${rechazadosTalleres}`}
+                              />
+                            )}
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+                            <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center gap-3">
+                              <span className="w-3 h-3 rounded-full bg-emerald-500 shrink-0" />
+                              <div>
+                                <div className="text-xs font-bold text-slate-700">Realizados</div>
+                                <div className="text-sm font-black text-slate-900">
+                                  {realizadosTalleres} <span className="text-[10px] text-slate-400 font-normal">({totalTalleres > 0 ? Math.round((realizadosTalleres / totalTalleres) * 100) : 0}%)</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center gap-3">
+                              <span className="w-3 h-3 rounded-full bg-[#00A3E0] shrink-0" />
+                              <div>
+                                <div className="text-xs font-bold text-slate-700">Aprobados</div>
+                                <div className="text-sm font-black text-slate-900">
+                                  {aprobadosTalleres} <span className="text-[10px] text-slate-400 font-normal">({totalTalleres > 0 ? Math.round((aprobadosTalleres / totalTalleres) * 100) : 0}%)</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center gap-3">
+                              <span className="w-3 h-3 rounded-full bg-[#FFC20E] shrink-0" />
+                              <div>
+                                <div className="text-xs font-bold text-slate-700">Pendientes</div>
+                                <div className="text-sm font-black text-slate-900">
+                                  {pendientesTalleres} <span className="text-[10px] text-slate-400 font-normal">({totalTalleres > 0 ? Math.round((pendientesTalleres / totalTalleres) * 100) : 0}%)</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center gap-3">
+                              <span className="w-3 h-3 rounded-full bg-rose-500 shrink-0" />
+                              <div>
+                                <div className="text-xs font-bold text-slate-700">Rechazados</div>
+                                <div className="text-sm font-black text-slate-900">
+                                  {rechazadosTalleres} <span className="text-[10px] text-slate-400 font-normal">({totalTalleres > 0 ? Math.round((rechazadosTalleres / totalTalleres) * 100) : 0}%)</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <p className="text-xs text-slate-500 italic py-2">No se han registrado solicitudes de talleres aún.</p>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      <div className="p-5 rounded-2xl bg-white border border-slate-200 space-y-4 shadow-2xs">
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                          <div>
+                            <h3 className="text-sm font-bold text-slate-900">Demanda por Taller Temático</h3>
+                            <p className="text-xs text-slate-500">Distribución de las solicitudes entre los 6 talleres</p>
+                          </div>
+                          <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-sky-50 text-[#00629B] border border-sky-200/60">
+                            Catálogo Oficial
+                          </span>
+                        </div>
+
+                        <div className="space-y-3">
+                          {rankingTalleres.map((t, idx) => (
+                            <div key={idx} className="p-3 rounded-xl bg-slate-50/70 border border-slate-100 hover:border-slate-200 transition-all space-y-1.5">
+                              <div className="flex items-center justify-between gap-2 text-xs">
+                                <div className="flex items-center gap-2 font-bold text-slate-800">
+                                  <span>{t.icono}</span>
+                                  <span>{t.nombre}</span>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <span className="font-black text-slate-900">{t.count}</span>
+                                  <span className="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-white text-slate-600 border border-slate-200">
+                                    {t.pct}%
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                                <div
+                                  style={{ width: `${t.pct}%` }}
+                                  className="h-full bg-gradient-to-r from-[#00629B] to-[#00A3E0] rounded-full transition-all duration-500"
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-6">
+                        <div className="p-5 rounded-2xl bg-white border border-slate-200 space-y-4 shadow-2xs">
+                          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                            <div>
+                              <h3 className="text-sm font-bold text-slate-900">Preferencia de Modalidad</h3>
+                              <p className="text-xs text-slate-500">Presencialidad vs formato virtual</p>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center space-y-1">
+                              <div className="text-2xl">🏛️</div>
+                              <div className="text-xs font-bold text-slate-600">Presencial</div>
+                              <div className="text-2xl font-black text-[#002D4C]">{presencialTalleres}</div>
+                              <div className="text-[11px] font-bold text-slate-400">{pctPresencial}% del total</div>
+                            </div>
+
+                            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center space-y-1">
+                              <div className="text-2xl">🌐</div>
+                              <div className="text-xs font-bold text-slate-600">Virtual / En Línea</div>
+                              <div className="text-2xl font-black text-[#00A3E0]">{virtualTalleres}</div>
+                              <div className="text-[11px] font-bold text-slate-400">{pctVirtual}% del total</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="p-5 rounded-2xl bg-white border border-slate-200 space-y-4 shadow-2xs">
+                          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                            <div>
+                              <h3 className="text-sm font-bold text-slate-900">Demanda por Carrera / Programa</h3>
+                              <p className="text-xs text-slate-500">Programas académicos con mayor participación</p>
+                            </div>
+                          </div>
+
+                          {rankingCarrerasTalleres.length > 0 ? (
+                            <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                              {rankingCarrerasTalleres.slice(0, 6).map((c, idx) => (
+                                <div key={idx} className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 border border-slate-100 text-xs">
+                                  <div className="flex items-center gap-2">
+                                    <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-700 font-bold text-[10px] flex items-center justify-center">
+                                      {idx + 1}
+                                    </span>
+                                    <span className="font-semibold text-slate-800">{c.carrera}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-black text-slate-900">{c.count} sol.</span>
+                                    <span className="text-[10px] text-slate-400 font-bold">({c.pct}%)</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-xs text-slate-400 italic">No hay información de carreras aún.</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between p-4 bg-sky-50/60 rounded-2xl border border-sky-100">
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">📋</span>
+                        <div>
+                          <h4 className="text-xs font-bold text-slate-800">¿Deseas gestionar o responder solicitudes?</h4>
+                          <p className="text-[11px] text-slate-500">Accede directamente al panel operativo de talleres para responder o gestionar solicitudes.</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab("talleres")}
+                        className="px-4 py-2 bg-[#00629B] hover:bg-[#002D4C] text-white text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer shrink-0"
+                      >
+                        Ir a Talleres Solicitados →
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+        </>
+      )}
 
           {(activeTab === "historial") && (
             <div className={`${CARD} p-6 md:p-8 mb-8 space-y-6 animate-fadeIn`}>
@@ -3697,8 +5267,21 @@ export default function Dashboard() {
                           <option key={c.id} value={c.id}>📍 {c.nombre}</option>
                         ))}
                       </select>
+                      <select
+                        value={filtroEstadoHistorial}
+                        onChange={(e) => setFiltroEstadoHistorial(e.target.value)}
+                        className={`${INPUT} sm:w-auto font-semibold cursor-pointer`}
+                      >
+                        <option value="todos">📋 Todos los estados</option>
+                        <option value="completada">✅ Completada con éxito</option>
+                        <option value="liberada">🔓 Liberada por estudiante</option>
+                        <option value="cancelada">🚫 Cancelada por admin</option>
+                        <option value="inasistencia">⚠️ Inasistencia</option>
+                        <option value="activa">🔵 Activa / En curso</option>
+                        <option value="justificada">⚖️ Justificada</option>
+                      </select>
                     </div>
-                    <button onClick={fetchHistorial} className={BTN_GHOST}>
+                    <button onClick={() => fetchHistorial(1, limiteHistorial)} className={BTN_GHOST}>
                       🔄 Actualizar registros
                     </button>
                   </div>
@@ -3721,6 +5304,7 @@ export default function Dashboard() {
                               <th className="p-3.5">ID original</th>
                               <th className="p-3.5">Alumno titular</th>
                               <th className="p-3.5">RUT</th>
+                              <th className="p-3.5">Carrera</th>
                               <th className="p-3.5">Sede</th>
                               <th className="p-3.5">Fecha reserva</th>
                               <th className="p-3.5">Hora bloque</th>
@@ -3733,23 +5317,38 @@ export default function Dashboard() {
                                 <td className="p-3.5 font-semibold text-slate-400">#{h.reserva_id || h.id}</td>
                                 <td className="p-3.5 font-bold text-slate-900">{h.nombre}</td>
                                 <td className="p-3.5 font-medium text-slate-700">{h.rut}</td>
+                                <td className="p-3.5 font-semibold text-[#00629B] max-w-[200px] truncate" title={h.carrera || "General"}>
+                                  {h.carrera || "General"}
+                                </td>
                                 <td className="p-3.5 text-slate-600 font-medium">{h.campus_nombre || "Sede Principal"}</td>
                                 <td className="p-3.5 text-slate-800 font-semibold">{h.fecha}</td>
                                 <td className="p-3.5 font-bold text-[#00629B]">{h.hora} hrs</td>
                                 <td className="p-3.5">
                                   <span
-                                    className={`px-2.5 py-1 rounded-full text-[10px] font-bold capitalize ${h.estado === "cancelada"
-                                      ? "bg-rose-50 text-rose-700 border border-rose-200"
-                                      : h.estado === "inasistencia"
-                                        ? "bg-rose-100 text-rose-800 border border-rose-300"
-                                        : h.estado === "activa"
-                                          ? "bg-sky-50 text-sky-800 border border-sky-200"
-                                          : h.estado === "expirada" || h.estado === "inactiva"
-                                            ? "bg-amber-50 text-amber-800 border border-amber-200"
-                                            : "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                                    className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${h.estado === "cancelada"
+                                        ? "bg-rose-50 text-rose-700 border border-rose-200"
+                                        : h.estado === "liberada"
+                                          ? "bg-amber-50 text-amber-800 border border-amber-200"
+                                          : h.estado === "inasistencia"
+                                            ? "bg-rose-100 text-rose-800 border border-rose-300"
+                                            : h.estado === "completada" || h.estado === "expirada"
+                                              ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                                              : h.estado === "justificada"
+                                                ? "bg-purple-50 text-purple-800 border border-purple-200"
+                                                : "bg-sky-50 text-sky-800 border border-sky-200"
                                       }`}
                                   >
-                                    {h.estado === "inasistencia" ? "⚠️ Inasistencia" : h.estado}
+                                    {h.estado === "inasistencia"
+                                      ? "⚠️ Inasistencia"
+                                      : h.estado === "liberada"
+                                        ? "🔓 Liberada"
+                                        : h.estado === "cancelada"
+                                          ? "🚫 Cancelada"
+                                          : h.estado === "completada" || h.estado === "expirada"
+                                            ? "✅ Completada con éxito"
+                                            : h.estado === "justificada"
+                                              ? "⚖️ Justificada"
+                                              : "🔵 Activa"}
                                   </span>
                                 </td>
                               </tr>
@@ -4614,99 +6213,77 @@ export default function Dashboard() {
                       {solicitudesTalleres
                         .slice((paginaTalleres - 1) * limiteTalleres, paginaTalleres * limiteTalleres)
                         .map((s) => (
-                        <tr key={s.id} className="hover:bg-slate-50/70 transition-colors">
-                          <td className="py-3.5 px-4 font-mono font-bold text-slate-500">#{s.id}</td>
-                          <td className="py-3.5 px-4 font-semibold text-slate-900 max-w-[220px]">
-                            <div className="flex items-center gap-2">
-                              <span className="text-base shrink-0">🎓</span>
-                              <span className="leading-tight">{s.taller}</span>
-                            </div>
-                          </td>
-                          <td className="py-3.5 px-4">
-                            <div className="font-bold text-slate-900">{s.nombre}</div>
-                            <div className="text-[11px] text-slate-500 font-mono">{s.rut} • {s.email}</div>
-                            <div className="text-[11px] text-[#00629B] font-medium mt-0.5">{s.carrera}</div>
-                          </td>
-                          <td className="py-3.5 px-4">
-                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border ${
-                              s.modalidad?.toLowerCase().includes("virtual")
+                          <tr key={s.id} className="hover:bg-slate-50/70 transition-colors">
+                            <td className="py-3.5 px-4 font-mono font-bold text-slate-500">#{s.id}</td>
+                            <td className="py-3.5 px-4 font-semibold text-slate-900 max-w-[220px]">
+                              <div className="flex items-center gap-2">
+                                <span className="text-base shrink-0">🎓</span>
+                                <span className="leading-tight">{s.taller}</span>
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <div className="font-bold text-slate-900">{s.nombre}</div>
+                              <div className="text-[11px] text-slate-500 font-mono">{s.rut} • {s.email}</div>
+                              <div className="text-[11px] text-[#00629B] font-medium mt-0.5">{s.carrera}</div>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border ${s.modalidad?.toLowerCase().includes("virtual")
                                 ? "bg-purple-50 border-purple-200 text-purple-700"
                                 : "bg-sky-50 border-sky-200 text-[#00629B]"
-                            }`}>
-                              {s.modalidad?.toLowerCase().includes("virtual") ? "💻 Virtual" : "🏛️ Presencial"}
-                            </span>
-                          </td>
-                          <td className="py-3.5 px-4 font-semibold text-slate-700">
-                            👥 {s.participantes} pers.
-                          </td>
-                          <td className="py-3.5 px-4 text-slate-500 text-[11px]">
-                            {s.created_at ? s.created_at.slice(0, 16).replace("T", " ") : "Reciente"}
-                          </td>
-                          <td className="py-3.5 px-4">
-                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border ${
-                              s.estado === "aprobado"
+                                }`}>
+                                {s.modalidad?.toLowerCase().includes("virtual") ? "💻 Virtual" : "🏛️ Presencial"}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4 font-semibold text-slate-700">
+                              👥 {s.participantes} pers.
+                            </td>
+                            <td className="py-3.5 px-4 text-slate-500 text-[11px]">
+                              {s.created_at ? s.created_at.slice(0, 16).replace("T", " ") : "Reciente"}
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border ${s.estado === "aprobado"
                                 ? "bg-emerald-50 border-emerald-200 text-emerald-700"
                                 : s.estado === "realizado"
-                                ? "bg-sky-50 border-sky-200 text-[#00629B]"
-                                : s.estado === "rechazado"
-                                ? "bg-rose-50 border-rose-200 text-rose-700"
-                                : "bg-amber-50 border-amber-200 text-amber-800"
-                            }`}>
-                              {s.estado === "aprobado" ? "✅ Aprobado" : s.estado === "realizado" ? "🎯 Realizado" : s.estado === "rechazado" ? "❌ Rechazado" : "⏳ Pendiente"}
-                            </span>
-                          </td>
-                          <td className="py-3.5 px-4 text-right">
-                            <div className="inline-flex items-center gap-1.5 justify-end">
-                              {s.estado !== "aprobado" && (
+                                  ? "bg-sky-50 border-sky-200 text-[#00629B]"
+                                  : s.estado === "rechazado"
+                                    ? "bg-rose-50 border-rose-200 text-rose-700"
+                                    : "bg-amber-50 border-amber-200 text-amber-800"
+                                }`}>
+                                {s.estado === "aprobado" ? "✅ Aprobado" : s.estado === "realizado" ? "🎯 Realizado" : s.estado === "rechazado" ? "❌ Rechazado" : "⏳ Pendiente"}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4 text-right">
+                              <div className="inline-flex items-center gap-1.5 justify-end">
+                                {s.estado !== "realizado" && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCambiarEstadoTaller(s.id, "realizado")}
+                                    className="px-2 py-1 rounded-lg bg-sky-50 text-[#00629B] hover:bg-sky-100 border border-sky-200 text-[10px] font-bold cursor-pointer transition-colors"
+                                    title="Marcar taller como impartido/realizado"
+                                  >
+                                    Realizado
+                                  </button>
+                                )}
                                 <button
                                   type="button"
-                                  onClick={() => handleCambiarEstadoTaller(s.id, "aprobado")}
-                                  className="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 text-[10px] font-bold cursor-pointer transition-colors"
-                                  title="Aprobar solicitud de taller"
+                                  onClick={() => handleAbrirModalResponder(s)}
+                                  className="px-2 py-1 rounded-lg bg-sky-50 text-[#00629B] hover:bg-sky-100 border border-sky-200 text-[10px] font-bold cursor-pointer transition-colors inline-flex items-center gap-1"
+                                  title="Responder por correo al estudiante"
                                 >
-                                  Aprobar
+                                  ✉️ Responder
                                 </button>
-                              )}
-                              {s.estado !== "realizado" && (
                                 <button
                                   type="button"
-                                  onClick={() => handleCambiarEstadoTaller(s.id, "realizado")}
-                                  className="px-2 py-1 rounded-lg bg-sky-50 text-[#00629B] hover:bg-sky-100 border border-sky-200 text-[10px] font-bold cursor-pointer transition-colors"
-                                  title="Marcar taller como impartido/realizado"
+                                  onClick={() => handleEliminarSolicitudTaller(s.id, s.nombre, s.taller)}
+                                  className="p-1 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 cursor-pointer transition-colors"
+                                  title="Eliminar registro"
                                 >
-                                  Realizado
+                                  🗑️
                                 </button>
-                              )}
-                              {s.estado !== "rechazado" && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleCambiarEstadoTaller(s.id, "rechazado")}
-                                  className="px-2 py-1 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 text-[10px] font-bold cursor-pointer transition-colors"
-                                  title="Rechazar solicitud"
-                                >
-                                  Rechazar
-                                </button>
-                              )}
-                              <button
-                                type="button"
-                                onClick={() => handleAbrirModalResponder(s)}
-                                className="px-2 py-1 rounded-lg bg-sky-50 text-[#00629B] hover:bg-sky-100 border border-sky-200 text-[10px] font-bold cursor-pointer transition-colors inline-flex items-center gap-1"
-                                title="Responder por correo al estudiante"
-                              >
-                                ✉️ Responder
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleEliminarSolicitudTaller(s.id, s.nombre, s.taller)}
-                                className="p-1 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 cursor-pointer transition-colors"
-                                title="Eliminar registro"
-                              >
-                                🗑️
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
                     </tbody>
                   </table>
 
@@ -5560,56 +7137,126 @@ export default function Dashboard() {
 
       {alertaIncidenciasPopUp && (
         <div className={OVERLAY}>
-          <div className={`${MODAL} max-w-lg p-6 md:p-7 space-y-5 animate-slideUp border-2 border-amber-300 shadow-2xl`}>
-            <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
+          <div className={`${MODAL} max-w-xl p-6 md:p-7 space-y-5 animate-slideUp border-2 border-amber-300 dark:border-amber-500/50 shadow-2xl`}>
+            <div className="flex items-start justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-200 text-amber-600 flex items-center justify-center text-2xl shadow-xs">
+                <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-200 dark:border-amber-800 text-amber-600 dark:text-amber-400 flex items-center justify-center text-2xl shadow-xs">
                   ⚠️
                 </div>
                 <div>
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-black uppercase tracking-wider mb-1">
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 text-[10px] font-black uppercase tracking-wider mb-1">
                     🚨 Alerta Administrativa
                   </div>
-                  <h3 className="font-serif font-bold text-lg text-slate-900 leading-tight">
-                    Hay incidencias disponibles
+                  <h3 className="font-serif font-bold text-lg text-slate-900 dark:text-white leading-tight">
+                    Tareas con retraso de atención
                   </h3>
                 </div>
               </div>
               <button
                 onClick={() => setAlertaIncidenciasPopUp(false)}
-                className="text-slate-400 hover:text-slate-700 font-bold text-sm cursor-pointer p-1 rounded-lg hover:bg-slate-100 transition-colors"
+                className="text-slate-400 hover:text-slate-700 dark:hover:text-white font-bold text-sm cursor-pointer p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
               >
                 ✕
               </button>
             </div>
 
             <div className="space-y-3">
-              <p className="text-xs text-slate-600 leading-relaxed">
-                Se han detectado <strong>{incidenciasCriticasVencidas.length} {incidenciasCriticasVencidas.length === 1 ? "incidencia disponible" : "incidencias disponibles"}</strong> en cubículos que ya han superado <strong>al menos dos días sin resolver</strong>. Requieren revisión o mantenimiento inmediato:
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                Se detectaron solicitudes e incidencias que superan <strong>al menos dos días sin atención</strong>:
               </p>
 
-              <div className="max-h-56 overflow-y-auto space-y-2.5 pr-1">
-                {incidenciasCriticasVencidas.map((inc) => {
+              {(incidenciasCriticasVencidas.length > 0 && talleresPendientesVencidos.length > 0) && (
+                <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setFiltroAlertaModal("todos")}
+                    className={`px-3 py-1 rounded-lg font-bold transition cursor-pointer ${filtroAlertaModal === "todos"
+                      ? "bg-white dark:bg-slate-700 text-[#00629B] dark:text-sky-300 shadow-xs"
+                      : "text-slate-600 dark:text-slate-400"
+                      }`}
+                  >
+                    Todos ({incidenciasCriticasVencidas.length + talleresPendientesVencidos.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFiltroAlertaModal("incidencias")}
+                    className={`px-3 py-1 rounded-lg font-bold transition cursor-pointer ${filtroAlertaModal === "incidencias"
+                      ? "bg-white dark:bg-slate-700 text-[#00629B] dark:text-sky-300 shadow-xs"
+                      : "text-slate-600 dark:text-slate-400"
+                      }`}
+                  >
+                    ⚠️ Incidencias ({incidenciasCriticasVencidas.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFiltroAlertaModal("talleres")}
+                    className={`px-3 py-1 rounded-lg font-bold transition cursor-pointer ${filtroAlertaModal === "talleres"
+                      ? "bg-white dark:bg-slate-700 text-[#00629B] dark:text-sky-300 shadow-xs"
+                      : "text-slate-600 dark:text-slate-400"
+                      }`}
+                  >
+                    🎓 Talleres ({talleresPendientesVencidos.length})
+                  </button>
+                </div>
+              )}
+
+              <div className="max-h-64 overflow-y-auto space-y-2.5 pr-1">
+                {(filtroAlertaModal === "todos" || filtroAlertaModal === "incidencias") && incidenciasCriticasVencidas.map((inc) => {
                   const diasSinResolver = calcularDiasSinResolverIncidencia(inc.created_at);
                   return (
                     <div
-                      key={inc.id}
-                      className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200/80 space-y-1.5 shadow-xs"
+                      key={`inc-${inc.id}`}
+                      className="p-3.5 rounded-2xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800 space-y-1.5 shadow-xs"
                     >
                       <div className="flex items-center justify-between text-xs">
-                        <span className="font-extrabold text-slate-900 flex items-center gap-1.5">
+                        <span className="font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5">
                           <span>🚪</span> {inc.cubiculo_codigo} • {inc.campus_nombre}
                         </span>
-                        <span className="px-2.5 py-0.5 rounded-md text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-200">
+                        <span className="px-2.5 py-0.5 rounded-md text-[10px] font-black bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
                           {diasSinResolver} días pendiente
                         </span>
                       </div>
-                      <p className="text-xs text-slate-700 font-medium">
+                      <p className="text-xs text-slate-700 dark:text-slate-300 font-medium">
                         {inc.descripcion || "Sin descripción"}
                       </p>
-                      <div className="flex items-center justify-between text-[11px] text-slate-500 pt-0.5">
+                      <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 pt-0.5">
                         <span>Categoría: <strong>{inc.categoria || "General"}</strong></span>
-                        <span className="capitalize font-bold text-amber-800">Estado: {inc.estado}</span>
+                        <span className="capitalize font-bold text-amber-800 dark:text-amber-400">Incidencia de Cubículo</span>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {(filtroAlertaModal === "todos" || filtroAlertaModal === "talleres") && talleresPendientesVencidos.map((t) => {
+                  const diasSinRespuesta = calcularDiasSinResolverIncidencia(t.created_at);
+                  return (
+                    <div
+                      key={`taller-${t.id}`}
+                      className="p-3.5 rounded-2xl bg-sky-50/70 dark:bg-sky-950/30 border border-sky-200/80 dark:border-sky-800 space-y-1.5 shadow-xs"
+                    >
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-extrabold text-[#00629B] dark:text-sky-300 flex items-center gap-1.5">
+                          <span>🎓</span> {t.taller}
+                        </span>
+                        <span className="px-2.5 py-0.5 rounded-md text-[10px] font-black bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                          {diasSinRespuesta} días sin respuesta
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-700 dark:text-slate-300 font-medium">
+                        Solicitado por <strong>{t.nombre}</strong> ({t.carrera || "Carrera no esp."})
+                      </p>
+                      <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 pt-0.5">
+                        <span>Modalidad: <strong>{t.modalidad || "Presencial"}</strong> • {t.participantes || 1} pers.</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAlertaIncidenciasPopUp(false);
+                            handleAbrirModalResponder(t);
+                          }}
+                          className="font-bold text-[#00629B] dark:text-sky-300 hover:underline cursor-pointer"
+                        >
+                          ✉️ Responder ahora →
+                        </button>
                       </div>
                     </div>
                   );
@@ -5617,24 +7264,38 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="pt-3 border-t border-slate-100 flex flex-col-reverse sm:flex-row items-center justify-end gap-2.5">
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-end gap-2.5">
               <button
                 type="button"
                 onClick={() => setAlertaIncidenciasPopUp(false)}
-                className={`${BTN_GHOST} w-full sm:w-auto text-xs py-2.5 px-4`}
+                className={`${BTN_GHOST} text-xs py-2 px-3.5`}
               >
                 Cerrar alerta
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setAlertaIncidenciasPopUp(false);
-                  handleSelectTab("incidencias");
-                }}
-                className={`${BTN_PRIMARY} w-full sm:w-auto text-xs py-2.5 px-5 bg-gradient-to-r from-[#00629B] to-[#004E7C] shadow-md`}
-              >
-                🔧 Ir a gestionar incidencias ({incidenciasCriticasVencidas.length})
-              </button>
+              {incidenciasCriticasVencidas.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAlertaIncidenciasPopUp(false);
+                    handleSelectTab("incidencias");
+                  }}
+                  className={`${BTN_GHOST} text-xs py-2 px-3.5 hover:border-amber-400`}
+                >
+                  🔧 Ir a incidencias ({incidenciasCriticasVencidas.length})
+                </button>
+              )}
+              {talleresPendientesVencidos.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAlertaIncidenciasPopUp(false);
+                    handleSelectTab("talleres");
+                  }}
+                  className={`${BTN_PRIMARY} text-xs py-2 px-4`}
+                >
+                  🎓 Ir a talleres ({talleresPendientesVencidos.length})
+                </button>
+              )}
             </div>
           </div>
         </div>

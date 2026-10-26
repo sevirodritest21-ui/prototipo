@@ -1,19 +1,35 @@
 import React, { useState, useRef, useEffect, lazy, Suspense } from "react";
 import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from "react-router-dom";
 
-// IMPORTACIÓN DEL LOGO DESDE SRC/ASSETS
-import logoUCT from "./assets/logo.png";
+import logoUCT from "./assets/logobibliovice.png";
 
-// Code Splitting mediante React.lazy para reducir el tamaño del bundle inicial y acelerar carga
-const PaginaInicio = lazy(() => import("./PaginaInicio"));
-const FormularioReserva = lazy(() => import("./FormularioReserva"));
-const ChatbotFlotante = lazy(() => import("./ChatBotFlotante"));
-const Login = lazy(() => import("./pages/Login"));
-const Dashboard = lazy(() => import("./pages/Dashboard"));
-const MisReservas = lazy(() => import("./pages/MisReservas"));
-const SolicitudTalleres = lazy(() => import("./pages/SolicitudTalleres"));
-const Reglamento = lazy(() => import("./pages/Reglamento"));
-const PreguntasFrecuentes = lazy(() => import("./pages/PreguntasFrecuentes"));
+function lazyWithRetry(componentImport) {
+  return lazy(async () => {
+    try {
+      return await componentImport();
+    } catch (error) {
+      const alreadyRefreshed = sessionStorage.getItem("app_chunk_retry");
+      if (!alreadyRefreshed) {
+        sessionStorage.setItem("app_chunk_retry", "true");
+        window.location.reload();
+        return new Promise(() => {});
+      }
+      sessionStorage.removeItem("app_chunk_retry");
+      throw error;
+    }
+  });
+}
+
+// Code Splitting mediante React.lazy con auto-recuperación ante nuevos despliegues
+const PaginaInicio = lazyWithRetry(() => import("./PaginaInicio"));
+const FormularioReserva = lazyWithRetry(() => import("./FormularioReserva"));
+const ChatbotFlotante = lazyWithRetry(() => import("./ChatBotFlotante"));
+const Login = lazyWithRetry(() => import("./pages/Login"));
+const Dashboard = lazyWithRetry(() => import("./pages/Dashboard"));
+const MisReservas = lazyWithRetry(() => import("./pages/MisReservas"));
+const SolicitudTalleres = lazyWithRetry(() => import("./pages/SolicitudTalleres"));
+const Reglamento = lazyWithRetry(() => import("./pages/Reglamento"));
+const PreguntasFrecuentes = lazyWithRetry(() => import("./pages/PreguntasFrecuentes"));
 
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider, useAuth } from "./context/AuthContext";
@@ -78,39 +94,29 @@ function NavBar() {
 
   const getLinkStyle = (path) => {
     const isActive = location.pathname === path;
-    return `relative px-1 py-5 text-[14px] transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC20E] focus-visible:ring-offset-2 focus-visible:ring-offset-[#00629B] ${isActive
-      ? "font-semibold text-white after:absolute after:inset-x-0 after:bottom-0 after:h-[3px] after:bg-[#FFC20E] after:content-['']"
-      : "text-sky-100/80 hover:text-white"
+    return `relative px-3.5 py-1.5 rounded-full text-[13.5px] font-medium transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC20E] ${isActive
+      ? "bg-white/15 text-white font-semibold shadow-xs border border-white/20 backdrop-blur-xs"
+      : "text-sky-100/80 hover:text-white hover:bg-white/10"
       }`;
   };
 
   const userInitial = user?.nombre ? user.nombre.charAt(0).toUpperCase() : "U";
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-[#00629B] text-white shadow-[0_1px_0_rgba(255,255,255,0.08)]">
+    <nav className="fixed top-0 left-0 right-0 z-50 bg-[#004D7A]/90 dark:bg-slate-900/90 backdrop-blur-md text-white border-b border-white/10 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.2)]">
       <div className="mx-auto max-w-7xl px-6">
         <div className="flex h-16 items-center justify-between">
 
-          <Link to="/" className="group flex items-center gap-3">
+          <Link to="/" className="group flex items-center transition-opacity hover:opacity-95">
             <img
               src={logoUCT}
-              alt="Logo Universidad Católica de Temuco"
-              className="h-9 w-auto object-contain"
+              alt="Dirección del Sistema de Bibliotecas - Universidad Católica de Temuco"
+              className="h-9 sm:h-10 w-auto object-contain drop-shadow-xs"
             />
-            <span className="hidden sm:block h-7 w-px bg-white/20" />
-            <span className="hidden sm:flex flex-col leading-tight">
-              <span className="font-serif text-[17px] tracking-tight text-white">
-                Biblioteca
-                <span className="text-[#00A3E0]">U</span>
-                <span className="text-white">C</span>
-                <span className="text-[#FFC20E]">T</span>
-              </span>
-              <span className="text-[11px] text-sky-200/80">Reserva de cubículos</span>
-            </span>
           </Link>
 
           <div className="flex items-center gap-3 sm:gap-5">
-            <div className="hidden md:flex items-center gap-7">
+            <div className="hidden md:flex items-center gap-1.5 sm:gap-2">
               <Link to="/" className={getLinkStyle("/")}>
                 Inicio
               </Link>
@@ -128,7 +134,7 @@ function NavBar() {
             <button
               type="button"
               onClick={toggleTheme}
-              className="flex h-9 w-9 items-center justify-center rounded-md border border-white/15 bg-white/10 text-white transition hover:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC20E]"
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white transition hover:bg-white/20 hover:scale-105 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC20E]"
               title={isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
               aria-label={isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
             >
@@ -147,7 +153,7 @@ function NavBar() {
                     background: "conic-gradient(from 45deg, #00A3E0 0%, #FFFFFF 33%, #FFC20E 66%, #00A3E0 100%)"
                   }}
                 >
-                  <span className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full bg-[#e3c817] text-[#092396] font-bold text-sm sm:text-base select-none shadow-inner">
+                  <span className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full avatar-rgb-gradient text-[#002D4C] font-black text-sm sm:text-base select-none shadow-inner">
                     {userInitial}
                   </span>
                   <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#004D7A] text-white ring-2 ring-white shadow-xs">
@@ -164,7 +170,7 @@ function NavBar() {
                           background: "conic-gradient(from 45deg, #00A3E0 0%, #FFFFFF 33%, #FFC20E 66%, #00A3E0 100%)"
                         }}
                       >
-                        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#004D7A] text-white font-bold text-base">
+                        <span className="flex h-10 w-10 items-center justify-center rounded-full avatar-rgb-gradient text-[#002D4C] font-black text-base select-none shadow-inner">
                           {userInitial}
                         </span>
                       </div>
