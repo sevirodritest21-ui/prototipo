@@ -2,13 +2,14 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { apiGet, apiPost, apiDelete } from "../services/api";
+import "./SolicitudTalleres.css";
 
 const Icon = ({ path, className = "w-4 h-4" }) => (
   <svg
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
-    strokeWidth="1.7"
+    strokeWidth="1.8"
     strokeLinecap="round"
     strokeLinejoin="round"
     className={className}
@@ -121,6 +122,15 @@ const TALLERES_DISPONIBLES = [
   "ORCID",
 ];
 
+const CATALOGO_META = [
+  { icono: "🧭", tag: "Inducción", desc: "Recorrido por recursos físicos, digitales y servicios clave." },
+  { icono: "🔎", tag: "Investigación", desc: "Estrategias avanzadas en bases de datos científicas." },
+  { icono: "📑", tag: "Citas y Normas", desc: "APA, gestores bibliográficos y organización de fuentes." },
+  { icono: "⚖️", tag: "Integridad", desc: "Prevención de plagio, derechos de autor y buenas prácticas." },
+  { icono: "📚", tag: "Plataforma", desc: "Acceso y gestión de bibliografías de tus asignaturas." },
+  { icono: "🆔", tag: "Identidad Digital", desc: "Crea y vincula tu identificador de investigador único." },
+];
+
 export default function SolicitudTalleres() {
   const { user } = useAuth();
   const [solicitudes, setSolicitudes] = useState([]);
@@ -144,6 +154,12 @@ export default function SolicitudTalleres() {
   });
 
   const timerRef = useRef(null);
+
+  const handleSpotlight = useCallback((e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    e.currentTarget.style.setProperty("--mx", `${e.clientX - rect.left}px`);
+    e.currentTarget.style.setProperty("--my", `${e.clientY - rect.top}px`);
+  }, []);
 
   const fetchMisSolicitudes = useCallback(async (mostrarSpinner = false) => {
     if (mostrarSpinner) setActualizando(true);
@@ -190,8 +206,9 @@ export default function SolicitudTalleres() {
 
   const handleCrearSolicitud = async (e) => {
     e.preventDefault();
-    if (!formData.taller || !formData.carrera.trim()) {
-      setToast({ tipo: "error", texto: "Por favor completa el taller y tu carrera." });
+    const carreraFinal = (user?.carrera || formData.carrera || "").trim();
+    if (!formData.taller || !carreraFinal) {
+      setToast({ tipo: "error", texto: "Por favor completa el taller y verifica tu carrera." });
       return;
     }
 
@@ -202,7 +219,7 @@ export default function SolicitudTalleres() {
         nombre: user?.nombre || "Estudiante",
         email: user?.email || "",
         rut: user?.rut || "",
-        carrera: formData.carrera.trim(),
+        carrera: carreraFinal,
         modalidad: formData.modalidad,
         participantes: String(formData.participantes),
         observaciones: formData.observaciones.trim() || null,
@@ -241,9 +258,15 @@ export default function SolicitudTalleres() {
     }
   };
 
-  const abrirModalNuevaSolicitud = () => {
+  const abrirModalNuevaSolicitud = (tallerPreseleccionado) => {
+    const tallerElegido =
+      typeof tallerPreseleccionado === "string" && TALLERES_DISPONIBLES.includes(tallerPreseleccionado)
+        ? tallerPreseleccionado
+        : formData.taller || TALLERES_DISPONIBLES[0];
+
     setFormData((prev) => ({
       ...prev,
+      taller: tallerElegido,
       carrera: user?.carrera || prev.carrera || "",
     }));
     setModalNuevoOpen(true);
@@ -277,41 +300,34 @@ export default function SolicitudTalleres() {
     switch (estado) {
       case "pendiente":
         return (
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-300">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75"></span>
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500"></span>
-            </span>
+          <span className="st-badge st-badge--pending">
+            <span className="st-badge-ping" />
             Pendiente de revisión
           </span>
         );
       case "aprobado":
         return (
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800 dark:border-emerald-700/60 dark:bg-emerald-950/40 dark:text-emerald-300">
-            <IconCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+          <span className="st-badge st-badge--approved">
+            <IconCheck className="w-3.5 h-3.5" />
             Aprobada
           </span>
         );
       case "rechazado":
         return (
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-300 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-800 dark:border-rose-700/60 dark:bg-rose-950/40 dark:text-rose-300">
-            <IconClose className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />
+          <span className="st-badge st-badge--rejected">
+            <IconClose className="w-3.5 h-3.5" />
             No aprobada
           </span>
         );
       case "realizado":
         return (
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-300 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-800 dark:border-sky-700/60 dark:bg-sky-950/40 dark:text-sky-300">
-            <IconAcademic className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" />
+          <span className="st-badge st-badge--done">
+            <IconAcademic className="w-3.5 h-3.5" />
             Taller Realizado
           </span>
         );
       default:
-        return (
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-            {estado}
-          </span>
-        );
+        return <span className="st-badge">{estado}</span>;
     }
   };
 
@@ -333,422 +349,550 @@ export default function SolicitudTalleres() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100/60 pt-16 pb-20 dark:bg-slate-950">
-      <header className="border-b border-white/10 bg-[#00629B] text-white">
-        <div className="mx-auto max-w-5xl px-5 py-9 sm:py-11">
-          <div className="flex flex-wrap items-start justify-between gap-6">
-            <div className="max-w-2xl">
-              <div className="flex items-center gap-2 text-sky-200">
-                <span className="flex h-7 w-7 items-center justify-center rounded-md border border-white/15 bg-white/10 text-[#FFC20E]">
-                  <IconAcademic className="w-4 h-4" />
+    <div className="st-root min-h-screen pt-20 pb-24">
+      {/* Fondos ambientales flotantes */}
+      <div className="st-ambient" aria-hidden="true">
+        <div className="st-orb st-orb--navy" />
+        <div className="st-orb st-orb--sky" />
+        <div className="st-orb st-orb--gold" />
+        <div className="st-mesh" />
+      </div>
+
+      <div className="st-container">
+        {/* BENTO HERO FLOTANTE (Sin barra clásica) */}
+        <section className="st-hero-bento st-fade-up" aria-labelledby="st-page-title">
+          {/* Panel Principal Izquierdo: Identidad + Acciones */}
+          <div className="st-hero-main">
+            <div className="st-hero-glow" aria-hidden="true" />
+
+            <div className="st-hero-top">
+              <span className="st-eyebrow">
+                <span className="st-eyebrow-dot">🎓</span>
+                Formación Académica • Biblioteca UCT
+              </span>
+
+              <div className="st-sync-pill" title="Sincronización automática cada 7 segundos">
+                <span className="st-sync-dot" />
+                <span className="st-sync-text">
+                  {ultimaActualizacion
+                    ? ultimaActualizacion.toLocaleTimeString("es-CL")
+                    : "Conectando..."}
                 </span>
-                <span className="text-xs font-semibold uppercase tracking-wider text-sky-200">
-                  Portal del Estudiante • Biblioteca UCT
-                </span>
+                <button
+                  type="button"
+                  onClick={() => fetchMisSolicitudes(true)}
+                  disabled={actualizando}
+                  className="st-sync-btn"
+                  aria-label="Actualizar solicitudes ahora"
+                >
+                  <IconRefresh className={`w-3.5 h-3.5 ${actualizando ? "animate-spin" : ""}`} />
+                </button>
               </div>
-
-              <h1 className="mt-4 font-serif text-3xl leading-tight tracking-tight text-white sm:text-[2.5rem]">
-                Solicitud de talleres
-              </h1>
-
-              <p className="mt-2.5 text-[14px] leading-relaxed text-sky-100/90">
-                Monitorea en tiempo real el estado de tus solicitudes de talleres de biblioteca. Recibe confirmación de aprobación o motivos directamente desde el equipo administrativo.
-              </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
+            <h1 id="st-page-title" className="st-title">
+              Talleres y Mentorías{" "}
+              <span className="st-gradient-text st-underline">
+                Especializadas.
+                <svg viewBox="0 0 300 20" preserveAspectRatio="none" aria-hidden="true">
+                  <path
+                    d="M4 14 C 60 4, 120 4, 170 10 S 260 18, 296 6"
+                    fill="none"
+                    stroke="#FFC20E"
+                    strokeWidth="5"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </span>
+            </h1>
+
+            <p className="st-lead">
+              Impulsa tus trabajos de investigación, tesis o asignaturas con sesiones guiadas por bibliotecólogos UCT. Solicita un taller grupal y sigue su aprobación en tiempo real.
+            </p>
+
+            <div className="st-hero-actions">
+              <button
+                type="button"
+                onClick={() => abrirModalNuevaSolicitud()}
+                className="st-btn st-btn--gold"
+              >
+                <IconPlus className="w-4 h-4" />
+                Solicitar Taller
+                <span className="st-btn-arrow">→</span>
+              </button>
+
               <button
                 type="button"
                 onClick={abrirChatbotTalleres}
-                className="inline-flex items-center gap-2 rounded-md border border-white/20 bg-white/10 px-4 py-2.5 text-[13px] font-semibold text-white backdrop-blur-sm transition-colors hover:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC20E]"
+                className="st-btn st-btn--glass"
               >
-                <IconChat className="w-4 h-4 text-[#FFC20E]" /> Pedir con Asistente
-              </button>
-
-              <button
-                type="button"
-                onClick={abrirModalNuevaSolicitud}
-                className="inline-flex items-center gap-2 rounded-md bg-[#FFC20E] px-4 py-2.5 text-[13px] font-semibold text-slate-900 shadow-sm transition-colors hover:bg-[#FFCA28] focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
-              >
-                <IconPlus className="w-4 h-4" /> Nueva solicitud
+                <IconChat className="w-4 h-4 text-[#FFC20E]" />
+                Pedir con Asistente IA
               </button>
             </div>
           </div>
-        </div>
-        <div className="h-[2px] bg-gradient-to-r from-[#FFC20E] via-[#00A3E0] to-[#00629B]" />
-      </header>
 
-      <main className="mx-auto max-w-5xl px-5 mt-8 space-y-6">
+          {/* Panel Derecho: Telemetría y KPIs interactivos */}
+          <div className="st-kpi-grid">
+            <button
+              type="button"
+              onClick={() => {
+                setFiltroEstado("todos");
+                setPaginaActual(1);
+              }}
+              className={`st-kpi-card st-kpi-card--total ${filtroEstado === "todos" ? "is-selected" : ""}`}
+            >
+              <div className="st-kpi-head">
+                <span>Total Solicitudes</span>
+                <span className="st-kpi-icon">📊</span>
+              </div>
+              <strong>{conteo.total}</strong>
+              <small>Historial completo</small>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setFiltroEstado("pendiente");
+                setPaginaActual(1);
+              }}
+              className={`st-kpi-card st-kpi-card--pending ${filtroEstado === "pendiente" ? "is-selected" : ""}`}
+            >
+              <div className="st-kpi-head">
+                <span>En Revisión</span>
+                <span className="st-kpi-icon">⏳</span>
+              </div>
+              <strong>{conteo.pendiente}</strong>
+              <small>Pendientes de respuesta</small>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setFiltroEstado("aprobado");
+                setPaginaActual(1);
+              }}
+              className={`st-kpi-card st-kpi-card--approved ${filtroEstado === "aprobado" ? "is-selected" : ""}`}
+            >
+              <div className="st-kpi-head">
+                <span>Aprobadas</span>
+                <span className="st-kpi-icon">✅</span>
+              </div>
+              <strong>{conteo.aprobado}</strong>
+              <small>Confirmadas por biblioteca</small>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setFiltroEstado("rechazado");
+                setPaginaActual(1);
+              }}
+              className={`st-kpi-card st-kpi-card--rejected ${filtroEstado === "rechazado" ? "is-selected" : ""}`}
+            >
+              <div className="st-kpi-head">
+                <span>No Aprobadas</span>
+                <span className="st-kpi-icon">📌</span>
+              </div>
+              <strong>{conteo.rechazado}</strong>
+              <small>Con observaciones</small>
+            </button>
+          </div>
+        </section>
+
+        {/* NOTIFICACIÓN BANNER */}
         {toast.texto && (
           <div
-            className={`flex items-center justify-between rounded-xl border p-4 shadow-sm animate-fadeIn ${
-              toast.tipo === "exito"
-                ? "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-200"
-                : "border-rose-200 bg-rose-50 text-rose-900 dark:border-rose-800 dark:bg-rose-950/60 dark:text-rose-200"
-            }`}
+            className={`st-toast-banner st-fade-up ${toast.tipo === "exito" ? "st-toast-banner--success" : "st-toast-banner--error"
+              }`}
           >
-            <div className="flex items-center gap-3 text-sm">
-              {toast.tipo === "exito" ? (
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-200 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200">
-                  <IconCheck className="w-3.5 h-3.5" />
-                </span>
-              ) : (
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-rose-200 text-rose-800 dark:bg-rose-900 dark:text-rose-200">
-                  <IconClose className="w-3.5 h-3.5" />
-                </span>
-              )}
-              <span className="font-medium">{toast.texto}</span>
+            <div className="flex items-center gap-3">
+              <span className="st-toast-icon">
+                {toast.tipo === "exito" ? <IconCheck className="w-4 h-4" /> : <IconClose className="w-4 h-4" />}
+              </span>
+              <span className="font-semibold text-sm">{toast.texto}</span>
             </div>
             <button
               type="button"
               onClick={() => setToast({ tipo: "", texto: "" })}
-              className="ml-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              className="st-toast-close"
+              aria-label="Cerrar notificación"
             >
               <IconClose className="w-4 h-4" />
             </button>
           </div>
         )}
 
-        <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900">
-          <div className="flex items-center gap-3">
-            <span className="relative flex h-3 w-3">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500"></span>
-            </span>
-            <div>
-              <p className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                Sincronización en tiempo real activa
-              </p>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                {ultimaActualizacion
-                  ? `Última comprobación: ${ultimaActualizacion.toLocaleTimeString("es-CL")}`
-                  : "Comprobando cambios..."}
-              </p>
-            </div>
-          </div>
+        {/* WORKSPACE DE 2 COLUMNAS: SOLICITUDES + CATÁLOGO INTERACTIVO */}
+        <div className="st-workspace">
+          {/* COLUMNA PRINCIPAL: Seguimiento de Solicitudes */}
+          <main className="st-feed">
+            {/* Barra de Filtros y Estado de Sincronización */}
+            <div className="st-toolbar">
+              <div className="st-tabs" role="tablist" aria-label="Filtrar solicitudes por estado">
+                {[
+                  { id: "todos", label: "Todas", count: conteo.total },
+                  { id: "pendiente", label: "Pendientes", count: conteo.pendiente },
+                  { id: "aprobado", label: "Aprobadas", count: conteo.aprobado },
+                  { id: "rechazado", label: "Rechazadas", count: conteo.rechazado },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={filtroEstado === tab.id}
+                    onClick={() => {
+                      setFiltroEstado(tab.id);
+                      setPaginaActual(1);
+                    }}
+                    className={`st-tab ${filtroEstado === tab.id ? "is-active" : ""}`}
+                  >
+                    <span>{tab.label}</span>
+                    <b>{tab.count}</b>
+                  </button>
+                ))}
+              </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => fetchMisSolicitudes(true)}
-              disabled={actualizando}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-            >
-              <IconRefresh className={`w-3.5 h-3.5 ${actualizando ? "animate-spin text-[#00629B]" : ""}`} />
-              {actualizando ? "Actualizando..." : "Actualizar ahora"}
-            </button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              Total Solicitudes
-            </span>
-            <p className="mt-1 font-serif text-2xl font-bold text-slate-900 dark:text-white">
-              {conteo.total}
-            </p>
-          </div>
-
-          <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 shadow-xs dark:border-amber-900/50 dark:bg-amber-950/20">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">
-              Pendientes
-            </span>
-            <p className="mt-1 font-serif text-2xl font-bold text-amber-800 dark:text-amber-300">
-              {conteo.pendiente}
-            </p>
-          </div>
-
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 shadow-xs dark:border-emerald-900/50 dark:bg-emerald-950/20">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
-              Aprobadas
-            </span>
-            <p className="mt-1 font-serif text-2xl font-bold text-emerald-800 dark:text-emerald-300">
-              {conteo.aprobado}
-            </p>
-          </div>
-
-          <div className="rounded-xl border border-rose-200 bg-rose-50/60 p-4 shadow-xs dark:border-rose-900/50 dark:bg-rose-950/20">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-rose-700 dark:text-rose-400">
-              No Aprobadas
-            </span>
-            <p className="mt-1 font-serif text-2xl font-bold text-rose-800 dark:text-rose-300">
-              {conteo.rechazado}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3 dark:border-slate-800">
-          <div className="flex items-center gap-1.5 overflow-x-auto">
-            {[
-              { id: "todos", label: `Todas (${conteo.total})` },
-              { id: "pendiente", label: `Pendientes (${conteo.pendiente})` },
-              { id: "aprobado", label: `Aprobadas (${conteo.aprobado})` },
-              { id: "rechazado", label: `Rechazadas (${conteo.rechazado})` },
-            ].map((tab) => (
               <button
-                key={tab.id}
                 type="button"
-                onClick={() => {
-                  setFiltroEstado(tab.id);
-                  setPaginaActual(1);
-                }}
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                  filtroEstado === tab.id
-                    ? "bg-[#00629B] text-white shadow-xs"
-                    : "text-slate-600 hover:bg-slate-200/70 dark:text-slate-300 dark:hover:bg-slate-800"
-                }`}
+                onClick={() => fetchMisSolicitudes(true)}
+                disabled={actualizando}
+                className="st-refresh-pill"
               >
-                {tab.label}
+                <IconRefresh className={`w-3.5 h-3.5 ${actualizando ? "animate-spin text-[#00A3E0]" : ""}`} />
+                <span>{actualizando ? "Sincronizando..." : "Actualizar"}</span>
               </button>
-            ))}
-          </div>
-        </div>
+            </div>
 
-        {cargando ? (
-          <div className="space-y-4">
-            {[1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-6 shadow-xs dark:border-slate-800 dark:bg-slate-900"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="h-6 w-52 rounded-md bg-slate-200 dark:bg-slate-800" />
-                  <div className="h-6 w-28 rounded-full bg-slate-200 dark:bg-slate-800" />
+            {/* Listado / Skeleton / Estado Vacío */}
+            {cargando ? (
+              <div className="space-y-4">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="st-skeleton">
+                    <div className="flex items-center justify-between">
+                      <div className="h-6 w-60 rounded-lg bg-slate-200/80 dark:bg-slate-800" />
+                      <div className="h-7 w-32 rounded-full bg-slate-200/70 dark:bg-slate-800" />
+                    </div>
+                    <div className="mt-5 grid grid-cols-3 gap-3">
+                      <div className="h-10 rounded-xl bg-slate-200/50 dark:bg-slate-800/60" />
+                      <div className="h-10 rounded-xl bg-slate-200/50 dark:bg-slate-800/60" />
+                      <div className="h-10 rounded-xl bg-slate-200/50 dark:bg-slate-800/60" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : solicitudesFiltradas.length === 0 ? (
+              <div className="st-empty-state st-fade-up">
+                <div className="st-empty-icon">
+                  <IconAcademic className="w-8 h-8" />
                 </div>
-                <div className="mt-4 flex gap-4">
-                  <div className="h-4 w-32 rounded-md bg-slate-200/70 dark:bg-slate-800/70" />
-                  <div className="h-4 w-28 rounded-md bg-slate-200/70 dark:bg-slate-800/70" />
+                <span className="st-kicker">✦ Bandeja de solicitudes</span>
+                <h3>
+                  {filtroEstado === "todos"
+                    ? "Aún no tienes solicitudes de talleres"
+                    : `No hay solicitudes en estado "${filtroEstado}"`}
+                </h3>
+                <p>
+                  Elige cualquiera de los 6 talleres especializados desde el catálogo lateral o presiona el botón para programar una sesión con tu grupo (mínimo 4 participantes).
+                </p>
+                <div className="st-hero-actions justify-center">
+                  <button
+                    type="button"
+                    onClick={() => abrirModalNuevaSolicitud()}
+                    className="st-btn st-btn--gold"
+                  >
+                    <IconPlus className="w-4 h-4" /> Solicitar un taller ahora
+                  </button>
+                  <button
+                    type="button"
+                    onClick={abrirChatbotTalleres}
+                    className="st-btn st-btn--sky"
+                  >
+                    <IconChat className="w-4 h-4" /> Consultar al Asistente IA
+                  </button>
                 </div>
               </div>
-            ))}
-          </div>
-        ) : solicitudesFiltradas.length === 0 ? (
-          <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center shadow-xs dark:border-slate-800 dark:bg-slate-900 sm:p-14">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-sky-50 text-[#00629B] dark:bg-sky-950/50 dark:text-sky-300">
-              <IconAcademic className="h-7 w-7" />
+            ) : (
+              <div className="space-y-4">
+                {solicitudesPaginadas.map((sol) => {
+                  const metaIndex = TALLERES_DISPONIBLES.indexOf(sol.taller);
+                  const iconoTaller = metaIndex >= 0 ? CATALOGO_META[metaIndex].icono : "🎓";
+
+                  return (
+                    <article
+                      key={sol.id}
+                      className={`st-card st-card--${sol.estado || "pendiente"}`}
+                      onMouseMove={handleSpotlight}
+                    >
+                      <div className="st-card-inner">
+                        {/* Cabecera de la tarjeta */}
+                        <div className="st-card-top">
+                          <div className="flex items-start gap-3.5">
+                            <div className="st-card-avatar" aria-hidden="true">
+                              {iconoTaller}
+                            </div>
+                            <div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="st-card-id">FOLIO #{sol.id}</span>
+                                <span className="st-card-date">
+                                  <IconClock className="w-3.5 h-3.5 text-[#00A3E0]" />
+                                  {formatearFecha(sol.created_at)}
+                                </span>
+                              </div>
+                              <h2 className="st-card-title">{sol.taller}</h2>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-col items-end gap-2">
+                            {renderBadgeEstado(sol.estado)}
+                            {sol.estado === "pendiente" && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setModalCancelar({ open: true, id: sol.id, taller: sol.taller })
+                                }
+                                className="st-cancel-link"
+                              >
+                                <IconTrash className="w-3.5 h-3.5" /> Cancelar solicitud
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Píldoras de Metadatos */}
+                        <div className="st-meta-strip">
+                          <div className="st-meta-box">
+                            <span>Modalidad</span>
+                            <strong>
+                              {sol.modalidad === "Virtual" ? "💻 Virtual (Teams)" : "🏛️ Presencial"}
+                            </strong>
+                          </div>
+
+                          <div className="st-meta-box">
+                            <span>Grupo de estudio</span>
+                            <strong>
+                              <IconUsers className="w-3.5 h-3.5 text-[#00A3E0] inline mr-1" />
+                              {sol.participantes || "4"} participantes
+                            </strong>
+                          </div>
+
+                          <div className="st-meta-box">
+                            <span>Carrera / Programa</span>
+                            <strong className="truncate">{sol.carrera}</strong>
+                          </div>
+                        </div>
+
+                        {/* Barra de progreso de seguimiento */}
+                        <div className="st-stepper" aria-label="Progreso de la solicitud">
+                          <div className="st-step is-complete">
+                            <span className="st-step-dot">✓</span>
+                            <span>Solicitud enviada</span>
+                          </div>
+                          <div className="st-step-line is-complete" />
+                          <div
+                            className={`st-step ${sol.estado === "pendiente" ? "is-current" : "is-complete"
+                              }`}
+                          >
+                            <span className="st-step-dot">
+                              {sol.estado === "pendiente" ? "•" : "✓"}
+                            </span>
+                            <span>Revisión Biblioteca</span>
+                          </div>
+                          <div
+                            className={`st-step-line ${sol.estado !== "pendiente" ? "is-complete" : ""
+                              }`}
+                          />
+                          <div
+                            className={`st-step ${sol.estado === "aprobado" || sol.estado === "realizado"
+                                ? "is-approved"
+                                : sol.estado === "rechazado"
+                                  ? "is-rejected"
+                                  : ""
+                              }`}
+                          >
+                            <span className="st-step-dot">
+                              {sol.estado === "aprobado" || sol.estado === "realizado"
+                                ? "✓"
+                                : sol.estado === "rechazado"
+                                  ? "✕"
+                                  : "3"}
+                            </span>
+                            <span>
+                              {sol.estado === "aprobado"
+                                ? "Aprobada"
+                                : sol.estado === "rechazado"
+                                  ? "No aprobada"
+                                  : sol.estado === "realizado"
+                                    ? "Realizado"
+                                    : "Resolución"}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Respuesta / Observaciones */}
+                        {sol.observaciones && (
+                          <div
+                            className={`st-feedback-box ${sol.estado === "aprobado"
+                                ? "st-feedback-box--approved"
+                                : sol.estado === "rechazado"
+                                  ? "st-feedback-box--rejected"
+                                  : "st-feedback-box--neutral"
+                              }`}
+                          >
+                            <div className="st-feedback-title">
+                              {sol.estado === "aprobado" && <IconCheck className="w-4 h-4" />}
+                              {sol.estado === "rechazado" && <IconClose className="w-4 h-4" />}
+                              <span>
+                                {sol.estado === "aprobado"
+                                  ? "Respuesta y confirmación de Biblioteca:"
+                                  : sol.estado === "rechazado"
+                                    ? "Motivo de rechazo / Observación:"
+                                    : "Observaciones registradas:"}
+                              </span>
+                            </div>
+                            <p>{sol.observaciones}</p>
+                          </div>
+                        )}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Paginación */}
+            {totalSolicitudes > 0 && (
+              <div className="st-pagination">
+                <div className="flex items-center gap-2 text-xs">
+                  <span>Mostrar</span>
+                  <select
+                    value={porPagina}
+                    onChange={(e) => {
+                      setPorPagina(Number(e.target.value));
+                      setPaginaActual(1);
+                    }}
+                    className="st-page-select"
+                  >
+                    <option value={3}>3</option>
+                    <option value={5}>5</option>
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                  </select>
+                  <span>por página</span>
+                  <span className="st-page-range">
+                    ({(paginaActual - 1) * porPagina + 1} -{" "}
+                    {Math.min(paginaActual * porPagina, totalSolicitudes)} de {totalSolicitudes})
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={paginaActual <= 1}
+                    onClick={() => setPaginaActual((p) => Math.max(1, p - 1))}
+                    className="st-page-btn"
+                  >
+                    ← Anterior
+                  </button>
+                  <span className="st-page-counter">
+                    {paginaActual} / {totalPaginas}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={paginaActual >= totalPaginas}
+                    onClick={() => setPaginaActual((p) => Math.min(totalPaginas, p + 1))}
+                    className="st-page-btn"
+                  >
+                    Siguiente →
+                  </button>
+                </div>
+              </div>
+            )}
+          </main>
+
+          {/* COLUMNA LATERAL: Catálogo Interactivo + Tarjeta Chatbot */}
+          <aside className="st-sidebar" aria-label="Catálogo de talleres disponibles">
+            <div className="st-catalog-card">
+              <div className="st-catalog-head">
+                <span className="st-kicker">✦ Catálogo Directo</span>
+                <h3>Talleres Disponibles</h3>
+                <p>Toca cualquier taller para preseleccionarlo y abrir tu solicitud al instante.</p>
+              </div>
+
+              <div className="st-catalog-list">
+                {TALLERES_DISPONIBLES.map((nombreTaller, idx) => {
+                  const meta = CATALOGO_META[idx] || CATALOGO_META[0];
+                  return (
+                    <button
+                      key={nombreTaller}
+                      type="button"
+                      onClick={() => abrirModalNuevaSolicitud(nombreTaller)}
+                      className="st-catalog-item"
+                    >
+                      <span className="st-catalog-emoji">{meta.icono}</span>
+                      <div className="st-catalog-info">
+                        <span className="st-catalog-tag">{meta.tag}</span>
+                        <h4>{nombreTaller}</h4>
+                        <p>{meta.desc}</p>
+                      </div>
+                      <span className="st-catalog-arrow">→</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            <h3 className="font-serif text-xl font-bold text-slate-900 dark:text-white">
-              {filtroEstado === "todos"
-                ? "No tienes solicitudes de talleres registradas"
-                : `No tienes solicitudes en estado "${filtroEstado}"`}
-            </h3>
-            <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-slate-500 dark:text-slate-400">
-              Puedes solicitar cualquiera de los 6 talleres especializados de biblioteca para ti o para tu grupo de estudio (mínimo 4 participantes).
-            </p>
 
-            <div className="mt-6 flex flex-wrap justify-center gap-3">
-              <button
-                type="button"
-                onClick={abrirModalNuevaSolicitud}
-                className="inline-flex items-center gap-2 rounded-md bg-[#00629B] px-5 py-2.5 text-xs font-semibold text-white shadow-xs transition hover:bg-[#004B75]"
-              >
-                <IconPlus className="w-4 h-4" /> Solicitar un taller ahora
-              </button>
-
+            {/* Tarjeta de Orientación con Chatbot */}
+            <div className="st-ai-card">
+              <div className="st-ai-badge">🤖 Asistente Virtual UCT</div>
+              <h4>¿Dudas sobre qué taller elegir?</h4>
+              <p>
+                Pregúntale al chatbot sobre contenidos de Leganto, ORCID, estilo APA o bases de datos científicas y agenda en segundos.
+              </p>
               <button
                 type="button"
                 onClick={abrirChatbotTalleres}
-                className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                className="st-btn st-btn--gold w-full justify-center"
               >
-                <IconChat className="w-4 h-4 text-[#00629B]" /> Pedir con Asistente Virtual
+                <IconChat className="w-4 h-4" /> Abrir Asistente Virtual
               </button>
             </div>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {solicitudesPaginadas.map((sol) => (
-              <div
-                key={sol.id}
-                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs transition-shadow hover:shadow-md dark:border-slate-800 dark:bg-slate-900 sm:p-6"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div className="space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-xs font-bold text-[#00629B] dark:text-sky-400">
-                        #{sol.id}
-                      </span>
-                      <h2 className="font-serif text-lg font-bold text-slate-900 dark:text-white sm:text-xl">
-                        {sol.taller}
-                      </h2>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
-                      <span className="inline-flex items-center gap-1">
-                        <IconClock className="w-3.5 h-3.5 text-slate-400" />
-                        {formatearFecha(sol.created_at)}
-                      </span>
-                      <span>•</span>
-                      <span>
-                        Modalidad:{" "}
-                        <strong className="text-slate-700 dark:text-slate-200">
-                          {sol.modalidad || "Presencial"}
-                        </strong>
-                      </span>
-                      <span>•</span>
-                      <span className="inline-flex items-center gap-1">
-                        <IconUsers className="w-3.5 h-3.5 text-slate-400" />
-                        {sol.participantes || "4"} participantes
-                      </span>
-                      <span>•</span>
-                      <span>
-                        Carrera:{" "}
-                        <strong className="text-slate-700 dark:text-slate-200">
-                          {sol.carrera}
-                        </strong>
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col items-end gap-2">
-                    {renderBadgeEstado(sol.estado)}
-
-                    {sol.estado === "pendiente" && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setModalCancelar({ open: true, id: sol.id, taller: sol.taller })
-                        }
-                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-600 transition hover:text-rose-700 dark:text-rose-400"
-                      >
-                        <IconTrash className="w-3 h-3" /> Cancelar solicitud
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {sol.observaciones && (
-                  <div
-                    className={`mt-4 rounded-xl border p-3.5 text-xs leading-relaxed ${
-                      sol.estado === "aprobado"
-                        ? "border-emerald-200 bg-emerald-50/70 text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-300"
-                        : sol.estado === "rechazado"
-                        ? "border-rose-200 bg-rose-50/70 text-rose-900 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300"
-                        : "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-300"
-                    }`}
-                  >
-                    <div className="flex items-center gap-1.5 font-bold mb-1">
-                      {sol.estado === "aprobado" && <IconCheck className="w-4 h-4 text-emerald-600" />}
-                      {sol.estado === "rechazado" && <IconClose className="w-4 h-4 text-rose-600" />}
-                      <span>
-                        {sol.estado === "aprobado"
-                          ? "Respuesta y confirmación de Biblioteca:"
-                          : sol.estado === "rechazado"
-                          ? "Motivo de rechazo / Observación:"
-                          : "Observaciones registradas:"}
-                      </span>
-                    </div>
-                    <p className="whitespace-pre-line">{sol.observaciones}</p>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {totalSolicitudes > 0 && (
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-xs text-slate-600 shadow-xs dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
-            <div className="flex items-center gap-2">
-              <span>Mostrar</span>
-              <select
-                value={porPagina}
-                onChange={(e) => {
-                  setPorPagina(Number(e.target.value));
-                  setPaginaActual(1);
-                }}
-                className="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 font-bold text-slate-800 outline-none cursor-pointer shadow-2xs hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-              >
-                <option value={3}>3</option>
-                <option value={5}>5</option>
-                <option value={10}>10</option>
-                <option value={20}>20</option>
-              </select>
-              <span className="font-medium">por página</span>
-              <span className="ml-2 font-mono text-[11px] text-slate-400 dark:text-slate-500">
-                ({(paginaActual - 1) * porPagina + 1} - {Math.min(paginaActual * porPagina, totalSolicitudes)} de {totalSolicitudes})
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                disabled={paginaActual <= 1}
-                onClick={() => setPaginaActual((p) => Math.max(1, p - 1))}
-                className="rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 font-semibold text-slate-700 shadow-2xs transition-all hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 cursor-pointer"
-              >
-                ◀ Anterior
-              </button>
-              <span className="rounded-xl border border-sky-100 bg-sky-50 px-3 py-1.5 font-mono text-xs font-bold text-[#00629B] dark:border-sky-900/50 dark:bg-sky-950/40 dark:text-sky-300">
-                {paginaActual} / {totalPaginas}
-              </span>
-              <button
-                type="button"
-                disabled={paginaActual >= totalPaginas}
-                onClick={() => setPaginaActual((p) => Math.min(totalPaginas, p + 1))}
-                className="rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 font-semibold text-slate-700 shadow-2xs transition-all hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 cursor-pointer"
-              >
-                Siguiente ▶
-              </button>
-            </div>
-          </div>
-        )}
-
-        <div className="rounded-2xl border border-sky-100 bg-gradient-to-br from-sky-50 to-white p-6 shadow-xs dark:border-slate-800 dark:from-slate-900 dark:to-slate-950">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="max-w-xl">
-              <h4 className="font-serif text-base font-bold text-slate-900 dark:text-white">
-                ¿Necesitas orientación para elegir tu taller?
-              </h4>
-              <p className="mt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
-                El Asistente Virtual de Biblioteca puede responder dudas sobre los contenidos de cada taller (Leganto, ORCID, citas bibliográficas, bases de datos) y ayudarte a registrar tu solicitud en segundos.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={abrirChatbotTalleres}
-              className="inline-flex items-center gap-2 rounded-lg bg-[#00629B] px-4 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-[#004B75]"
-            >
-              <IconChat className="w-3.5 h-3.5 text-[#FFC20E]" /> Abrir Asistente Virtual
-            </button>
-          </div>
+          </aside>
         </div>
-      </main>
+      </div>
 
+      {/* MODAL 1: NUEVA SOLICITUD DE TALLER */}
       {modalNuevoOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs animate-fadeIn">
-          <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
-            <div className="border-b border-slate-100 bg-slate-50/80 px-6 py-4 dark:border-slate-800 dark:bg-slate-800/50 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#00629B] text-white">
+        <div className="st-modal-backdrop">
+          <div className="st-modal">
+            <div className="st-modal-head">
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                <span className="st-modal-icon shrink-0">
                   <IconAcademic className="w-4 h-4" />
                 </span>
-                <div>
-                  <h3 className="font-serif text-lg font-bold text-slate-900 dark:text-white">
-                    Solicitar taller de biblioteca
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Completa los detalles para coordinar con el equipo
-                  </p>
+                <div className="min-w-0 flex-1">
+                  <span className="st-modal-kicker">✦ Biblioteca UCT</span>
+                  <h3 className="truncate">Solicitar taller especializado</h3>
+                  <p className="text-xs opacity-90 truncate">Completa los detalles para coordinar la sesión con el equipo</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setModalNuevoOpen(false)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                className="st-modal-close shrink-0"
               >
-                <IconClose className="w-5 h-5" />
+                <IconClose className="w-4 h-4" />
               </button>
             </div>
+            <div className="st-modal-bar" />
 
-            <form onSubmit={handleCrearSolicitud} className="p-6 space-y-4">
+            <form onSubmit={handleCrearSolicitud} className="st-modal-body space-y-3">
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Taller Especializado *
-                </label>
+                <label className="st-label">Taller Especializado *</label>
                 <select
                   value={formData.taller}
                   onChange={(e) => setFormData({ ...formData, taller: e.target.value })}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 focus:border-[#00629B] focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                  className="st-input"
                   required
                 >
                   {TALLERES_DISPONIBLES.map((t) => (
@@ -759,29 +903,25 @@ export default function SolicitudTalleres() {
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Modalidad *
-                  </label>
+                  <label className="st-label">Modalidad *</label>
                   <select
                     value={formData.modalidad}
                     onChange={(e) => setFormData({ ...formData, modalidad: e.target.value })}
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 focus:border-[#00629B] focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                    className="st-input"
                   >
-                    <option value="Presencial">Presencial (Sede)</option>
-                    <option value="Virtual">Virtual (Teams)</option>
+                    <option value="Presencial">🏛️ Presencial (Sede)</option>
+                    <option value="Virtual">💻 Virtual (Teams)</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Participantes *
-                  </label>
+                  <label className="st-label">Participantes *</label>
                   <select
                     value={formData.participantes}
                     onChange={(e) => setFormData({ ...formData, participantes: e.target.value })}
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 focus:border-[#00629B] focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                    className="st-input"
                   >
                     <option value="4">4 personas (mínimo)</option>
                     <option value="5">5 personas</option>
@@ -796,56 +936,54 @@ export default function SolicitudTalleres() {
 
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Carrera / Programa *
-                  </label>
-                  {user?.carrera && (
-                    <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
-                      ✓ Autocompletado desde tu perfil
-                    </span>
-                  )}
+                  <label className="st-label mb-0">Carrera / Programa</label>
+                  <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 flex items-center gap-1">
+                    🔒 Vinculado a tu perfil
+                  </span>
                 </div>
                 <input
                   type="text"
-                  value={formData.carrera}
-                  onChange={(e) => setFormData({ ...formData, carrera: e.target.value })}
-                  placeholder="Ej: Ingeniería Civil Informática"
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 focus:border-[#00629B] focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                  value={user?.carrera || formData.carrera || "Sin carrera registrada"}
+                  readOnly
+                  tabIndex={-1}
+                  placeholder="Carrera del estudiante"
+                  className="st-input cursor-not-allowed opacity-80 bg-slate-100/90 dark:bg-slate-800/90 select-none border-slate-200 dark:border-slate-700"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="st-label">
                   Comentarios o temas específicos de interés (opcional)
                 </label>
                 <textarea
                   value={formData.observaciones}
                   onChange={(e) => setFormData({ ...formData, observaciones: e.target.value })}
-                  placeholder="Indica fechas tentativas o necesidades particulares de tu grupo..."
-                  rows={3}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 focus:border-[#00629B] focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                  placeholder="Indica fechas tentativas, horario preferido o necesidades particulares de tu grupo..."
+                  rows={2}
+                  className="st-input"
                 />
               </div>
 
-              <div className="rounded-lg bg-sky-50 p-3 text-[11px] text-sky-900 dark:bg-sky-950/40 dark:text-sky-300">
-                La solicitud será enviada con tu nombre (<strong>{user?.nombre}</strong>) y correo institucional (<strong>{user?.email}</strong>).
+              <div className="st-user-summary">
+                La solicitud quedará asociada a <strong>{user?.nombre || "Estudiante"}</strong> (
+                <strong>{user?.email || "correo institucional"}</strong>).
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2">
+              <div className="st-modal-foot">
                 <button
                   type="button"
                   onClick={() => setModalNuevoOpen(false)}
-                  className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                  className="st-modal-btn st-modal-btn--ghost"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={enviandoSolicitud}
-                  className="rounded-lg bg-[#00629B] px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-[#004B75] disabled:opacity-50"
+                  className="st-btn st-btn--gold"
                 >
-                  {enviandoSolicitud ? "Enviando solicitud..." : "Enviar solicitud"}
+                  {enviandoSolicitud ? "Enviando solicitud..." : "Enviar solicitud →"}
                 </button>
               </div>
             </form>
@@ -853,42 +991,53 @@ export default function SolicitudTalleres() {
         </div>
       )}
 
+      {/* MODAL 2: CANCELAR SOLICITUD */}
       {modalCancelar.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs animate-fadeIn">
-          <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
-            <div className="flex items-center gap-3 text-rose-600 dark:text-rose-400">
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 dark:bg-rose-950/50">
-                <IconTrash className="w-5 h-5" />
-              </span>
-              <div>
-                <h3 className="font-serif text-lg font-bold text-slate-900 dark:text-white">
-                  ¿Cancelar esta solicitud?
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  #{modalCancelar.id} • {modalCancelar.taller}
-                </p>
+        <div className="st-modal-backdrop">
+          <div className="st-modal max-w-md">
+            <div className="st-modal-head st-modal-head--danger">
+              <div className="flex items-center gap-3">
+                <span className="st-modal-icon">
+                  <IconTrash className="w-5 h-5" />
+                </span>
+                <div>
+                  <span className="st-modal-kicker">✦ Confirmación</span>
+                  <h3>¿Cancelar esta solicitud?</h3>
+                  <p>
+                    #{modalCancelar.id} • {modalCancelar.taller}
+                  </p>
+                </div>
               </div>
-            </div>
-
-            <p className="mt-4 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
-              Esta solicitud de taller será removida de la bandeja de revisión de la biblioteca. Puedes volver a solicitarla en cualquier momento si lo necesitas.
-            </p>
-
-            <div className="mt-6 flex items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setModalCancelar({ open: false, id: null, taller: "" })}
-                className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                className="st-modal-close"
               >
-                No, mantener
+                <IconClose className="w-5 h-5" />
               </button>
-              <button
-                type="button"
-                onClick={handleConfirmarCancelar}
-                className="rounded-lg bg-rose-600 px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-rose-700"
-              >
-                Sí, cancelar solicitud
-              </button>
+            </div>
+
+            <div className="st-modal-body space-y-5">
+              <p className="text-sm leading-relaxed opacity-85">
+                Esta solicitud de taller será retirada de la bandeja de revisión del equipo de biblioteca. Puedes volver a crear una nueva solicitud cuando quieras.
+              </p>
+
+              <div className="st-modal-foot pt-2">
+                <button
+                  type="button"
+                  onClick={() => setModalCancelar({ open: false, id: null, taller: "" })}
+                  className="st-modal-btn st-modal-btn--ghost"
+                >
+                  No, mantener
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmarCancelar}
+                  className="st-modal-btn st-modal-btn--danger"
+                >
+                  Sí, cancelar solicitud
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -386,9 +386,14 @@ async def startup():
         """)
         await conn.execute("""
             UPDATE historial_reservas
-            SET estado = 'expirada'
+            SET estado = 'completada'
             WHERE (fecha < CURRENT_DATE OR (fecha = CURRENT_DATE AND hora < CURRENT_TIME))
-              AND estado NOT IN ('cancelada', 'inasistencia')
+              AND estado NOT IN ('cancelada', 'liberada', 'inasistencia', 'justificada')
+        """)
+        await conn.execute("""
+            UPDATE historial_reservas
+            SET estado = 'completada'
+            WHERE estado = 'expirada'
         """)
         await conn.execute("DELETE FROM sesiones WHERE updated_at < DATEADD(day, -7, GETDATE())")
         await conn.execute("DELETE FROM rate_limits WHERE created_at < DATEADD(day, -1, GETDATE())")
@@ -426,7 +431,80 @@ async def startup():
                 ALTER TABLE usuarios ADD carrera NVARCHAR(150) NULL;
             IF COL_LENGTH('estudiante', 'carrera') IS NULL
                 ALTER TABLE estudiante ADD carrera NVARCHAR(150) NULL;
+            IF COL_LENGTH('reservas', 'carrera') IS NULL
+                ALTER TABLE reservas ADD carrera NVARCHAR(150) NULL;
+            IF COL_LENGTH('historial_reservas', 'carrera') IS NULL
+                ALTER TABLE historial_reservas ADD carrera NVARCHAR(150) NULL;
         """)
+        await conn.execute("""
+            UPDATE r
+            SET r.carrera = COALESCE(
+                NULLIF(TRIM(u.carrera), ''),
+                NULLIF(TRIM(e.carrera), ''),
+                NULLIF(TRIM(cp.carr_nombre), ''),
+                'Otras Carreras / General'
+            )
+            FROM reservas r
+            LEFT JOIN usuarios u ON REPLACE(REPLACE(REPLACE(UPPER(u.rut), '.', ''), '-', ''), ' ', '') = REPLACE(REPLACE(REPLACE(UPPER(r.rut), '.', ''), '-', ''), ' ', '')
+            LEFT JOIN estudiante e ON REPLACE(REPLACE(REPLACE(UPPER(r.rut), '.', ''), '-', ''), ' ', '') = CONCAT(e.estd_rut, e.estd_dv)
+            LEFT JOIN estudiante_carrera ec ON e.estd_rut = ec.estd_rut
+            LEFT JOIN carrera_programa cp ON ec.carr_codigo = cp.carr_codigo
+            WHERE r.carrera IS NULL;
+
+            UPDATE h
+            SET h.carrera = COALESCE(
+                NULLIF(TRIM(u.carrera), ''),
+                NULLIF(TRIM(e.carrera), ''),
+                NULLIF(TRIM(cp.carr_nombre), ''),
+                'Otras Carreras / General'
+            )
+            FROM historial_reservas h
+            LEFT JOIN usuarios u ON REPLACE(REPLACE(REPLACE(UPPER(u.rut), '.', ''), '-', ''), ' ', '') = REPLACE(REPLACE(REPLACE(UPPER(h.rut), '.', ''), '-', ''), ' ', '')
+            LEFT JOIN estudiante e ON REPLACE(REPLACE(REPLACE(UPPER(h.rut), '.', ''), '-', ''), ' ', '') = CONCAT(e.estd_rut, e.estd_dv)
+            LEFT JOIN estudiante_carrera ec ON e.estd_rut = ec.estd_rut
+            LEFT JOIN carrera_programa cp ON ec.carr_codigo = cp.carr_codigo
+            WHERE h.carrera IS NULL;
+        """)
+        await conn.execute("""
+            IF OBJECT_ID('estadisticas_reservas_carrera', 'U') IS NULL
+            CREATE TABLE estadisticas_reservas_carrera (
+                id INT IDENTITY(1,1) PRIMARY KEY,
+                reserva_id INT NULL,
+                carrera NVARCHAR(150) NOT NULL,
+                campus_id INT NULL,
+                fecha DATE NULL,
+                created_at DATETIME2 DEFAULT GETDATE()
+            );
+        """)
+        cnt_est = await conn.fetchval("SELECT COUNT(*) FROM estadisticas_reservas_carrera")
+        if not cnt_est or cnt_est == 0:
+            await conn.execute("""
+                WITH todas_reservas AS (
+                    SELECT id as reserva_id, rut, campus_id, fecha, created_at
+                    FROM reservas
+                    UNION ALL
+                    SELECT COALESCE(reserva_id, id) as reserva_id, rut, campus_id, fecha, fecha_registro as created_at
+                    FROM historial_reservas
+                    WHERE NOT EXISTS (SELECT 1 FROM reservas r2 WHERE r2.id = historial_reservas.reserva_id)
+                )
+                INSERT INTO estadisticas_reservas_carrera (reserva_id, carrera, campus_id, fecha, created_at)
+                SELECT 
+                    tr.reserva_id,
+                    COALESCE(
+                        NULLIF(TRIM(u.carrera), ''),
+                        NULLIF(TRIM(e.carrera), ''),
+                        NULLIF(TRIM(cp.carr_nombre), ''),
+                        'Otras Carreras / General'
+                    ) AS carrera,
+                    tr.campus_id,
+                    tr.fecha,
+                    COALESCE(tr.created_at, GETDATE())
+                FROM todas_reservas tr
+                LEFT JOIN usuarios u ON REPLACE(REPLACE(REPLACE(UPPER(u.rut), '.', ''), '-', ''), ' ', '') = REPLACE(REPLACE(REPLACE(UPPER(tr.rut), '.', ''), '-', ''), ' ', '')
+                LEFT JOIN estudiante e ON REPLACE(REPLACE(REPLACE(UPPER(tr.rut), '.', ''), '-', ''), ' ', '') = CONCAT(e.estd_rut, e.estd_dv)
+                LEFT JOIN estudiante_carrera ec ON e.estd_rut = ec.estd_rut
+                LEFT JOIN carrera_programa cp ON ec.carr_codigo = cp.carr_codigo
+            """)
 
 
 
@@ -2348,7 +2426,7 @@ async def obtener_metricas_dashboard(
                 """
                 SELECT reserva_id, SUBSTRING(hora, 1, 5) as hora_str, fecha, campus_id
                 FROM historial_reservas
-                WHERE estado != 'cancelada'
+                WHERE estado NOT IN ('cancelada', 'liberada')
                   AND fecha >= $1 AND fecha <= $2
                   AND ($3::int IS NULL OR campus_id = $3)
                 """,
@@ -2485,7 +2563,7 @@ async def obtener_metricas_dashboard(
                 WITH base_canc AS (
                     SELECT TO_CHAR(fecha, 'Day') as dia_nombre, EXTRACT(ISODOW FROM fecha) as dia_num
                     FROM historial_reservas
-                    WHERE estado = 'cancelada'
+                    WHERE estado IN ('cancelada', 'liberada')
                       AND ($1::int IS NULL OR campus_id = $1)
                 )
                 SELECT dia_nombre, dia_num, COUNT(*) as total_canceladas
@@ -2509,7 +2587,7 @@ async def obtener_metricas_dashboard(
             ) or 0
 
             total_canceladas_general = await conn.fetchval(
-                "SELECT COUNT(*) FROM historial_reservas WHERE estado = 'cancelada' AND ($1::int IS NULL OR campus_id = $1)",
+                "SELECT COUNT(*) FROM historial_reservas WHERE estado IN ('cancelada', 'liberada') AND ($1::int IS NULL OR campus_id = $1)",
                 campus_id
             ) or 0
 
@@ -2521,6 +2599,34 @@ async def obtener_metricas_dashboard(
             promedio_diario = round(total_canceladas_general / max(1, dias_distintos), 1)
             tasa_cancelacion_pct = round((total_canceladas_general / max(1, total_registros_hist)) * 100, 1)
 
+            condicion_carr = "WHERE erc.campus_id = $1" if campus_id else ""
+            params_carr = [campus_id] if campus_id else []
+
+            filas_carreras = await conn.fetch(
+                f"""
+                SELECT 
+                    erc.carrera,
+                    COUNT(*) as total_reservas,
+                    COUNT(r.id) as total_actuales,
+                    (COUNT(*) - COUNT(r.id)) as total_historicas
+                FROM estadisticas_reservas_carrera erc
+                LEFT JOIN reservas r ON erc.reserva_id = r.id
+                {condicion_carr}
+                GROUP BY erc.carrera
+                ORDER BY total_reservas DESC
+                """,
+                *params_carr
+            )
+            reservas_por_carrera = [
+                {
+                    "carrera": f["carrera"],
+                    "total": int(f["total_reservas"] or 0),
+                    "actuales": int(f["total_actuales"] or 0),
+                    "historicas": int(f["total_historicas"] or 0)
+                }
+                for f in filas_carreras
+            ]
+
             return {
                 "ocupacion_bloques": ocupacion_bloques,
                 "info_periodo": info_periodo,
@@ -2528,6 +2634,7 @@ async def obtener_metricas_dashboard(
                 "dias_demanda": dias_demanda,
                 "demanda_sedes": demanda_sedes,
                 "cancelaciones_por_dia": cancelaciones_por_dia,
+                "reservas_por_carrera": reservas_por_carrera,
                 "promedio_cancelaciones_diarias": f"{promedio_diario} elim/día",
                 "total_canceladas": total_canceladas_general,
                 "total_historico": total_registros_hist,
@@ -3042,25 +3149,53 @@ async def crear_reserva(
                 cubiculo_id_asignado = cubiculo_libre["id"]
                 cubiculo_codigo_asignado = cubiculo_libre["codigo"]
 
-                # Insertar reserva vinculando el ID del cubículo asignado
+                row_carr = await conn.fetchrow(
+                    """
+                    SELECT COALESCE(
+                        NULLIF(TRIM(u.carrera), ''),
+                        NULLIF(TRIM(e.carrera), ''),
+                        NULLIF(TRIM(cp.carr_nombre), ''),
+                        'Otras Carreras / General'
+                    ) AS carrera
+                    FROM (SELECT $1 AS rut) t
+                    LEFT JOIN usuarios u ON REPLACE(REPLACE(REPLACE(UPPER(u.rut), '.', ''), '-', ''), ' ', '') = REPLACE(REPLACE(REPLACE(UPPER(t.rut), '.', ''), '-', ''), ' ', '')
+                    LEFT JOIN estudiante e ON REPLACE(REPLACE(REPLACE(UPPER(t.rut), '.', ''), '-', ''), ' ', '') = CONCAT(e.estd_rut, e.estd_dv)
+                    LEFT JOIN estudiante_carrera ec ON e.estd_rut = ec.estd_rut
+                    LEFT JOIN carrera_programa cp ON ec.carr_codigo = cp.carr_codigo
+                    """,
+                    rut_limpio
+                )
+                carr_detectada = row_carr["carrera"] if row_carr and row_carr["carrera"] else "Otras Carreras / General"
+
                 row = await conn.fetchrow(
                     """
-                    INSERT INTO reservas (nombre, rut, fecha, hora, campus_id, session_id, cubiculo_id)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7)
-                    RETURNING id, nombre, rut, fecha, hora, campus_id, session_id
+                    INSERT INTO reservas (nombre, rut, fecha, hora, campus_id, session_id, cubiculo_id, carrera)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                    RETURNING id, nombre, rut, fecha, hora, campus_id, session_id, carrera
                     """,
                     nombre_final or "Usuario Chatbot", rut_limpio, fecha_parsed, hora_parsed,
-                    target_campus_id, reserva.sessionId, cubiculo_id_asignado
+                    target_campus_id, reserva.sessionId, cubiculo_id_asignado, carr_detectada
                 )
                 reserva_id_creada = row["id"]
 
                 await conn.execute(
                     """
-                    INSERT INTO historial_reservas (reserva_id, nombre, rut, campus_id, fecha, hora, estado)
-                    VALUES ($1, $2, $3, $4, $5, $6, 'activa')
+                    INSERT INTO historial_reservas (reserva_id, nombre, rut, campus_id, fecha, hora, estado, carrera)
+                    VALUES ($1, $2, $3, $4, $5, $6, 'activa', $7)
                     """,
-                    reserva_id_creada, nombre_final or "Usuario Chatbot", rut_limpio, target_campus_id, fecha_parsed, hora_parsed.strftime("%H:%M")
+                    reserva_id_creada, nombre_final or "Usuario Chatbot", rut_limpio, target_campus_id, fecha_parsed, hora_parsed.strftime("%H:%M"), carr_detectada
                 )
+
+                try:
+                    await conn.execute(
+                        """
+                        INSERT INTO estadisticas_reservas_carrera (reserva_id, carrera, campus_id, fecha, created_at)
+                        VALUES ($1, $2, $3, $4, GETDATE())
+                        """,
+                        reserva_id_creada, carr_detectada, target_campus_id, fecha_parsed
+                    )
+                except Exception as ex_carr:
+                    print(f"⚠️ Error registrando carrera para estadísticas: {ex_carr}")
 
                 acompanantes_guardados = []
                 if reserva.acompanantes:
@@ -3726,12 +3861,12 @@ async def eliminar_reserva(data: EsquemaEliminar, request: Request, background_t
 
             async with conn.transaction():
                 for res in filas_canceladas:
-                    res_upd = await conn.execute("UPDATE historial_reservas SET estado = 'cancelada' WHERE reserva_id = $1", res["id"])
+                    res_upd = await conn.execute("UPDATE historial_reservas SET estado = 'liberada' WHERE reserva_id = $1", res["id"])
                     if res_upd == "UPDATE 0":
                         await conn.execute(
                             """
                             INSERT INTO historial_reservas (reserva_id, nombre, rut, campus_id, fecha, hora, estado)
-                            VALUES ($1, $2, $3, $4, $5, $6, 'cancelada')
+                            VALUES ($1, $2, $3, $4, $5, $6, 'liberada')
                             """,
                             res["id"], res["nombre"], res["rut"], res.get("campus_id"), res["fecha"], str(res["hora"])
                         )
@@ -3820,15 +3955,18 @@ async def eliminar_reserva_por_id(
 
         res_dict = [dict(res_detalle)]
 
+        es_admin = bool(current_user and current_user.get("rol") == "admin")
+        nuevo_estado = "cancelada" if es_admin else "liberada"
+
         async with conn.transaction():
-            res_upd = await conn.execute("UPDATE historial_reservas SET estado = 'cancelada' WHERE reserva_id = $1", reserva_id)
+            res_upd = await conn.execute("UPDATE historial_reservas SET estado = $1 WHERE reserva_id = $2", nuevo_estado, reserva_id)
             if res_upd == "UPDATE 0":
                 await conn.execute(
                     """
                     INSERT INTO historial_reservas (reserva_id, nombre, rut, campus_id, fecha, hora, estado)
-                    VALUES ($1, $2, $3, $4, $5, $6, 'cancelada')
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
                     """,
-                    res_detalle["id"], res_detalle["nombre"], res_detalle["rut"], res_detalle["campus_id"], res_detalle["fecha"], str(res_detalle["hora"])
+                    res_detalle["id"], res_detalle["nombre"], res_detalle["rut"], res_detalle["campus_id"], res_detalle["fecha"], str(res_detalle["hora"]), nuevo_estado
                 )
             await conn.execute("DELETE FROM reserva_acompanantes WHERE reserva_id = $1", reserva_id)
             await conn.execute("DELETE FROM reservas WHERE id = $1", reserva_id)
@@ -3842,6 +3980,7 @@ async def eliminar_reserva_por_id(
 async def obtener_historial_reservas(
     campus_id: Optional[int] = None,
     busqueda: Optional[str] = None,
+    estado: Optional[str] = None,
     limite: Optional[int] = None,
     limit: Optional[int] = None,
     offset: int = 0,
@@ -3854,32 +3993,16 @@ async def obtener_historial_reservas(
     lim = max(1, min(lim, 10000))
     off = max(0, offset)
 
-    async with pool.acquire() as conn:
-        total_row = await conn.fetchrow(
-            """
-            SELECT COUNT(*) AS total FROM (
-                SELECT r.id
-                FROM reservas r
-                WHERE ($1::int IS NULL OR $1::int = 0 OR r.campus_id = $1)
-                  AND ($2::text IS NULL OR $2::text = '' OR LOWER(r.nombre) LIKE '%' || LOWER($2) || '%' OR LOWER(r.rut) LIKE '%' || LOWER($2) || '%')
-                UNION ALL
-                SELECT h.id
-                FROM historial_reservas h
-                WHERE ($1::int IS NULL OR $1::int = 0 OR h.campus_id = $1)
-                  AND ($2::text IS NULL OR $2::text = '' OR LOWER(h.nombre) LIKE '%' || LOWER($2) || '%' OR LOWER(h.rut) LIKE '%' || LOWER($2) || '%')
-                  AND NOT EXISTS (SELECT 1 FROM reservas r WHERE r.id = h.reserva_id)
-            ) t
-            """,
-            campus_id, busqueda
-        )
-        total = int(total_row["total"]) if total_row else 0
+    estado_filtro = None if (not estado or estado.lower() == "todos") else estado.lower().strip()
 
-        filas = await conn.fetch(
-            """
+    async with pool.acquire() as conn:
+        cte_base = """
+        WITH base_historial AS (
             SELECT 
                 r.id, r.id AS reserva_id, r.nombre, r.rut, r.fecha::text, r.hora::text,
+                COALESCE(r.carrera, 'Otras Carreras / General') AS carrera,
                 CASE 
-                    WHEN (r.fecha < CURRENT_DATE) OR (r.fecha = CURRENT_DATE AND r.hora < CURRENT_TIME) THEN 'expirada'
+                    WHEN (r.fecha < CURRENT_DATE) OR (r.fecha = CURRENT_DATE AND r.hora < CURRENT_TIME) THEN 'completada'
                     ELSE 'activa'
                 END AS estado,
                 NOW()::text AS fecha_registro,
@@ -3887,16 +4010,20 @@ async def obtener_historial_reservas(
             FROM reservas r
             LEFT JOIN campus c ON r.campus_id = c.id
             WHERE ($1::int IS NULL OR $1::int = 0 OR r.campus_id = $1)
-              AND ($2::text IS NULL OR $2::text = '' OR LOWER(r.nombre) LIKE '%' || LOWER($2) || '%' OR LOWER(r.rut) LIKE '%' || LOWER($2) || '%')
+              AND ($2::text IS NULL OR $2::text = '' OR LOWER(r.nombre) LIKE '%' || LOWER($2) || '%' OR LOWER(r.rut) LIKE '%' || LOWER($2) || '%' OR LOWER(COALESCE(r.carrera, '')) LIKE '%' || LOWER($2) || '%')
 
             UNION ALL
 
             SELECT 
                 h.id, h.reserva_id, h.nombre, h.rut, h.fecha::text, h.hora::text,
+                COALESCE(h.carrera, 'Otras Carreras / General') AS carrera,
                 CASE 
                     WHEN h.estado = 'cancelada' THEN 'cancelada'
+                    WHEN h.estado = 'liberada' THEN 'liberada'
                     WHEN h.estado = 'inasistencia' THEN 'inasistencia'
-                    WHEN (h.fecha < CURRENT_DATE) OR (h.fecha = CURRENT_DATE AND h.hora::time < CURRENT_TIME) THEN 'expirada'
+                    WHEN h.estado = 'justificada' THEN 'justificada'
+                    WHEN (h.fecha < CURRENT_DATE) OR (h.fecha = CURRENT_DATE AND h.hora::time < CURRENT_TIME) THEN 'completada'
+                    WHEN h.estado = 'expirada' THEN 'completada'
                     ELSE h.estado
                 END AS estado,
                 h.fecha_registro::text AS fecha_registro,
@@ -3904,13 +4031,33 @@ async def obtener_historial_reservas(
             FROM historial_reservas h
             LEFT JOIN campus c ON h.campus_id = c.id
             WHERE ($1::int IS NULL OR $1::int = 0 OR h.campus_id = $1)
-              AND ($2::text IS NULL OR $2::text = '' OR LOWER(h.nombre) LIKE '%' || LOWER($2) || '%' OR LOWER(h.rut) LIKE '%' || LOWER($2) || '%')
+              AND ($2::text IS NULL OR $2::text = '' OR LOWER(h.nombre) LIKE '%' || LOWER($2) || '%' OR LOWER(h.rut) LIKE '%' || LOWER($2) || '%' OR LOWER(COALESCE(h.carrera, '')) LIKE '%' || LOWER($2) || '%')
               AND NOT EXISTS (SELECT 1 FROM reservas r WHERE r.id = h.reserva_id)
+        )
+        """
 
-            ORDER BY fecha_registro DESC
-            LIMIT $3 OFFSET $4
+        total_row = await conn.fetchrow(
+            f"""
+            {cte_base}
+            SELECT COUNT(*) AS total 
+            FROM base_historial
+            WHERE ($3::text IS NULL OR $3::text = '' OR LOWER(estado) = LOWER($3))
             """,
-            campus_id, busqueda, lim, off
+            campus_id, busqueda, estado_filtro
+        )
+        total = int(total_row["total"]) if total_row else 0
+
+        filas = await conn.fetch(
+            f"""
+            {cte_base}
+            SELECT 
+                id, reserva_id, nombre, rut, fecha, hora, carrera, estado, fecha_registro, campus_nombre
+            FROM base_historial
+            WHERE ($3::text IS NULL OR $3::text = '' OR LOWER(estado) = LOWER($3))
+            ORDER BY fecha_registro DESC
+            LIMIT $4 OFFSET $5
+            """,
+            campus_id, busqueda, estado_filtro, lim, off
         )
         historial = [dict(f) for f in filas]
         for h in historial:
@@ -4360,7 +4507,7 @@ async def consultar_reservas(data: EsquemaConsulta, request: Request, credential
                     "campus": h["campus_nombre"] or "Campus UCT",
                     "cubiculo_codigo": "Finalizado",
                     "activa": False,
-                    "estado": h["estado"],
+                    "estado": "completada" if (h["estado"] or "").lower() in ["expirada", "inactiva", "finalizada", "activa", ""] else h["estado"],
                     "acompanantes": []
                 })
 

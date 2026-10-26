@@ -646,14 +646,27 @@ export default function ChatbotFlotante() {
                 </div>
               </div>
             </div>
-            <button
-              onClick={() => setIsChatOpen(false)}
-              className="text-white/80 hover:text-white transition-all p-1.5 rounded-xl hover:bg-white/15 cursor-pointer"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+            <div className="flex items-center gap-1">
+              {user && !esModoAdmin && (
+                <button
+                  type="button"
+                  onClick={volverAlMenuPrincipal}
+                  title="Volver al menú principal"
+                  className="text-white/80 hover:text-white transition-all px-2.5 py-1 rounded-xl hover:bg-white/15 cursor-pointer flex items-center gap-1 text-xs font-bold"
+                >
+                  <span>🏠</span>
+                  <span className="hidden sm:inline">Menú</span>
+                </button>
+              )}
+              <button
+                onClick={() => setIsChatOpen(false)}
+                className="text-white/80 hover:text-white transition-all p-1.5 rounded-xl hover:bg-white/15 cursor-pointer"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
           </div>
 
           {!user ? (
@@ -1027,6 +1040,18 @@ export default function ChatbotFlotante() {
 
           {user && !cargandoBot && !esModoAdmin && (
             <div className="px-3 pt-2 pb-1 flex items-center gap-1.5 overflow-x-auto bg-white/80 dark:bg-slate-900/90 backdrop-blur-md border-t border-slate-100 dark:border-slate-800 scrollbar-none">
+              <button
+                type="button"
+                onClick={volverAlMenuPrincipal}
+                className={`px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap active:scale-95 transition-all cursor-pointer shadow-2xs flex items-center gap-1 shrink-0 ${
+                  seccionActiva === 'menu'
+                    ? 'bg-sky-100/90 hover:bg-sky-200/90 text-sky-900 dark:bg-sky-950 dark:hover:bg-sky-900 dark:text-sky-200 border border-sky-300 dark:border-sky-700'
+                    : 'bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 dark:bg-amber-950/60 dark:hover:bg-amber-900 dark:border-amber-700 dark:text-amber-200'
+                }`}
+                title="Volver al menú principal"
+              >
+                🏠 Menú principal
+              </button>
               {seccionActiva === 'menu' && (
                 <>
                   <button
@@ -1061,13 +1086,6 @@ export default function ChatbotFlotante() {
               )}
               {seccionActiva === 'reservas' && (
                 <>
-                  <button
-                    type="button"
-                    onClick={volverAlMenuPrincipal}
-                    className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-full text-[11px] font-bold text-amber-900 dark:bg-amber-950/60 dark:hover:bg-amber-900 dark:border-amber-700 dark:text-amber-200 whitespace-nowrap active:scale-95 transition-all cursor-pointer shadow-2xs"
-                  >
-                    🏠 Menú principal
-                  </button>
                   {[
                     { label: "📍 San Juan Pablo II", texto: "Consultar disponibilidad en Campus San Juan Pablo II para hoy" },
                     { label: "📍 Derecho", texto: "Consultar disponibilidad en Campus Derecho para hoy" },
@@ -1086,14 +1104,26 @@ export default function ChatbotFlotante() {
                   ))}
                 </>
               )}
-              {seccionActiva === 'contacto' && (
-                <button
-                  type="button"
-                  onClick={volverAlMenuPrincipal}
-                  className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-full text-[11px] font-bold text-amber-900 dark:bg-amber-950/60 dark:hover:bg-amber-900 dark:border-amber-700 dark:text-amber-200 whitespace-nowrap active:scale-95 transition-all cursor-pointer shadow-2xs"
-                >
-                  🏠 Menú principal
-                </button>
+              {seccionActiva === 'taller' && (
+                <>
+                  {[
+                    { label: "1️⃣ Conoce tu biblioteca", texto: "Deseo solicitar el taller 'Conoce tu biblioteca: Taller de inicio'" },
+                    { label: "2️⃣ Búsqueda y evaluación", texto: "Deseo solicitar el taller 'Búsqueda y evaluación de información'" },
+                    { label: "3️⃣ Citas y referencias", texto: "Deseo solicitar el taller 'Gestión de referencias y estilo de citas'" },
+                    { label: "4️⃣ Uso ético", texto: "Deseo solicitar el taller 'Uso ético de la información'" },
+                    { label: "5️⃣ Leganto", texto: "Deseo solicitar el taller 'Introducción a Leganto'" },
+                    { label: "6️⃣ ORCID", texto: "Deseo solicitar el taller 'ORCID'" }
+                  ].map((chip, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => enviarMensajeTexto(chip.texto)}
+                      className="px-2.5 py-1 bg-sky-50/60 hover:bg-sky-100/70 border border-sky-200/70 hover:border-[#FFC20E] rounded-full text-[11px] font-semibold text-slate-700 hover:text-sky-900 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:border-slate-700 dark:hover:border-[#FFC20E] dark:text-slate-200 dark:hover:text-white whitespace-nowrap active:scale-95 transition-all cursor-pointer shadow-2xs"
+                    >
+                      {chip.label}
+                    </button>
+                  ))}
+                </>
               )}
             </div>
           )}
