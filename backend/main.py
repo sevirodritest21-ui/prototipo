@@ -680,6 +680,37 @@ async def verificar_sancion_usuario(conn, rut: str) -> dict:
     }
 
 
+async def verificar_estudiante_regular(conn, rut: str) -> dict:
+    if not rut:
+        return {"es_regular": False, "situacion": "Sin identificación", "mensaje": "No se proporcionó RUT de estudiante."}
+    rut_limpio = str(rut).replace(".", "").replace("-", "").replace(" ", "").upper().strip()
+    row = await conn.fetchrow(
+        """
+        SELECT sa.salu_codigo, sa.salu_nombre
+        FROM estudiante e
+        JOIN estudiante_carrera ec ON e.estd_rut = ec.estd_rut
+        JOIN situacion_alumno sa ON ec.salu_codigo = sa.salu_codigo
+        WHERE CONCAT(e.estd_rut, e.estd_dv) = $1
+        ORDER BY CASE WHEN sa.salu_codigo = 1 OR UPPER(sa.salu_nombre) = 'REGULAR' THEN 0 ELSE 1 END
+        LIMIT 1
+        """,
+        rut_limpio
+    )
+    if not row:
+        return {
+            "es_regular": False,
+            "situacion": "No regular",
+            "mensaje": "Actualmente estás como estudiante no regular, cuando resuelvas esa situación estarás activo nuevamente."
+        }
+    es_reg = (row["salu_codigo"] == 1) or (str(row["salu_nombre"]).upper() == "REGULAR")
+    situacion = row["salu_nombre"] or "No regular"
+    return {
+        "es_regular": es_reg,
+        "situacion": situacion,
+        "mensaje": "Estudiante regular activo." if es_reg else "Actualmente estás como estudiante no regular, cuando resuelvas esa situación estarás activo nuevamente."
+    }
+
+
 async def invalidar_caches_disponibilidad(campus_id: Optional[int] = None, fecha_str: Optional[str] = None):
     pass
 
@@ -1075,6 +1106,7 @@ class UsuarioResponse(BaseModel):
     idmatricula: Optional[str] = None
     carrera: Optional[str] = None
     situacion: Optional[str] = None
+    es_regular: Optional[bool] = True
 
 
 class CrearUsuarioRequest(BaseModel):
@@ -1160,7 +1192,8 @@ async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] =
             u.rol, 
             COALESCE(u.idmatricula, CAST(ec.estu_registro AS VARCHAR(50))) AS idmatricula,
             COALESCE(u.carrera, cp.carr_nombre) AS carrera,
-            sa.salu_nombre AS situacion
+            sa.salu_nombre AS situacion,
+            CASE WHEN u.rol = 'admin' OR sa.salu_codigo = 1 OR UPPER(sa.salu_nombre) = 'REGULAR' THEN 1 ELSE 0 END AS es_regular
         FROM usuarios u
         LEFT JOIN estudiante e ON REPLACE(REPLACE(REPLACE(UPPER(u.rut), '.', ''), '-', ''), ' ', '') = CONCAT(e.estd_rut, e.estd_dv)
         LEFT JOIN estudiante_carrera ec ON e.estd_rut = ec.estd_rut
@@ -1172,7 +1205,9 @@ async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] =
         row = await conn.fetchrow(user_query, email)
         if row is None:
             raise credentials_exception
-        return dict(row)
+        d_row = dict(row)
+        d_row["es_regular"] = bool(row.get("es_regular"))
+        return d_row
 
 
 async def get_current_user_optional(credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)) -> Optional[dict]:
@@ -1194,7 +1229,8 @@ async def get_current_user_optional(credentials: Optional[HTTPAuthorizationCrede
                 u.rol, 
                 COALESCE(u.idmatricula, CAST(ec.estu_registro AS VARCHAR(50))) AS idmatricula,
                 COALESCE(u.carrera, cp.carr_nombre) AS carrera,
-                sa.salu_nombre AS situacion
+                sa.salu_nombre AS situacion,
+                CASE WHEN u.rol = 'admin' OR sa.salu_codigo = 1 OR UPPER(sa.salu_nombre) = 'REGULAR' THEN 1 ELSE 0 END AS es_regular
             FROM usuarios u
             LEFT JOIN estudiante e ON REPLACE(REPLACE(REPLACE(UPPER(u.rut), '.', ''), '-', ''), ' ', '') = CONCAT(e.estd_rut, e.estd_dv)
             LEFT JOIN estudiante_carrera ec ON e.estd_rut = ec.estd_rut
@@ -1204,7 +1240,11 @@ async def get_current_user_optional(credentials: Optional[HTTPAuthorizationCrede
         """
         async with pool.acquire() as conn:
             row = await conn.fetchrow(user_query, email)
-            return dict(row) if row else None
+            if not row:
+                return None
+            d_row = dict(row)
+            d_row["es_regular"] = bool(row.get("es_regular"))
+            return d_row
     except Exception:
         return None
 
@@ -2171,13 +2211,14 @@ async def obtener_feriados(year: Optional[int] = Query(None)):
 @app.get("/api/calendario/bloqueos")
 async def obtener_dias_bloqueados(campus_id: Optional[int] = None):
     async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM dias_bloqueados WHERE fecha < CURRENT_DATE")
         if campus_id:
             filas = await conn.fetch(
                 """
                 SELECT b.id, b.fecha::text, b.motivo, b.campus_id, b.creado_por, b.created_at::text, c.nombre AS campus_nombre
                 FROM dias_bloqueados b
                 LEFT JOIN campus c ON b.campus_id = c.id
-                WHERE b.campus_id IS NULL OR b.campus_id = $1
+                WHERE b.fecha >= CURRENT_DATE AND (b.campus_id IS NULL OR b.campus_id = $1)
                 ORDER BY b.fecha ASC
                 """,
                 campus_id
@@ -2188,6 +2229,7 @@ async def obtener_dias_bloqueados(campus_id: Optional[int] = None):
                 SELECT b.id, b.fecha::text, b.motivo, b.campus_id, b.creado_por, b.created_at::text, c.nombre AS campus_nombre
                 FROM dias_bloqueados b
                 LEFT JOIN campus c ON b.campus_id = c.id
+                WHERE b.fecha >= CURRENT_DATE
                 ORDER BY b.fecha ASC
                 """
             )
@@ -2202,6 +2244,9 @@ async def crear_dia_bloqueado(data: BloqueoDiaRequest, current_user: dict = Depe
         f_parsed = datetime.strptime(data.fecha.strip(), "%Y-%m-%d").date()
     except ValueError:
         raise HTTPException(status_code=400, detail="Formato de fecha inválido. Usa YYYY-MM-DD.")
+
+    if f_parsed < datetime.now().date():
+        raise HTTPException(status_code=400, detail="No se pueden bloquear fechas pasadas.")
 
     async with pool.acquire() as conn:
         existe = await conn.fetchrow(
@@ -2925,6 +2970,13 @@ async def validar_acompanantes_cruzados(conn, rut_titular: str, fecha_parsed: da
                 detail=f"El acompañante {nombre_ac} ya está registrado como acompañante en otra reserva activa (Titular: {reserva_como_ac['titular_nombre']})."
             )
 
+        ac_regular = await verificar_estudiante_regular(conn, rut_ac_clean)
+        if not ac_regular["es_regular"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"El acompañante {nombre_ac} figura como estudiante no regular, cuando resuelva esa situación estará activo nuevamente."
+            )
+
     titular_como_ac = await conn.fetchrow(
         """
         SELECT r.id, r.fecha, r.hora, r.nombre AS titular_nombre
@@ -3073,6 +3125,14 @@ async def crear_reserva(
                         status_code=status.HTTP_403_FORBIDDEN,
                         detail=sancion.get("mensaje")
                     )
+
+                if not current_user or current_user.get("rol") != "admin":
+                    reg_check = await verificar_estudiante_regular(conn, rut_limpio)
+                    if not reg_check["es_regular"]:
+                        raise HTTPException(
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Actualmente estás como estudiante no regular, cuando resuelvas esa situación estarás activo nuevamente."
+                        )
 
                 reserva_activa = await conn.fetchrow(
                     """
@@ -3290,7 +3350,7 @@ async def recibir_mensaje_contacto(data: ContactoRequest, request: Request, back
 
 
 @app.post("/api/talleres/solicitar")
-async def solicitar_taller(data: TallerSolicitudRequest, background_tasks: BackgroundTasks):
+async def solicitar_taller(data: TallerSolicitudRequest, background_tasks: BackgroundTasks, current_user: Optional[dict] = Depends(get_current_user_optional)):
     taller_limpio = sanitizar_texto(data.taller, max_length=255)
     nombre_limpio = sanitizar_texto(data.nombre, max_length=150)
     email_limpio = sanitizar_texto(data.email, max_length=255)
@@ -3298,6 +3358,16 @@ async def solicitar_taller(data: TallerSolicitudRequest, background_tasks: Backg
     carrera_limpia = sanitizar_texto(data.carrera, max_length=150)
     modalidad_limpia = sanitizar_texto(data.modalidad, max_length=50)
     participantes_limpio = sanitizar_texto(data.participantes, max_length=50)
+
+    rut_verif = str(rut_limpio).replace(".", "").replace("-", "").strip().upper()
+    if not current_user or current_user.get("rol") != "admin":
+        async with pool.acquire() as conn:
+            reg_check = await verificar_estudiante_regular(conn, rut_verif)
+            if not reg_check["es_regular"]:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Actualmente estás como estudiante no regular, cuando resuelvas esa situación estarás activo nuevamente."
+                )
 
     if not carrera_limpia and (email_limpio or rut_limpio):
         async with pool.acquire() as conn:
@@ -3589,6 +3659,14 @@ async def hablar_con_bot(input_data: MessageInput, request: Request, current_use
                 if row_recup:
                     rut_a_guardar = row_recup["rut"]
                     nombre_a_guardar = row_recup["nombre"]
+
+        if rut_a_guardar and (not current_user or current_user.get("rol") != "admin"):
+            async with pool.acquire() as conn:
+                reg_check = await verificar_estudiante_regular(conn, rut_a_guardar)
+                if not reg_check["es_regular"]:
+                    return {
+                        "response": "Actualmente estás como estudiante no regular, cuando resuelvas esa situación estarás activo nuevamente."
+                    }
 
         now_dt = datetime.now()
         fecha_actual = now_dt.strftime("%Y-%m-%d")

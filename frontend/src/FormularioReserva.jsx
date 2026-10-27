@@ -60,6 +60,7 @@ export default function FormularioReserva() {
   const { user } = useAuth();
   const isAdmin = user?.rol === "admin";
   const isEstudiante = user?.rol === "estudiante";
+  const isNoRegular = Boolean(user && !isAdmin && user?.es_regular === false);
 
   const { data: campusList = [] } = useCampusQuery();
   const { data: feriados = [] } = useFeriadosQuery();
@@ -466,6 +467,14 @@ export default function FormularioReserva() {
       return;
     }
 
+    if (isNoRegular) {
+      setToastNotificacion({
+        tipo: "error",
+        texto: "Actualmente estás como estudiante no regular, cuando resuelvas esa situación estarás activo nuevamente."
+      });
+      return;
+    }
+
     if (reservaActivaUser) {
       setToastNotificacion({
         tipo: "error",
@@ -590,7 +599,7 @@ export default function FormularioReserva() {
   const campusSeleccionado = campusList.find((c) => String(c.id) === String(formData.campus_id));
   const listo = Boolean(formData.campus_id && formData.fecha && formData.hora);
   const tieneReservaActiva = Boolean(reservaActivaUser);
-  const formularioDeshabilitado = isAdmin || tieneReservaActiva || Boolean(sancionUsuario?.suspendido);
+  const formularioDeshabilitado = isAdmin || tieneReservaActiva || Boolean(sancionUsuario?.suspendido) || isNoRegular;
 
   const paso1Completo = Boolean(formData.campus_id && formData.nombre && formData.rut);
   const paso2Completo = paso1Completo && (!tieneAcompanantes || listAcompanantes.some((a) => a.nombre.trim()));
@@ -1244,6 +1253,10 @@ export default function FormularioReserva() {
                 <>
                   <IconLock className="w-4 h-4" /> Formulario bloqueado para administradores
                 </>
+              ) : isNoRegular ? (
+                <>
+                  <IconLock className="w-4 h-4" /> Bloqueado: Estudiante no regular
+                </>
               ) : tieneReservaActiva ? (
                 <>
                   <IconLock className="w-4 h-4" /> Ya tienes una reserva activa registrada
@@ -1268,6 +1281,18 @@ export default function FormularioReserva() {
 
         {/* ── COLUMNA LATERAL: BOLETO EN VIVO + ESTADO DE CUENTA ─────── */}
         <aside className="fr-sidebar">
+          {isNoRegular && (
+            <div className="fr-side-alert fr-side-alert--danger" style={{ borderLeft: "4px solid #EA3829" }}>
+              <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400">
+                <IconAlert className="w-4 h-4" />
+                <h3>Estudiante no regular</h3>
+              </div>
+              <p>
+                Actualmente estás como estudiante no regular, cuando resuelvas esa situación estarás activo nuevamente.
+              </p>
+            </div>
+          )}
+
           {/* Alerta de Cuenta Suspendida */}
           {sancionUsuario?.suspendido && (
             <div className="fr-side-alert fr-side-alert--danger">

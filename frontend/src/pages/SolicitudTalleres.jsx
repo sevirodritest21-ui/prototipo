@@ -133,6 +133,7 @@ const CATALOGO_META = [
 
 export default function SolicitudTalleres() {
   const { user } = useAuth();
+  const isNoRegular = Boolean(user && user?.rol !== "admin" && user?.es_regular === false);
   const [solicitudes, setSolicitudes] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [actualizando, setActualizando] = useState(false);
@@ -206,6 +207,13 @@ export default function SolicitudTalleres() {
 
   const handleCrearSolicitud = async (e) => {
     e.preventDefault();
+    if (isNoRegular) {
+      setToast({
+        tipo: "error",
+        texto: "Actualmente estás como estudiante no regular, cuando resuelvas esa situación estarás activo nuevamente."
+      });
+      return;
+    }
     const carreraFinal = (user?.carrera || formData.carrera || "").trim();
     if (!formData.taller || !carreraFinal) {
       setToast({ tipo: "error", texto: "Por favor completa el taller y verifica tu carrera." });
@@ -259,6 +267,13 @@ export default function SolicitudTalleres() {
   };
 
   const abrirModalNuevaSolicitud = (tallerPreseleccionado) => {
+    if (isNoRegular) {
+      setToast({
+        tipo: "error",
+        texto: "Actualmente estás como estudiante no regular, cuando resuelvas esa situación estarás activo nuevamente."
+      });
+      return;
+    }
     const tallerElegido =
       typeof tallerPreseleccionado === "string" && TALLERES_DISPONIBLES.includes(tallerPreseleccionado)
         ? tallerPreseleccionado
@@ -359,6 +374,20 @@ export default function SolicitudTalleres() {
       </div>
 
       <div className="st-container">
+        {isNoRegular && (
+          <div className="mb-6 p-4 rounded-2xl bg-rose-50/90 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900/70 flex items-start gap-3 shadow-xs animate-fadeIn">
+            <span className="text-xl shrink-0 mt-0.5">⚠️</span>
+            <div className="flex-1">
+              <h4 className="text-sm font-bold text-rose-800 dark:text-rose-200">
+                Servicio bloqueado: Estudiante no regular
+              </h4>
+              <p className="text-xs text-rose-700 dark:text-rose-300 mt-0.5">
+                Actualmente estás como estudiante no regular, cuando resuelvas esa situación estarás activo nuevamente.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* BENTO HERO FLOTANTE (Sin barra clásica) */}
         <section className="st-hero-bento st-fade-up" aria-labelledby="st-page-title">
           {/* Panel Principal Izquierdo: Identidad + Acciones */}
@@ -414,11 +443,12 @@ export default function SolicitudTalleres() {
               <button
                 type="button"
                 onClick={() => abrirModalNuevaSolicitud()}
-                className="st-btn st-btn--gold"
+                disabled={isNoRegular}
+                className={`st-btn st-btn--gold ${isNoRegular ? "opacity-60 cursor-not-allowed" : ""}`}
               >
                 <IconPlus className="w-4 h-4" />
-                Solicitar Taller
-                <span className="st-btn-arrow">→</span>
+                {isNoRegular ? "Bloqueado: Estudiante no regular" : "Solicitar Taller"}
+                {!isNoRegular && <span className="st-btn-arrow">→</span>}
               </button>
 
               <button
@@ -599,9 +629,10 @@ export default function SolicitudTalleres() {
                   <button
                     type="button"
                     onClick={() => abrirModalNuevaSolicitud()}
-                    className="st-btn st-btn--gold"
+                    disabled={isNoRegular}
+                    className={`st-btn st-btn--gold ${isNoRegular ? "opacity-60 cursor-not-allowed" : ""}`}
                   >
-                    <IconPlus className="w-4 h-4" /> Solicitar un taller ahora
+                    <IconPlus className="w-4 h-4" /> {isNoRegular ? "Bloqueado: Estudiante no regular" : "Solicitar un taller ahora"}
                   </button>
                   <button
                     type="button"
@@ -827,7 +858,7 @@ export default function SolicitudTalleres() {
                       key={nombreTaller}
                       type="button"
                       onClick={() => abrirModalNuevaSolicitud(nombreTaller)}
-                      className="st-catalog-item"
+                      className={`st-catalog-item ${isNoRegular ? "opacity-70 cursor-not-allowed" : ""}`}
                     >
                       <span className="st-catalog-emoji">{meta.icono}</span>
                       <div className="st-catalog-info">
@@ -980,10 +1011,10 @@ export default function SolicitudTalleres() {
                 </button>
                 <button
                   type="submit"
-                  disabled={enviandoSolicitud}
+                  disabled={enviandoSolicitud || isNoRegular}
                   className="st-btn st-btn--gold"
                 >
-                  {enviandoSolicitud ? "Enviando solicitud..." : "Enviar solicitud →"}
+                  {isNoRegular ? "Bloqueado: Estudiante no regular" : enviandoSolicitud ? "Enviando solicitud..." : "Enviar solicitud →"}
                 </button>
               </div>
             </form>
