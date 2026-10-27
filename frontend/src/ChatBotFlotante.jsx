@@ -201,6 +201,7 @@ export default function ChatbotFlotante() {
   const navigate = useNavigate();
   const location = useLocation();
   const esModoAdmin = user?.rol === 'admin' || location.pathname.startsWith('/dashboard');
+  const isNoRegular = Boolean(user && user?.rol !== 'admin' && user?.es_regular === false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [mensajes, setMensajes] = useState([]);
   const [nuevoMensaje, setNuevoMensaje] = useState('');
@@ -236,7 +237,7 @@ export default function ChatbotFlotante() {
   };
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || isNoRegular) return;
     setNombreContacto(user.nombre || '');
     setEmailContacto(user.email || '');
     setSeccionActiva('menu');
@@ -267,6 +268,7 @@ export default function ChatbotFlotante() {
   }, []);
 
   const seleccionarOpcion = (opcion) => {
+    if (isNoRegular) return;
     if (opcion === 'reservas') {
       setSeccionActiva('reservas');
       setMensajes((prev) => [
@@ -380,6 +382,7 @@ export default function ChatbotFlotante() {
       navigate('/login');
       return;
     }
+    if (isNoRegular) return;
     if (!textoAEnviar.trim() || cargandoBot) return;
 
     const mensajeTexto = textoAEnviar.trim().slice(0, 300);
@@ -595,6 +598,7 @@ export default function ChatbotFlotante() {
   };
 
   const toggleDictadoPorVoz = () => {
+    if (isNoRegular) return;
     if (isHoldingRef.current) return;
     if (escuchandoVoz) {
       stopListening();
@@ -605,6 +609,7 @@ export default function ChatbotFlotante() {
 
   const handleEnviarMensaje = (e) => {
     e.preventDefault();
+    if (isNoRegular) return;
     if (escuchandoVoz && recognitionRef.current) {
       recognitionRef.current.stop();
       setEscuchandoVoz(false);
@@ -637,17 +642,17 @@ export default function ChatbotFlotante() {
                 </div>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <span className="relative flex h-2 w-2">
-                    <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${user ? 'bg-emerald-400' : 'bg-rose-400'} opacity-75`}></span>
-                    <span className={`relative inline-flex rounded-full h-2 w-2 ${user ? 'bg-emerald-400' : 'bg-rose-500'}`}></span>
+                    <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${user && !isNoRegular ? 'bg-emerald-400' : 'bg-rose-400'} opacity-75`}></span>
+                    <span className={`relative inline-flex rounded-full h-2 w-2 ${user && !isNoRegular ? 'bg-emerald-400' : 'bg-rose-500'}`}></span>
                   </span>
                   <p className="text-[11px] text-sky-100/90 font-medium">
-                    {user ? (esModoAdmin ? `${user.nombre} • Normativas` : user.nombre) : 'Acceso Restringido'}
+                    {user ? (isNoRegular ? 'Estudiante No Regular' : esModoAdmin ? `${user.nombre} • Normativas` : user.nombre) : 'Acceso Restringido'}
                   </p>
                 </div>
               </div>
             </div>
             <div className="flex items-center gap-1">
-              {user && !esModoAdmin && (
+              {user && !isNoRegular && !esModoAdmin && (
                 <button
                   type="button"
                   onClick={volverAlMenuPrincipal}
@@ -686,6 +691,21 @@ export default function ChatbotFlotante() {
               >
                 <span>🔑 Iniciar Sesión</span>
               </button>
+            </div>
+          ) : isNoRegular ? (
+            <div className="flex-1 p-6 flex flex-col items-center justify-center text-center bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-md">
+              <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-rose-100 to-rose-200 dark:from-rose-900/40 dark:to-rose-800/40 border border-rose-300/80 dark:border-rose-600/40 flex items-center justify-center mb-4 text-2xl shadow-inner">
+                ⚠️
+              </div>
+              <h3 className="text-base font-black text-slate-800 dark:text-slate-100 mb-1">
+                Servicio Bloqueado
+              </h3>
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-200 dark:border-rose-800 mb-3">
+                Estudiante no regular
+              </span>
+              <p className="text-xs text-slate-600 dark:text-slate-300 max-w-xs leading-relaxed">
+                Actualmente estás como estudiante no regular, cuando resuelvas esa situación estarás activo nuevamente.
+              </p>
             </div>
           ) : (
             <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-gradient-to-b from-sky-50/30 via-slate-50/50 to-white/80 dark:from-slate-950/70 dark:via-slate-900/80 dark:to-slate-950/90 backdrop-blur-md">
@@ -1038,7 +1058,7 @@ export default function ChatbotFlotante() {
             </div>
           )}
 
-          {user && !cargandoBot && !esModoAdmin && (
+          {user && !isNoRegular && !cargandoBot && !esModoAdmin && (
             <div className="px-3 pt-2 pb-1 flex items-center gap-1.5 overflow-x-auto bg-white/80 dark:bg-slate-900/90 backdrop-blur-md border-t border-slate-100 dark:border-slate-800 scrollbar-none">
               <button
                 type="button"
@@ -1128,106 +1148,115 @@ export default function ChatbotFlotante() {
             </div>
           )}
 
-          <form onSubmit={handleEnviarMensaje} className="p-3 border-t border-slate-100 dark:border-slate-800 bg-white/90 dark:bg-slate-900/95 backdrop-blur-md flex items-center space-x-2">
-            {escuchandoVoz ? (
-              <div className="flex-1 flex items-center justify-between px-3.5 py-2.5 bg-rose-50/80 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800/80 rounded-2xl shadow-inner min-w-0">
-                <div className="flex items-center gap-2 min-w-0 pr-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping shrink-0" />
-                  <span className="text-xs font-semibold text-rose-700 dark:text-rose-300 truncate">
-                    {nuevoMensaje ? nuevoMensaje : "Escuchando... habla ahora"}
-                  </span>
+          {isNoRegular ? (
+            <div className="p-3.5 border-t border-rose-200 dark:border-rose-900/60 bg-rose-50/90 dark:bg-rose-950/50 flex items-center justify-center gap-2">
+              <span className="text-rose-500 text-sm">🔒</span>
+              <span className="text-[12px] font-semibold text-rose-700 dark:text-rose-300">
+                Servicio bloqueado para estudiantes no regulares
+              </span>
+            </div>
+          ) : (
+            <form onSubmit={handleEnviarMensaje} className="p-3 border-t border-slate-100 dark:border-slate-800 bg-white/90 dark:bg-slate-900/95 backdrop-blur-md flex items-center space-x-2">
+              {escuchandoVoz ? (
+                <div className="flex-1 flex items-center justify-between px-3.5 py-2.5 bg-rose-50/80 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800/80 rounded-2xl shadow-inner min-w-0">
+                  <div className="flex items-center gap-2 min-w-0 pr-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping shrink-0" />
+                    <span className="text-xs font-semibold text-rose-700 dark:text-rose-300 truncate">
+                      {nuevoMensaje ? nuevoMensaje : "Escuchando... habla ahora"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0 h-6">
+                    {[4, 12, 18, 8, 22, 14, 24, 7, 16, 10, 20].map((h, i) => (
+                      <span
+                        key={i}
+                        className="w-1 bg-rose-500 dark:bg-rose-400 rounded-full animate-audio-wave"
+                        style={{
+                          animationDelay: `${i * 90}ms`,
+                          height: `${h}px`
+                        }}
+                      />
+                    ))}
+                  </div>
                 </div>
-                <div className="flex items-center gap-1 shrink-0 h-6">
-                  {[4, 12, 18, 8, 22, 14, 24, 7, 16, 10, 20].map((h, i) => (
-                    <span
-                      key={i}
-                      className="w-1 bg-rose-500 dark:bg-rose-400 rounded-full animate-audio-wave"
-                      style={{
-                        animationDelay: `${i * 90}ms`,
-                        height: `${h}px`
-                      }}
-                    />
-                  ))}
+              ) : (
+                <div className="relative flex-1 flex items-center">
+                  <input
+                    type="text"
+                    maxLength={300}
+                    value={nuevoMensaje}
+                    onChange={(e) => setNuevoMensaje(e.target.value)}
+                    disabled={!user || cargandoBot}
+                    placeholder={
+                      !user
+                        ? "Debes iniciar sesión para chatear..."
+                        : cargandoBot
+                          ? "Esperando respuesta del asistente..."
+                          : esModoAdmin
+                            ? "Consulta sobre el reglamento o normativas oficiales..."
+                            : seccionActiva === 'contacto'
+                              ? "Escribe o usa el formulario arriba..."
+                              : "Ej: Reservar en San Juan Pablo II hoy a las 11:00..."
+                    }
+                    className="w-full px-4 py-2.5 pr-14 text-sm border border-slate-200 bg-slate-50/70 focus:bg-white rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#00629B] transition-all disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed dark:border-slate-700 dark:bg-slate-800/80 dark:focus:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:disabled:bg-slate-800/50 dark:disabled:text-slate-600"
+                  />
+                  {nuevoMensaje.length >= 200 && (
+                    <span className="absolute right-3 text-[10px] font-mono text-slate-400 dark:text-slate-500 pointer-events-none">
+                      {nuevoMensaje.length}/300
+                    </span>
+                  )}
                 </div>
-              </div>
-            ) : (
-              <div className="relative flex-1 flex items-center">
-                <input
-                  type="text"
-                  maxLength={300}
-                  value={nuevoMensaje}
-                  onChange={(e) => setNuevoMensaje(e.target.value)}
-                  disabled={!user || cargandoBot}
-                  placeholder={
-                    !user
-                      ? "Debes iniciar sesión para chatear..."
-                      : cargandoBot
-                        ? "Esperando respuesta del asistente..."
-                        : esModoAdmin
-                          ? "Consulta sobre el reglamento o normativas oficiales..."
-                          : seccionActiva === 'contacto'
-                            ? "Escribe o usa el formulario arriba..."
-                            : "Ej: Reservar en San Juan Pablo II hoy a las 11:00..."
-                  }
-                  className="w-full px-4 py-2.5 pr-14 text-sm border border-slate-200 bg-slate-50/70 focus:bg-white rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#00629B] transition-all disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed dark:border-slate-700 dark:bg-slate-800/80 dark:focus:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:disabled:bg-slate-800/50 dark:disabled:text-slate-600"
-                />
-                {nuevoMensaje.length >= 200 && (
-                  <span className="absolute right-3 text-[10px] font-mono text-slate-400 dark:text-slate-500 pointer-events-none">
-                    {nuevoMensaje.length}/300
-                  </span>
-                )}
-              </div>
-            )}
+              )}
 
-            {user && (
-              <div className="relative flex items-center justify-center shrink-0">
-                {escuchandoVoz && (
-                  <>
-                    <span className="absolute -inset-1 rounded-2xl bg-rose-500/40 animate-audio-ripple pointer-events-none" />
-                    <span className="absolute -inset-2 rounded-2xl bg-rose-500/25 animate-audio-ripple pointer-events-none" style={{ animationDelay: "450ms" }} />
-                  </>
-                )}
-                <button
-                  type="button"
-                  onClick={toggleDictadoPorVoz}
-                  onMouseDown={handleMicMouseDown}
-                  onMouseUp={handleMicMouseUp}
-                  onMouseLeave={handleMicMouseUp}
-                  onTouchStart={handleMicMouseDown}
-                  onTouchEnd={handleMicMouseUp}
-                  disabled={cargandoBot}
-                  title={escuchandoVoz ? "Soltar o presionar para enviar" : "Mantén presionado o presiona para hablar"}
-                  className={`relative p-2.5 rounded-2xl transition-all duration-200 flex items-center justify-center cursor-pointer ${escuchandoVoz
-                    ? "bg-rose-500 text-white scale-110 shadow-[0_0_24px_rgba(244,63,94,0.7)] ring-4 ring-rose-400/40"
-                    : "bg-slate-100 hover:bg-sky-50 text-slate-700 hover:text-sky-700 border border-slate-200 hover:border-sky-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-slate-700 shadow-sm hover:scale-105 active:scale-95"
-                    } disabled:opacity-40 disabled:cursor-not-allowed`}
-                >
-                  <svg className={`w-5 h-5 transition-transform ${escuchandoVoz ? "scale-110" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m-4 0h8m-4-8a3 3 0 003-3V5a3 3 0 00-6 0v6a3 3 0 003 3z" />
-                  </svg>
-                </button>
-              </div>
-            )}
+              {user && (
+                <div className="relative flex items-center justify-center shrink-0">
+                  {escuchandoVoz && (
+                    <>
+                      <span className="absolute -inset-1 rounded-2xl bg-rose-500/40 animate-audio-ripple pointer-events-none" />
+                      <span className="absolute -inset-2 rounded-2xl bg-rose-500/25 animate-audio-ripple pointer-events-none" style={{ animationDelay: "450ms" }} />
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    onClick={toggleDictadoPorVoz}
+                    onMouseDown={handleMicMouseDown}
+                    onMouseUp={handleMicMouseUp}
+                    onMouseLeave={handleMicMouseUp}
+                    onTouchStart={handleMicMouseDown}
+                    onTouchEnd={handleMicMouseUp}
+                    disabled={cargandoBot}
+                    title={escuchandoVoz ? "Soltar o presionar para enviar" : "Mantén presionado o presiona para hablar"}
+                    className={`relative p-2.5 rounded-2xl transition-all duration-200 flex items-center justify-center cursor-pointer ${escuchandoVoz
+                      ? "bg-rose-500 text-white scale-110 shadow-[0_0_24px_rgba(244,63,94,0.7)] ring-4 ring-rose-400/40"
+                      : "bg-slate-100 hover:bg-sky-50 text-slate-700 hover:text-sky-700 border border-slate-200 hover:border-sky-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-slate-700 shadow-sm hover:scale-105 active:scale-95"
+                      } disabled:opacity-40 disabled:cursor-not-allowed`}
+                  >
+                    <svg className={`w-5 h-5 transition-transform ${escuchandoVoz ? "scale-110" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m-4 0h8m-4-8a3 3 0 003-3V5a3 3 0 00-6 0v6a3 3 0 003 3z" />
+                    </svg>
+                  </button>
+                </div>
+              )}
 
-            <button
-              type="submit"
-              disabled={!user || cargandoBot || !nuevoMensaje.trim()}
-              className="bg-gradient-to-r from-[#00629B] to-[#0082B3] hover:from-[#004B75] hover:to-[#00629B] text-white px-4 py-2.5 rounded-2xl text-sm font-bold transition-all shadow-md shadow-sky-900/15 cursor-pointer disabled:bg-slate-300 dark:disabled:bg-slate-800 dark:disabled:text-slate-600 disabled:shadow-none disabled:cursor-not-allowed shrink-0"
-            >
-              {cargandoBot ? '...' : 'Enviar'}
-            </button>
-          </form>
+              <button
+                type="submit"
+                disabled={!user || cargandoBot || !nuevoMensaje.trim()}
+                className="bg-gradient-to-r from-[#00629B] to-[#0082B3] hover:from-[#004B75] hover:to-[#00629B] text-white px-4 py-2.5 rounded-2xl text-sm font-bold transition-all shadow-md shadow-sky-900/15 cursor-pointer disabled:bg-slate-300 dark:disabled:bg-slate-800 dark:disabled:text-slate-600 disabled:shadow-none disabled:cursor-not-allowed shrink-0"
+              >
+                {cargandoBot ? '...' : 'Enviar'}
+              </button>
+            </form>
+          )}
         </div>
       )}
       <button
         onClick={() => setIsChatOpen((prev) => !prev)}
-        className="w-16 h-16 rounded-full bg-white dark:bg-slate-800 border-2 border-[#FFC20E] shadow-[0_10px_30px_rgba(0,98,155,0.3)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.6)] transition-all duration-300 hover:scale-110 flex items-center justify-center p-1.5 cursor-pointer overflow-hidden group ring-4 ring-[#00629B]/10 dark:ring-sky-400/20"
+        className="w-16 h-16 rounded-full bg-white dark:bg-slate-800 border-2 border-[#FFC20E] shadow-[0_10px_30px_rgba(0,98,155,0.25)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.6)] transition-all duration-300 hover:scale-110 flex items-center justify-center p-1 cursor-pointer overflow-hidden group"
         title="Abrir Asistente Virtual UCT"
       >
         <img
           src={logoUCT}
           alt="Logo UCT Asistente Virtual"
-          className="w-full h-full object-cover scale-125 rounded-full transition-transform group-hover:rotate-6"
+          className="w-full h-full object-cover scale-110 rounded-full transition-transform group-hover:rotate-6"
         />
       </button>
     </div>
