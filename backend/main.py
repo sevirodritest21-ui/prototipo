@@ -616,8 +616,7 @@ async def enforce_rate_limit(key_prefix: str, identifier: str, max_requests: int
 
 
 async def verificar_sancion_usuario(conn, rut: str) -> dict:
-    if not rut:
-        return {"suspendido": False, "total_inasistencias": 0, "dias_restantes": 0, "fecha_desbloqueo": None, "mensaje": ""}
+    return {"suspendido": False, "total_inasistencias": 0, "dias_restantes": 0, "fecha_desbloqueo": None, "mensaje": ""}
 
     rut_limpio = str(rut).replace(".", "").replace("-", "").replace(" ", "").upper().strip()
 
@@ -2390,6 +2389,34 @@ async def eliminar_campus_por_id(campus_id: int, current_user: dict = Depends(ge
     return {"message": f"El campus '{nombre_campus}', sus cubículos y reservas asociadas fueron eliminados."}
 
 
+@app.get("/api/metricas/prediccion")
+async def obtener_prediccion_aforo(
+    campus_id: int = Query(1),
+    dias: int = Query(7),
+    reentrenar: bool = Query(False),
+    current_user: dict = Depends(get_current_user)
+):
+    try:
+        from backend.ml_occupancy import predecir_aforo_semanal
+    except ImportError:
+        from ml_occupancy import predecir_aforo_semanal
+    return predecir_aforo_semanal(campus_id=campus_id, dias=dias, forzar_reentrenamiento=reentrenar)
+
+
+@app.post("/api/metricas/prediccion/reentrenar")
+async def forzar_autoentrenamiento_ml(
+    campus_id: int = Query(1),
+    dias: int = Query(7),
+    current_user: dict = Depends(get_current_user)
+):
+    if current_user.get("rol") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
+    try:
+        from backend.ml_occupancy import predecir_aforo_semanal
+    except ImportError:
+        from ml_occupancy import predecir_aforo_semanal
+    return predecir_aforo_semanal(campus_id=campus_id, dias=dias, forzar_reentrenamiento=True)
+
 @app.get("/api/dashboard/metricas")
 async def obtener_metricas_dashboard(
     campus_id: Optional[int] = None,
@@ -2552,12 +2579,21 @@ async def obtener_metricas_dashboard(
 
             filas_pico = await conn.fetch(
                 """
-                SELECT TO_CHAR(hora, 'HH24:MI') as hora_str, COUNT(*) as total_reservas
-                FROM reservas
-                WHERE ($1::int IS NULL OR campus_id = $1)
-                GROUP BY hora
+                WITH base_horas AS (
+                    SELECT SUBSTRING(LTRIM(RTRIM(CAST(hora AS VARCHAR(20)))), 1, 5) as hora_str, campus_id
+                    FROM historial_reservas
+                    WHERE estado NOT IN ('cancelada', 'liberada')
+                      AND ($1::int IS NULL OR campus_id = $1)
+                    UNION ALL
+                    SELECT TO_CHAR(hora, 'HH24:MI') as hora_str, campus_id
+                    FROM reservas r
+                    WHERE ($1::int IS NULL OR r.campus_id = $1)
+                      AND NOT EXISTS (SELECT 1 FROM historial_reservas h WHERE h.reserva_id = r.id)
+                )
+                SELECT TOP 5 hora_str, COUNT(*) as total_reservas
+                FROM base_horas
+                GROUP BY hora_str
                 ORDER BY total_reservas DESC
-                LIMIT 5
                 """,
                 campus_id
             )
@@ -2577,8 +2613,14 @@ async def obtener_metricas_dashboard(
                 """
                 WITH base_dias AS (
                     SELECT TO_CHAR(fecha, 'Day') as dia_nombre, EXTRACT(ISODOW FROM fecha) as dia_num
-                    FROM reservas
-                    WHERE ($1::int IS NULL OR campus_id = $1)
+                    FROM historial_reservas
+                    WHERE estado NOT IN ('cancelada', 'liberada')
+                      AND ($1::int IS NULL OR campus_id = $1)
+                    UNION ALL
+                    SELECT TO_CHAR(r.fecha, 'Day') as dia_nombre, EXTRACT(ISODOW FROM r.fecha) as dia_num
+                    FROM reservas r
+                    WHERE ($1::int IS NULL OR r.campus_id = $1)
+                      AND NOT EXISTS (SELECT 1 FROM historial_reservas h WHERE h.reserva_id = r.id)
                 )
                 SELECT dia_nombre, dia_num, COUNT(*) as total
                 FROM base_dias
@@ -2597,9 +2639,18 @@ async def obtener_metricas_dashboard(
 
             filas_sedes = await conn.fetch(
                 """
-                SELECT c.nombre, COUNT(r.id) as total
+                WITH base_sedes AS (
+                    SELECT campus_id
+                    FROM historial_reservas
+                    WHERE estado NOT IN ('cancelada', 'liberada')
+                    UNION ALL
+                    SELECT r.campus_id
+                    FROM reservas r
+                    WHERE NOT EXISTS (SELECT 1 FROM historial_reservas h WHERE h.reserva_id = r.id)
+                )
+                SELECT c.nombre, COUNT(bs.campus_id) as total
                 FROM campus c
-                LEFT JOIN reservas r ON c.id = r.campus_id
+                LEFT JOIN base_sedes bs ON c.id = bs.campus_id
                 GROUP BY c.id, c.nombre
                 ORDER BY total DESC
                 """
@@ -2630,7 +2681,12 @@ async def obtener_metricas_dashboard(
             ]
 
             total_registros_hist = await conn.fetchval(
-                "SELECT COUNT(*) FROM historial_reservas WHERE ($1::int IS NULL OR campus_id = $1)",
+                """
+                SELECT (
+                    (SELECT COUNT(*) FROM historial_reservas WHERE ($1::int IS NULL OR campus_id = $1)) +
+                    (SELECT COUNT(*) FROM reservas r WHERE ($1::int IS NULL OR r.campus_id = $1) AND NOT EXISTS (SELECT 1 FROM historial_reservas h WHERE h.reserva_id = r.id))
+                )
+                """,
                 campus_id
             ) or 0
 
@@ -2647,23 +2703,36 @@ async def obtener_metricas_dashboard(
             promedio_diario = round(total_canceladas_general / max(1, dias_distintos), 1)
             tasa_cancelacion_pct = round((total_canceladas_general / max(1, total_registros_hist)) * 100, 1)
 
-            condicion_carr = "WHERE erc.campus_id = $1" if campus_id else ""
-            params_carr = [campus_id] if campus_id else []
-
             filas_carreras = await conn.fetch(
-                f"""
-                SELECT 
-                    erc.carrera,
+                """
+                WITH base_carreras AS (
+                    SELECT LTRIM(RTRIM(h.carrera)) AS carrera, 0 AS es_actual
+                    FROM historial_reservas h
+                    WHERE h.carrera IS NOT NULL AND LTRIM(RTRIM(h.carrera)) <> ''
+                      AND ($1::int IS NULL OR h.campus_id = $1)
+                    UNION ALL
+                    SELECT LTRIM(RTRIM(erc.carrera)) AS carrera,
+                           CASE WHEN r.id IS NOT NULL THEN 1 ELSE 0 END AS es_actual
+                    FROM estadisticas_reservas_carrera erc
+                    LEFT JOIN reservas r ON erc.reserva_id = r.id
+                    WHERE erc.carrera IS NOT NULL AND LTRIM(RTRIM(erc.carrera)) <> ''
+                      AND ($1::int IS NULL OR erc.campus_id = $1)
+                      AND NOT EXISTS (
+                          SELECT 1 FROM historial_reservas h2
+                          WHERE h2.reserva_id = erc.reserva_id
+                            AND h2.carrera IS NOT NULL AND LTRIM(RTRIM(h2.carrera)) <> ''
+                      )
+                )
+                SELECT
+                    carrera,
                     COUNT(*) as total_reservas,
-                    COUNT(r.id) as total_actuales,
-                    (COUNT(*) - COUNT(r.id)) as total_historicas
-                FROM estadisticas_reservas_carrera erc
-                LEFT JOIN reservas r ON erc.reserva_id = r.id
-                {condicion_carr}
-                GROUP BY erc.carrera
+                    SUM(es_actual) as total_actuales,
+                    SUM(CASE WHEN es_actual = 0 THEN 1 ELSE 0 END) as total_historicas
+                FROM base_carreras
+                GROUP BY carrera
                 ORDER BY total_reservas DESC
                 """,
-                *params_carr
+                campus_id
             )
             reservas_por_carrera = [
                 {
@@ -3761,6 +3830,29 @@ async def hablar_con_bot_admin(input_data: AdminChatMessageInput, request: Reque
 
     if len(input_data.message.strip()) > 600:
         raise HTTPException(status_code=400, detail="La consulta no puede superar los 600 caracteres.")
+
+    msg_lower = input_data.message.lower().strip()
+    palabras_ml = ["pronostico", "pronóstico", "prediccion", "predicción", "proyeccion", "proyección", "aforo", "demanda esperada", "saturacion", "saturación", "cuanto se llenara", "cuánto se llenará"]
+    if any(p in msg_lower for p in palabras_ml):
+        cid = 1
+        if "derecho" in msg_lower:
+            cid = 2
+        elif "arellano" in msg_lower or "jaime" in msg_lower:
+            cid = 7
+        try:
+            from backend.ml_occupancy import predecir_aforo_semanal
+        except ImportError:
+            from ml_occupancy import predecir_aforo_semanal
+        pred = predecir_aforo_semanal(campus_id=cid, dias=7)
+        r_txt = (
+            f"📊 **Pronóstico de Aforo con Machine Learning ({pred['campus_nombre']})**\n\n"
+            f"{pred['resumen']['mensaje_analitico']}\n\n"
+            f"• **Día mayor congestión:** {pred['resumen']['dia_mayor_demanda']}\n"
+            f"• **Día más disponible:** {pred['resumen']['dia_menor_demanda']}\n"
+            f"• **Algoritmo de Inferencia:** {pred['modelo_info']['algoritmo']} (R² = {pred['modelo_info']['r2_score']}, MAE = {pred['modelo_info']['mae']}%)\n\n"
+            f"💡 *Para ver el desglose interactivo gráfico día a día y por horas, puedes ingresar a la pestaña **Métricas y Análisis > Predicción con IA**.*"
+        )
+        return {"response": r_txt}
 
     payload = {
         "message": input_data.message.strip(),
