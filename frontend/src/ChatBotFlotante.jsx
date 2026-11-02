@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { apiPost, API_URL } from './services/api';
-import logoUCT from './assets/logoredondo.png';
+import logoUCT from './assets/logouctactual.png';
 const obtenerSessionId = (rut) => {
   if (!rut) return `anon_${Date.now()}`;
   const rutLimpio = String(rut).replace(/\./g, '').trim().toUpperCase();
@@ -310,17 +310,6 @@ export default function ChatbotFlotante() {
           esBot: true
         }
       ]);
-    } else if (opcion === 'prestamos') {
-      setMensajes((prev) => [
-        ...prev,
-        { id: Date.now(), texto: '📚 Préstamos interbibliotecarios', esBot: false },
-        {
-          id: Date.now() + 1,
-          texto: `📚 El servicio de préstamos interbibliotecarios estará habilitado muy pronto para coordinar libros y material entre sedes.\n\nPor ahora puedes gestionar reservas de cubículos o contactar a soporte.`,
-          esBot: true,
-          mostrarBotonMenu: true
-        }
-      ]);
     }
   };
 
@@ -401,17 +390,17 @@ export default function ChatbotFlotante() {
       const endpoint = esModoAdmin ? '/api/chat/admin' : '/api/chat';
       const payload = esModoAdmin
         ? {
-            message: mensajeTexto,
-            tipo: 'reglamento',
-          }
+          message: mensajeTexto,
+          tipo: 'reglamento',
+        }
         : {
-            message: mensajeTexto,
-            sessionId: obtenerSessionId(user.rut),
-            rut: user.rut,
-            nombre: user.nombre,
-            email: user.email,
-            carrera: user.carrera || '',
-          };
+          message: mensajeTexto,
+          sessionId: obtenerSessionId(user.rut),
+          rut: user.rut,
+          nombre: user.nombre,
+          email: user.email,
+          carrera: user.carrera || '',
+        };
 
       const data = await apiPost(endpoint, payload, {
         signal: controller.signal,
@@ -793,27 +782,6 @@ export default function ChatbotFlotante() {
                             </span>
                           </div>
                         </button>
-
-                        <button
-                          type="button"
-                          onClick={() => seleccionarOpcion('prestamos')}
-                          className="flex items-start gap-2.5 p-3 rounded-2xl bg-white/70 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/60 hover:border-slate-300 dark:hover:border-slate-600 hover:scale-[1.01] active:scale-[0.99] transition-all text-left cursor-pointer group"
-                        >
-                          <span className="text-xl p-1.5 rounded-xl bg-slate-100 dark:bg-slate-700/50">📚</span>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between">
-                              <span className="font-bold text-xs text-slate-700 dark:text-slate-200">
-                                Préstamos interbibliotecarios
-                              </span>
-                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300 border border-amber-200/60 dark:border-amber-900/60">
-                                Pronto
-                              </span>
-                            </div>
-                            <span className="block text-[11px] text-slate-500 dark:text-slate-400 leading-tight mt-0.5">
-                              Solicitud de libros entre sedes
-                            </span>
-                          </div>
-                        </button>
                       </div>
                     )}
 
@@ -1063,11 +1031,10 @@ export default function ChatbotFlotante() {
               <button
                 type="button"
                 onClick={volverAlMenuPrincipal}
-                className={`px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap active:scale-95 transition-all cursor-pointer shadow-2xs flex items-center gap-1 shrink-0 ${
-                  seccionActiva === 'menu'
+                className={`px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap active:scale-95 transition-all cursor-pointer shadow-2xs flex items-center gap-1 shrink-0 ${seccionActiva === 'menu'
                     ? 'bg-sky-100/90 hover:bg-sky-200/90 text-sky-900 dark:bg-sky-950 dark:hover:bg-sky-900 dark:text-sky-200 border border-sky-300 dark:border-sky-700'
                     : 'bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 dark:bg-amber-950/60 dark:hover:bg-amber-900 dark:border-amber-700 dark:text-amber-200'
-                }`}
+                  }`}
                 title="Volver al menú principal"
               >
                 🏠 Menú principal
@@ -1094,13 +1061,6 @@ export default function ChatbotFlotante() {
                     className="px-2.5 py-1 bg-sky-50/60 hover:bg-sky-100/70 border border-sky-200/70 hover:border-[#FFC20E] rounded-full text-[11px] font-semibold text-slate-700 hover:text-sky-900 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:border-slate-700 dark:hover:border-[#FFC20E] dark:text-slate-200 dark:hover:text-white whitespace-nowrap active:scale-95 transition-all cursor-pointer shadow-2xs"
                   >
                     🎓 Talleres
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => seleccionarOpcion('prestamos')}
-                    className="px-2.5 py-1 bg-sky-50/60 hover:bg-sky-100/70 border border-sky-200/70 hover:border-[#FFC20E] rounded-full text-[11px] font-semibold text-slate-700 hover:text-sky-900 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:border-slate-700 dark:hover:border-[#FFC20E] dark:text-slate-200 dark:hover:text-white whitespace-nowrap active:scale-95 transition-all cursor-pointer shadow-2xs"
-                  >
-                    📚 Préstamos
                   </button>
                 </>
               )}
@@ -1248,17 +1208,90 @@ export default function ChatbotFlotante() {
           )}
         </div>
       )}
-      <button
-        onClick={() => setIsChatOpen((prev) => !prev)}
-        className="w-16 h-16 rounded-full bg-white dark:bg-slate-800 border-2 border-[#FFC20E] shadow-[0_10px_30px_rgba(0,98,155,0.25)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.6)] transition-all duration-300 hover:scale-110 flex items-center justify-center p-1 cursor-pointer overflow-hidden group"
-        title="Abrir Asistente Virtual UCT"
-      >
-        <img
-          src={logoUCT}
-          alt="Logo UCT Asistente Virtual"
-          className="w-full h-full object-cover scale-110 rounded-full transition-transform group-hover:rotate-6"
-        />
-      </button>
+      <style>{`
+        @keyframes uctChatFloat {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-5px); }
+        }
+        @keyframes uctChatPulseRing {
+          0% { transform: scale(0.95); opacity: 0.75; }
+          70% { transform: scale(1.28); opacity: 0; }
+          100% { transform: scale(1.28); opacity: 0; }
+        }
+        @keyframes uctChatNudge {
+          0%, 86%, 100% { transform: translateX(0px) scale(1); }
+          90% { transform: translateX(-4px) scale(1.02); }
+          95% { transform: translateX(2px) scale(1.01); }
+        }
+        .uct-chat-float {
+          animation: uctChatFloat 3.4s ease-in-out infinite;
+        }
+        .uct-chat-ring {
+          animation: uctChatPulseRing 2.6s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+        }
+        .uct-chat-nudge {
+          animation: uctChatNudge 6s ease-in-out infinite;
+        }
+      `}</style>
+
+      <div className="flex items-center gap-3">
+        {!isChatOpen && (
+          <button
+            type="button"
+            onClick={() => setIsChatOpen(true)}
+            className="uct-chat-nudge group flex items-center gap-2.5 pl-3.5 pr-4 py-2.5 rounded-2xl bg-gradient-to-r from-[#004D7A] via-[#00629B] to-[#0082B8] text-white border border-[#FFC20E]/60 shadow-[0_12px_28px_-6px_rgba(0,77,122,0.55)] hover:shadow-[0_16px_34px_-6px_rgba(0,163,224,0.65)] hover:-translate-y-0.5 transition-all duration-300 cursor-pointer text-left"
+          >
+            <span className="w-8 h-8 rounded-xl bg-[#FFC20E] text-[#0F172A] flex items-center justify-center shrink-0 shadow-sm group-hover:scale-110 transition-transform">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.4">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
+            </span>
+            <div className="leading-tight">
+              <span className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider text-[#FFC20E]">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                Asistente Virtual
+              </span>
+              <span className="block text-xs sm:text-[13px] font-extrabold text-white mt-0.5 whitespace-nowrap">
+                ¡Chatea aquí!
+              </span>
+            </div>
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={() => setIsChatOpen((prev) => !prev)}
+          className={`relative w-16 h-16 rounded-full bg-white dark:bg-slate-800 border-2 border-[#FFC20E] shadow-[0_12px_32px_rgba(0,98,155,0.35)] dark:shadow-[0_12px_32px_rgba(0,0,0,0.65)] transition-all duration-300 hover:scale-110 flex items-center justify-center p-1 cursor-pointer group ${!isChatOpen ? "uct-chat-float" : ""}`}
+          title={isChatOpen ? "Cerrar Asistente Virtual UCT" : "Abrir Asistente Virtual UCT"}
+        >
+          {!isChatOpen && (
+            <span className="uct-chat-ring absolute -inset-1.5 rounded-full border-2 border-[#00A3E0] pointer-events-none" />
+          )}
+
+          <div className="w-full h-full rounded-full overflow-hidden relative">
+            <img
+              src={logoUCT}
+              alt="Logo UCT Asistente Virtual"
+              className="w-full h-full object-cover scale-110 rounded-full transition-transform duration-300 group-hover:scale-125"
+            />
+            {isChatOpen && (
+              <div className="absolute inset-0 bg-[#004D7A]/85 backdrop-blur-xs flex items-center justify-center text-white transition-opacity">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </div>
+            )}
+          </div>
+
+          {!isChatOpen && (
+            <span className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-[#00629B] border-2 border-white dark:border-slate-900 text-[#FFC20E] flex items-center justify-center shadow-md">
+              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
+              </svg>
+            </span>
+          )}
+        </button>
+      </div>
     </div>
   );
 }

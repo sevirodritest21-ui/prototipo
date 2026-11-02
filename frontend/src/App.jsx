@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, lazy, Suspense } from "react";
+import { useState, useRef, useEffect, lazy, Suspense } from "react";
 import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from "react-router-dom";
 
 import logoUCT from "./assets/logobibliovice.png";
@@ -148,15 +148,12 @@ function NavBar() {
                   onClick={() => setDropdownOpen((prev) => !prev)}
                   title={`Cuenta: ${user.nombre}`}
                   aria-label="Menú de usuario"
-                  className="relative flex items-center justify-center p-[2px] rounded-full transition-transform hover:scale-105 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC20E] cursor-pointer shadow-md"
-                  style={{
-                    background: "conic-gradient(from 45deg, #00A3E0 0%, #FFFFFF 33%, #FFC20E 66%, #00A3E0 100%)"
-                  }}
+                  className="relative flex items-center justify-center p-0.5 rounded-full border border-white/25 bg-white/10 transition-colors hover:bg-white/20 hover:border-white/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC20E] cursor-pointer shadow-xs"
                 >
-                  <span className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full avatar-rgb-gradient text-[#002D4C] font-black text-sm sm:text-base select-none shadow-inner">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-[#004D7A] font-bold text-sm select-none">
                     {userInitial}
                   </span>
-                  <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#004D7A] text-white ring-2 ring-white shadow-xs">
+                  <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#004D7A] text-white ring-1 ring-white/80">
                     <IconChevron className={`w-2 h-2 transition-transform duration-200 ${dropdownOpen ? "rotate-180" : ""}`} />
                   </span>
                 </button>
@@ -164,15 +161,8 @@ function NavBar() {
                 {dropdownOpen && (
                   <div className="absolute right-0 z-50 mt-2 w-64 overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-800 shadow-2xl animate-fadeIn">
                     <div className="border-b border-slate-100 bg-slate-50/80 px-4 py-3 flex items-center gap-3">
-                      <div
-                        className="relative p-[2px] rounded-full shrink-0 shadow-xs"
-                        style={{
-                          background: "conic-gradient(from 45deg, #00A3E0 0%, #FFFFFF 33%, #FFC20E 66%, #00A3E0 100%)"
-                        }}
-                      >
-                        <span className="flex h-10 w-10 items-center justify-center rounded-full avatar-rgb-gradient text-[#002D4C] font-black text-base select-none shadow-inner">
-                          {userInitial}
-                        </span>
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#004D7A] text-white font-semibold text-sm select-none">
+                        {userInitial}
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-bold text-slate-900 leading-tight">{user.nombre}</p>

@@ -140,10 +140,10 @@ export default function Login() {
             </div>
 
             <h1 className="font-serif text-[34px] leading-[1.15] text-white mb-4">
-              Gestión de reservas<br />de cubiculos.
+              Gestión de reservas<br />de cubículos.
             </h1>
             <p className="text-sm leading-relaxed text-sky-200/80 max-w-[30ch]">
-              Ingresa a tu cuenta para reservar cubiculos, ademas de gestionar todo lo relacionado a tus reservas.
+              Ingresa a tu cuenta para reservar cubículos, además de gestionar todo lo relacionado a tus reservas.
             </p>
           </div>
 
