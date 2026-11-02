@@ -1,10 +1,114 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { apiGet, apiPost, apiPut, apiDelete, BASE_URL } from "../services/api";
+import { apiGet, apiPost, apiPut, apiDelete } from "../services/api";
 import { queryClient } from "../services/queries";
 import logoUCT from "../assets/logobibliovice.png";
 import * as XLSX from "xlsx";
+
+const UI_ICON_MAP = {
+  "\u{1F3DB}\uFE0F": "building", "\u{1F3DB}": "building", "\u{1F3E2}": "building",
+  "\u{1F4D6}": "book", "\u{1F4DA}": "book", "\u{1F514}": "bell",
+  "\u2699\uFE0F": "settings", "\u2699": "settings", "\u{1F513}": "unlock", "\u{1F512}": "lock",
+  "\u{1F504}": "refresh", "\u2795": "plus", "\u270F\uFE0F": "edit", "\u270F": "edit",
+  "\u{1F5D1}\uFE0F": "trash", "\u{1F5D1}": "trash", "\u{1F6E0}\uFE0F": "wrench", "\u{1F527}": "wrench",
+  "\u{1F6AA}": "door", "\u26A1": "bolt", "\u{1F4CA}": "chart", "\u{1F4C8}": "trend",
+  "\u{1F4C9}": "trend-down", "\u{1F369}": "pie", "\u{1F393}": "academic",
+  "\u{1F4C5}": "calendar", "\u{1F4C6}": "calendar", "\u{1F5D3}\uFE0F": "calendar",
+  "\u{1F50D}": "search", "\u{1F50E}": "search", "\u2709\uFE0F": "mail", "\u2709": "mail",
+  "\u26A0\uFE0F": "alert", "\u26A0": "alert", "\u2705": "check", "\u{1F3AF}": "target",
+  "\u{1F525}": "flame", "\u{1F465}": "users", "\u{1F4D1}": "doc", "\u{1F4CB}": "doc",
+  "\u{1F4DD}": "doc", "\u{1F4DC}": "doc", "\u{1F310}": "globe", "\u{1F4BB}": "laptop",
+  "\u{1F3C6}": "trophy", "\u{1F451}": "trophy", "\u{1F9ED}": "compass", "\u{1F4A1}": "bulb",
+  "\u2696\uFE0F": "scale", "\u{1F552}": "clock", "\u23F1\uFE0F": "clock", "\u23F3": "clock",
+  "\u274C": "x", "\u{1F6AB}": "x", "\u{1F4BE}": "save", "\u{1F3A1}": "layers",
+  "\u{1F331}": "leaf", "\u{1F4E2}": "megaphone", "\u{1F194}": "id"
+};
+
+function UiIcon({ name, className = "w-4 h-4 shrink-0 inline-block" }) {
+  const key = UI_ICON_MAP[name] || name || "doc";
+  const p = { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "1.8", strokeLinecap: "round", strokeLinejoin: "round", className, "aria-hidden": "true" };
+  switch (key) {
+    case "building":
+      return <svg {...p}><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M15 9h.01M9 13h.01M15 13h.01M9 17h.01M15 17h.01" /></svg>;
+    case "book":
+      return <svg {...p}><path d="M4 19.5A2.5 2.5 0 016.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" /></svg>;
+    case "bell":
+      return <svg {...p}><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 01-3.46 0" /></svg>;
+    case "settings":
+      return <svg {...p}><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" /></svg>;
+    case "unlock":
+      return <svg {...p}><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 019.9-1" /></svg>;
+    case "lock":
+      return <svg {...p}><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>;
+    case "refresh":
+      return <svg {...p}><path d="M23 4v6h-6M1 20v-6h6" /><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" /></svg>;
+    case "plus":
+      return <svg {...p}><path d="M12 5v14M5 12h14" /></svg>;
+    case "edit":
+      return <svg {...p}><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>;
+    case "trash":
+      return <svg {...p}><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>;
+    case "wrench":
+      return <svg {...p}><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z" /></svg>;
+    case "door":
+      return <svg {...p}><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M15 12h.01" /></svg>;
+    case "bolt":
+      return <svg {...p}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>;
+    case "chart":
+      return <svg {...p}><path d="M18 20V10M12 20V4M6 20v-6" /></svg>;
+    case "trend":
+      return <svg {...p}><polyline points="23 6 13.5 15.5 8.5 10.5 1 18" /><polyline points="17 6 23 6 23 12" /></svg>;
+    case "trend-down":
+      return <svg {...p}><polyline points="23 18 13.5 8.5 8.5 13.5 1 6" /><polyline points="17 18 23 18 23 12" /></svg>;
+    case "pie":
+      return <svg {...p}><path d="M21.21 15.89A10 10 0 118 2.83" /><path d="M22 12A10 10 0 0012 2v10z" /></svg>;
+    case "academic":
+      return <svg {...p}><path d="M22 10v6M2 10l10-5 10 5-10 5z" /><path d="M6 12v5c3 3 9 3 12 0v-5" /></svg>;
+    case "calendar":
+      return <svg {...p}><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>;
+    case "search":
+      return <svg {...p}><circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" /></svg>;
+    case "mail":
+      return <svg {...p}><rect x="2" y="4" width="20" height="16" rx="2" /><path d="M22 6l-10 7L2 6" /></svg>;
+    case "alert":
+      return <svg {...p}><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /><path d="M12 9v4M12 17h.01" /></svg>;
+    case "check":
+      return <svg {...p}><path d="M20 6L9 17l-5-5" /></svg>;
+    case "target":
+      return <svg {...p}><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" /></svg>;
+    case "flame":
+      return <svg {...p}><path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 11-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 002.5 2.5z" /></svg>;
+    case "users":
+      return <svg {...p}><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" /></svg>;
+    case "globe":
+      return <svg {...p}><circle cx="12" cy="12" r="10" /><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" /></svg>;
+    case "laptop":
+      return <svg {...p}><rect x="2" y="3" width="20" height="14" rx="2" /><path d="M2 20h20" /></svg>;
+    case "trophy":
+      return <svg {...p}><path d="M6 9H4.5a2.5 2.5 0 010-5H6M18 9h1.5a2.5 2.5 0 000-5H18M4 22h16M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22M18 2H6v7a6 6 0 0012 0V2z" /></svg>;
+    case "compass":
+      return <svg {...p}><circle cx="12" cy="12" r="10" /><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" /></svg>;
+    case "bulb":
+      return <svg {...p}><path d="M9 18h6M10 22h4M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0018 8 6 6 0 006 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 018.91 14" /></svg>;
+    case "scale":
+      return <svg {...p}><path d="M16 16l3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1zM2 16l3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1zM7 21h10M12 3v18M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2" /></svg>;
+    case "clock":
+      return <svg {...p}><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>;
+    case "x":
+      return <svg {...p}><path d="M18 6L6 18M6 6l12 12" /></svg>;
+    case "save":
+      return <svg {...p}><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></svg>;
+    case "layers":
+      return <svg {...p}><polygon points="12 2 2 7 12 12 22 7 12 2" /><polyline points="2 17 12 22 22 17" /><polyline points="2 12 12 17 22 12" /></svg>;
+    case "leaf":
+      return <svg {...p}><path d="M11 20A7 7 0 019.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z" /><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" /></svg>;
+    case "megaphone":
+      return <svg {...p}><path d="M3 11l18-5v12L3 14v-3z" /><path d="M11.6 16.8a3 3 0 11-5.8-1.6" /></svg>;
+    default:
+      return <svg {...p}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>;
+  }
+}
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
@@ -14,13 +118,11 @@ export default function Dashboard() {
   const [campus, setCampus] = useState([]);
   const [campusSeleccionado, setCampusSeleccionado] = useState(null);
 
-  // Estados para la gestión de campus (Crear / Eliminar)
   const [nuevoCampusNombre, setNuevoCampusNombre] = useState("");
   const [creandoCampus, setCreandoCampus] = useState(false);
   const [campusMsg, setCampusMsg] = useState({ tipo: "", texto: "" });
   const [campusAEliminar, setCampusAEliminar] = useState(null);
   const [eliminandoCampus, setEliminandoCampus] = useState(false);
-  const [mostrarGestionCampus, setMostrarGestionCampus] = useState(false);
   const [modalCrearSede, setModalCrearSede] = useState(false);
   const [modalCrearCubiculo, setModalCrearCubiculo] = useState(false);
 
@@ -50,7 +152,6 @@ export default function Dashboard() {
     const d = new Date();
     return new Date(d.getFullYear(), d.getMonth(), 1);
   });
-  const [mostrarCronogramaCompleto, setMostrarCronogramaCompleto] = useState(true);
   const [modalManualUsuario, setModalManualUsuario] = useState(false);
   const [seccionManual, setSeccionManual] = useState("terminologia");
   const [busquedaManual, setBusquedaManual] = useState("");
@@ -73,18 +174,20 @@ export default function Dashboard() {
   const [confirmModal, setConfirmModal] = useState({ open: false, titulo: "", mensaje: "", onConfirm: null });
   const [toastNotificacion, setToastNotificacion] = useState({ tipo: "", texto: "" });
   const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [settingsDropdownOpen, setSettingsDropdownOpen] = useState(false);
-  const [modoCamara, setModoCamara] = useState("stream");
-  const [camaraTimestamp, setCamaraTimestamp] = useState(Date.now());
-  const [loopTimestamp, setLoopTimestamp] = useState(Date.now());
+  const [modoCamara] = useState("stream");
+  const [loopTimestamp, setLoopTimestamp] = useState(0);
   const [abriendoPuertaCamara, setAbriendoPuertaCamara] = useState(false);
   const [errorCamara, setErrorCamara] = useState(false);
 
   useEffect(() => {
     if (activeTab === "camara") {
-      setErrorCamara(false);
-      setCamaraTimestamp(Date.now());
-      setLoopTimestamp(Date.now());
+      const t = setTimeout(() => {
+        setErrorCamara(false);
+        setLoopTimestamp(Date.now());
+      }, 0);
+      return () => clearTimeout(t);
     }
   }, [activeTab]);
 
@@ -100,7 +203,6 @@ export default function Dashboard() {
     if (errorCamara && activeTab === "camara") {
       const timer = setTimeout(() => {
         setErrorCamara(false);
-        setCamaraTimestamp(Date.now());
         setLoopTimestamp(Date.now());
       }, 2500);
       return () => clearTimeout(timer);
@@ -131,7 +233,6 @@ export default function Dashboard() {
   const [cmsAnuncios, setCmsAnuncios] = useState([]);
   const [cmsTarjetas, setCmsTarjetas] = useState([]);
   const [cargandoCMS, setCargandoCMS] = useState(false);
-  const [mostrarGestionCMS, setMostrarGestionCMS] = useState(false);
 
   const [modalAnuncioOpen, setModalAnuncioOpen] = useState(false);
   const [anuncioEdit, setAnuncioEdit] = useState(null);
@@ -142,7 +243,7 @@ export default function Dashboard() {
   const [modalTarjetaOpen, setModalTarjetaOpen] = useState(false);
   const [tarjetaEdit, setTarjetaEdit] = useState(null);
   const [formTarjeta, setFormTarjeta] = useState({
-    icono: "📚", titulo: "", descripcion: "", link_texto: "Ir al Formulario →", link_url: "/reservar", orden: 0
+    icono: "book", titulo: "", descripcion: "", link_texto: "Ir al Formulario →", link_url: "/reservar", orden: 0
   });
 
   const [cmsFaqs, setCmsFaqs] = useState([]);
@@ -172,39 +273,6 @@ export default function Dashboard() {
       setCargandoCMS(false);
     }
   };
-
-  useEffect(() => {
-    fetchCMS();
-    fetchDiasBloqueados();
-    fetchIncidencias();
-    fetchSolicitudesTalleres();
-    fetchHistorial(1, 10);
-  }, []);
-
-  useEffect(() => {
-    if (activeTab === "historial" && historial.length === 0) {
-      fetchHistorial();
-    }
-    if (activeTab === "calendario" && diasBloqueados.length === 0) {
-      fetchDiasBloqueados();
-    }
-    if (activeTab === "cms" && cmsAnuncios.length === 0 && cmsTarjetas.length === 0) {
-      fetchCMS();
-    }
-    if (activeTab === "sanciones") {
-      fetchSancionados();
-    }
-    if (activeTab === "incidencias" || activeTab === "sedes") {
-      fetchIncidencias();
-    }
-    if (activeTab === "talleres") {
-      fetchSolicitudesTalleres();
-    }
-  }, [activeTab]);
-
-  const [sancionados, setSancionados] = useState([]);
-  const [cargandoSancionados, setCargandoSancionados] = useState(false);
-  const [busquedaSancionados, setBusquedaSancionados] = useState("");
 
   const [incidencias, setIncidencias] = useState([]);
   const [cargandoIncidencias, setCargandoIncidencias] = useState(false);
@@ -298,13 +366,16 @@ export default function Dashboard() {
     const yaMostrada = sessionStorage.getItem("alerta_admin_pendientes_mostrada") || sessionStorage.getItem("alerta_incidencias_admin_mostrada");
     const totalVencidos = incidenciasCriticasVencidas.length + talleresPendientesVencidos.length;
     if (totalVencidos > 0 && !yaMostrada) {
-      setAlertaIncidenciasPopUp(true);
-      sessionStorage.setItem("alerta_admin_pendientes_mostrada", "true");
-      sessionStorage.setItem("alerta_incidencias_admin_mostrada", "true");
-      setToastNotificacion({
-        tipo: "error",
-        texto: `⚠️ Hay tareas con retraso: ${incidenciasCriticasVencidas.length} incidencia(s) y ${talleresPendientesVencidos.length} taller(es) con 2+ días sin atención.`
-      });
+      const t = setTimeout(() => {
+        setAlertaIncidenciasPopUp(true);
+        sessionStorage.setItem("alerta_admin_pendientes_mostrada", "true");
+        sessionStorage.setItem("alerta_incidencias_admin_mostrada", "true");
+        setToastNotificacion({
+          tipo: "error",
+          texto: `Hay tareas con retraso: ${incidenciasCriticasVencidas.length} incidencia(s) y ${talleresPendientesVencidos.length} taller(es) con 2+ días sin atención.`
+        });
+      }, 0);
+      return () => clearTimeout(t);
     }
   }, [incidenciasCriticasVencidas, talleresPendientesVencidos]);
 
@@ -401,39 +472,13 @@ export default function Dashboard() {
     handleAbrirModalMantenimiento(cubEncontrado);
   };
 
-  const fetchSancionados = async () => {
-    setCargandoSancionados(true);
-    try {
-      const data = await apiGet("/api/admin/sancionados");
-      setSancionados(data || []);
-    } catch {
-      setSancionados([]);
-    } finally {
-      setCargandoSancionados(false);
-    }
-  };
-
-  const handleLevantarSancion = (estudiante) => {
-    setConfirmModal({
-      open: true,
-      tipo: "positivo",
-      titulo: "⚖️ Levantar Sanción Disciplinaria",
-      mensaje: `¿Estás seguro de que deseas levantar la sanción y justificar las inasistencias de ${estudiante.nombre} (${estudiante.rut})? El estudiante podrá volver a reservar inmediatamente.`,
-      onConfirm: async () => {
-        try {
-          const resp = await apiPost("/api/admin/sancionados/levantar", { rut: estudiante.rut });
-          setToastNotificacion({ tipo: "exito", texto: resp.mensaje || "Sanción levantada con éxito." });
-          await fetchSancionados();
-          if (activeTab === "historial") fetchHistorial();
-        } catch (err) {
-          setToastNotificacion({ tipo: "error", texto: err.message || "Error al levantar la sanción." });
-        }
-      },
-    });
-  };
-
   const [metricas, setMetricas] = useState(null);
   const [tipoMetricas, setTipoMetricas] = useState("selector");
+  const [prediccionData, setPrediccionData] = useState(null);
+  const [cargandoPrediccion, setCargandoPrediccion] = useState(false);
+  const [campusFiltroPrediccion, setCampusFiltroPrediccion] = useState(1);
+  const [diasFiltroPrediccion, setDiasFiltroPrediccion] = useState(7);
+  const [diaPrediccionSeleccionado, setDiaPrediccionSeleccionado] = useState(null);
   const [cargandoMetricas, setCargandoMetricas] = useState(false);
   const [mostrarGraficoMetricas, setMostrarGraficoMetricas] = useState(false);
   const [periodoMetricas, setPeriodoMetricas] = useState("dia");
@@ -461,17 +506,11 @@ export default function Dashboard() {
   const [limpiandoHistorial, setLimpiandoHistorial] = useState(false);
 
   const [diasBloqueados, setDiasBloqueados] = useState([]);
-  const [cargandoBloqueos, setCargandoBloqueos] = useState(false);
   const [guardandoBloqueo, setGuardandoBloqueo] = useState(false);
   const [mesCalendarioBloqueos, setMesCalendarioBloqueos] = useState(() => new Date());
   const [diaModalBloqueo, setDiaModalBloqueo] = useState(null);
   const [formModalBloqueo, setFormModalBloqueo] = useState({
     motivo: "Feriado / Receso institucional",
-    campus_id: ""
-  });
-  const [formBloqueo, setFormBloqueo] = useState({
-    fecha: "",
-    motivo: "Día bloqueado administrativamente",
     campus_id: ""
   });
 
@@ -571,7 +610,6 @@ export default function Dashboard() {
   };
 
   const fetchDiasBloqueados = async () => {
-    setCargandoBloqueos(true);
     try {
       const data = await apiGet("/api/calendario/bloqueos");
       const lista = (data || []).filter((b) => b.fecha >= hoyStr);
@@ -579,29 +617,6 @@ export default function Dashboard() {
       queryClient.invalidateQueries({ queryKey: ["calendario", "bloqueos"] });
     } catch {
       setDiasBloqueados([]);
-    } finally {
-      setCargandoBloqueos(false);
-    }
-  };
-
-  const handleCrearBloqueo = async (e) => {
-    e.preventDefault();
-    if (!formBloqueo.fecha) return;
-    setGuardandoBloqueo(true);
-    try {
-      await apiPost("/api/calendario/bloqueos", {
-        fecha: formBloqueo.fecha,
-        motivo: formBloqueo.motivo.trim() || "Día bloqueado administrativamente",
-        campus_id: formBloqueo.campus_id ? parseInt(formBloqueo.campus_id, 10) : null
-      });
-      setToastNotificacion({ tipo: "exito", texto: "Día bloqueado exitosamente en el calendario." });
-      setFormBloqueo({ fecha: "", motivo: "Día bloqueado administrativamente", campus_id: "" });
-      await fetchDiasBloqueados();
-      window.dispatchEvent(new CustomEvent("reservaActualizada"));
-    } catch (err) {
-      setToastNotificacion({ tipo: "error", texto: err.detail || err.message || "Error al bloquear la fecha" });
-    } finally {
-      setGuardandoBloqueo(false);
     }
   };
 
@@ -737,7 +752,7 @@ export default function Dashboard() {
   const handleLimpiarHistorial = () => {
     setConfirmModal({
       open: true,
-      titulo: "⚠️ Limpiar Historial de Reservas",
+      titulo: "Limpiar Historial de Reservas",
       mensaje: "¿Estás seguro de que deseas purgar el historial de reservas antiguas y canceladas? Se recomienda descargar el archivo Excel previamente como respaldo. Esta acción no afectará las reservas activas futuras.",
       onConfirm: async () => {
         setLimpiandoHistorial(true);
@@ -753,13 +768,6 @@ export default function Dashboard() {
       }
     });
   };
-
-  useEffect(() => {
-    if (activeTab === "historial") {
-      setPaginaHistorial(1);
-      fetchHistorial(1, limiteHistorial);
-    }
-  }, [campusFiltroHistorial, busquedaHistorial, filtroEstadoHistorial, limiteHistorial, activeTab]);
 
   // Cargar lista de campus
   const fetchCampus = async () => {
@@ -793,17 +801,6 @@ export default function Dashboard() {
     }
   };
 
-  useEffect(() => {
-    fetchCampus();
-  }, []);
-
-  useEffect(() => {
-    const idAUsar = campusDestinoCubiculo || campusSeleccionado;
-    if (idAUsar) {
-      fetchCubiculos(idAUsar);
-    }
-  }, [campusDestinoCubiculo, campusSeleccionado, fechaSeleccionada]);
-
   // Cargar datos del resumen al cambiar campus o fecha
   const fetchResumen = async () => {
     if (!campusSeleccionado) {
@@ -825,9 +822,27 @@ export default function Dashboard() {
     }
   };
 
-  useEffect(() => {
-    fetchResumen();
-  }, [campusSeleccionado, fechaSeleccionada]);
+  const fetchPrediccion = async (campusId = campusFiltroPrediccion, dias = diasFiltroPrediccion, reentrenar = false) => {
+    setCargandoPrediccion(true);
+    try {
+      const data = await apiGet(`/api/metricas/prediccion?campus_id=${campusId}&dias=${dias}&reentrenar=${reentrenar}`);
+      setPrediccionData(data);
+      if (data?.proyeccion_diaria?.length > 0) {
+        const primerAbierto = data.proyeccion_diaria.find((d) => d.estado_atencion === "Abierto") || data.proyeccion_diaria[0];
+        setDiaPrediccionSeleccionado(primerAbierto);
+      }
+      if (reentrenar) {
+        setToastNotificacion({
+          tipo: "exito",
+          texto: "Modelo autoentrenado y calibrado comparando predicciones vs ocupación real."
+        });
+      }
+    } catch {
+      setPrediccionData(null);
+    } finally {
+      setCargandoPrediccion(false);
+    }
+  };
 
   const fetchMetricas = async (periodo = periodoMetricas, fecha = fechaMetricas, campusId = campusFiltroMetricas) => {
     setCargandoMetricas(true);
@@ -845,9 +860,89 @@ export default function Dashboard() {
     }
   };
 
+  const handlersRef = useRef({});
   useEffect(() => {
-    fetchMetricas(periodoMetricas, fechaMetricas, campusFiltroMetricas);
-  }, [periodoMetricas, fechaMetricas, campusFiltroMetricas]);
+    handlersRef.current = {
+      fetchCampus,
+      fetchCMS,
+      fetchDiasBloqueados,
+      fetchIncidencias,
+      fetchSolicitudesTalleres,
+      fetchHistorial,
+      fetchCubiculos,
+      fetchResumen,
+      fetchPrediccion,
+      fetchMetricas,
+      paginaHistorial,
+      limiteHistorial,
+    };
+  });
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (activeTab === "historial") {
+        setPaginaHistorial(1);
+        handlersRef.current.fetchHistorial?.(1, limiteHistorial);
+      }
+    }, 0);
+    return () => clearTimeout(t);
+  }, [campusFiltroHistorial, busquedaHistorial, filtroEstadoHistorial, limiteHistorial, activeTab]);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      handlersRef.current.fetchCampus?.();
+      handlersRef.current.fetchCMS?.();
+      handlersRef.current.fetchDiasBloqueados?.();
+      handlersRef.current.fetchIncidencias?.();
+      handlersRef.current.fetchSolicitudesTalleres?.();
+      handlersRef.current.fetchHistorial?.(1, 10);
+    }, 0);
+    return () => clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const h = handlersRef.current;
+      if (activeTab === "cms") h.fetchCMS?.();
+      if (activeTab === "bloqueos") h.fetchDiasBloqueados?.();
+      if (activeTab === "incidencias") h.fetchIncidencias?.();
+      if (activeTab === "talleres") h.fetchSolicitudesTalleres?.();
+      if (activeTab === "historial") h.fetchHistorial?.(h.paginaHistorial, h.limiteHistorial);
+    }, 0);
+    return () => clearTimeout(t);
+  }, [activeTab]);
+
+  useEffect(() => {
+    const idAUsar = campusDestinoCubiculo || campusSeleccionado;
+    if (!idAUsar) return;
+    const t = setTimeout(() => {
+      handlersRef.current.fetchCubiculos?.(idAUsar);
+    }, 0);
+    return () => clearTimeout(t);
+  }, [campusDestinoCubiculo, campusSeleccionado, fechaSeleccionada]);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      handlersRef.current.fetchResumen?.();
+    }, 0);
+    return () => clearTimeout(t);
+  }, [campusSeleccionado, fechaSeleccionada]);
+
+  useEffect(() => {
+    if (tipoMetricas !== "prediccion") return;
+    const t = setTimeout(() => {
+      handlersRef.current.fetchPrediccion?.(campusFiltroPrediccion, diasFiltroPrediccion);
+    }, 0);
+    return () => clearTimeout(t);
+  }, [tipoMetricas, campusFiltroPrediccion, diasFiltroPrediccion]);
+
+  useEffect(() => {
+    if (activeTab !== "metricas" || (tipoMetricas !== "reservas" && tipoMetricas !== "selector")) return;
+    const t = setTimeout(() => {
+      handlersRef.current.fetchMetricas?.(periodoMetricas, fechaMetricas, campusFiltroMetricas);
+    }, 0);
+    return () => clearTimeout(t);
+  }, [activeTab, tipoMetricas, periodoMetricas, fechaMetricas, campusFiltroMetricas]);
 
   const cambiarFechaMetricas = (delta) => {
     try {
@@ -1120,86 +1215,38 @@ export default function Dashboard() {
     }
   };
 
-  const ejecutarEliminacionReserva = async (reservaId) => {
+  const handleLiberarCubiculo = (reservaId, rut, nombre) => {
+    setConfirmModal({
+      open: true,
+      tipo: "peligro",
+      titulo: "Liberar Cubículo",
+      mensaje: `¿Deseas liberar el cubículo asignado a ${nombre || rut || "este estudiante"} (Reserva #${reservaId})? La reserva será cancelada y el espacio quedará disponible de inmediato sin penalización.`,
+      onConfirm: () => ejecutarLiberarCubiculo(reservaId)
+    });
+  };
+
+  const ejecutarLiberarCubiculo = async (reservaId) => {
     setEliminandoReservaId(reservaId);
     try {
       await apiDelete(`/api/reservas/${reservaId}`);
 
-      const reservasActualizadas = reservasBloque.filter((r) => r.id !== reservaId);
-      setReservasBloque(reservasActualizadas);
-
-      await fetchResumen();
-
-      if (reservasActualizadas.length === 0) {
-        setBloqueSeleccionado(null);
-      }
-      setToastNotificacion({ tipo: "exito", texto: `Reserva ID ${reservaId} eliminada exitosamente.` });
-    } catch (err) {
-      setToastNotificacion({ tipo: "error", texto: "Error al eliminar la reserva: " + (err.message || "Intenta nuevamente") });
-    } finally {
-      setEliminandoReservaId(null);
-    }
-  };
-
-  const handleEliminarReserva = (reservaId) => {
-    setConfirmModal({
-      open: true,
-      titulo: "Cancelar Reserva (Administrador)",
-      mensaje: `¿Estás seguro de que deseas cancelar la reserva ID ${reservaId}? Se registrará en el historial como 'Cancelada' por administración y el cupo quedará liberado.`,
-      onConfirm: () => ejecutarEliminacionReserva(reservaId)
-    });
-  };
-
-  const haPasadoTolerancia10Min = (fechaStr, horaStr) => {
-    if (!fechaStr || !horaStr) return false;
-    const horaLimpia = horaStr.split(/[\s-]/)[0].trim();
-    const partesHora = horaLimpia.split(":").map(Number);
-    const partesFecha = fechaStr.split("-").map(Number);
-    if (partesHora.length < 2 || partesFecha.length < 3) return false;
-    const [h, m] = partesHora;
-    const [year, month, day] = partesFecha;
-    if (isNaN(year) || isNaN(month) || isNaN(day) || isNaN(h) || isNaN(m)) return false;
-    const limite = new Date(year, month - 1, day, h, m + 10, 0);
-    return new Date() >= limite;
-  };
-
-  const ejecutarMarcarInasistencia = async (reservaId, rut, nombre) => {
-    setEliminandoReservaId(reservaId);
-    try {
-      const resp = await apiPost(`/api/reservas/${reservaId}/inasistencia`);
       const reservasActualizadas = reservasBloque.filter((r) => r.id !== reservaId && String(r.id) !== String(reservaId));
       setReservasBloque(reservasActualizadas);
+
       await fetchResumen();
-      await fetchSancionados();
       if (activeTab === "historial") {
         await fetchHistorial();
       }
+
       if (reservasActualizadas.length === 0) {
         setBloqueSeleccionado(null);
       }
-      const totalInasistencias = resp.total_inasistencias ?? resp.sancion?.inasistencias_periodo ?? 1;
-      const suspendido = resp.suspendido ?? resp.sancion?.suspendido ?? false;
-      const detalleSancion = suspendido
-        ? ` Alumno sancionado por 3 días (${totalInasistencias}/2 inasistencias).`
-        : ` Inasistencias registradas: ${totalInasistencias}/2.`;
-      setToastNotificacion({
-        tipo: "exito",
-        texto: `Reserva eliminada y registrada como inasistencia.${detalleSancion}`
-      });
+      setToastNotificacion({ tipo: "exito", texto: "Cubículo liberado exitosamente. El espacio ya está disponible." });
     } catch (err) {
-      setToastNotificacion({ tipo: "error", texto: "Error al registrar inasistencia: " + (err.message || "Intenta nuevamente") });
+      setToastNotificacion({ tipo: "error", texto: "Error al liberar el cubículo: " + (err.message || "Intenta nuevamente") });
     } finally {
       setEliminandoReservaId(null);
     }
-  };
-
-  const handleMarcarInasistencia = (reservaId, rut, nombre) => {
-    setConfirmModal({
-      open: true,
-      titulo: "⚠️ Marcar Inasistencia (+10 min)",
-      mensaje: `¿Marcar inasistencia para el alumno ${nombre || rut} (ID ${reservaId})? La reserva será eliminada del bloque y registrada en el historial. Si el alumno acumula 2 inasistencias quedará suspendido por 3 días.`,
-      onConfirm: () => ejecutarMarcarInasistencia(reservaId, rut, nombre)
-    });
   };
 
   // Handler para Añadir Nuevo Campus
@@ -1217,7 +1264,7 @@ export default function Dashboard() {
       });
       setCampusMsg({
         tipo: "exito",
-        texto: `✅ Sede '${nuevo.nombre}' creada con éxito.`,
+        texto: `Sede '${nuevo.nombre}' creada con éxito.`,
       });
       setToastNotificacion({ tipo: "exito", texto: `Sede '${nuevo.nombre}' creada con éxito.` });
       setNuevoCampusNombre("");
@@ -1266,7 +1313,7 @@ export default function Dashboard() {
 
       setCampusMsg({
         tipo: "exito",
-        texto: `✅ Cubículo '${resp.codigo}' creado exitosamente en ${nombreCampusDestino}.`,
+        texto: `Cubículo '${resp.codigo}' creado exitosamente en ${nombreCampusDestino}.`,
       });
       setToastNotificacion({ tipo: "exito", texto: `Cubículo '${resp.codigo}' creado exitosamente en ${nombreCampusDestino}.` });
       setNuevoCodigoCubiculo("");
@@ -1520,7 +1567,7 @@ export default function Dashboard() {
   const handleAbrirCrearTarjeta = () => {
     setTarjetaEdit(null);
     setFormTarjeta({
-      icono: "📚", titulo: "", descripcion: "", link_texto: "Ir al Formulario →", link_url: "/reservar", orden: cmsTarjetas.length + 1
+      icono: "book", titulo: "", descripcion: "", link_texto: "Ir al Formulario →", link_url: "/reservar", orden: cmsTarjetas.length + 1
     });
     setModalTarjetaOpen(true);
   };
@@ -1528,7 +1575,7 @@ export default function Dashboard() {
   const handleAbrirEditarTarjeta = (tj) => {
     setTarjetaEdit(tj);
     setFormTarjeta({
-      icono: tj.icono || "📚", titulo: tj.titulo, descripcion: tj.descripcion || "", link_texto: tj.link_texto || "", link_url: tj.link_url || "", orden: tj.orden || 0
+      icono: tj.icono || "", titulo: tj.titulo, descripcion: tj.descripcion || "", link_texto: tj.link_texto || "", link_url: tj.link_url || "", orden: tj.orden || 0
     });
     setModalTarjetaOpen(true);
   };
@@ -1634,7 +1681,7 @@ export default function Dashboard() {
 
       setCampusMsg({
         tipo: "exito",
-        texto: `✏️ Sede '${editado.nombre}' actualizada con éxito (${editado.cubiculas_fisicos} cubículos).`,
+        texto: `Sede '${editado.nombre}' actualizada con éxito (${editado.cubiculas_fisicos} cubículos).`,
       });
       setCampusAEditar(null);
       await fetchCampus();
@@ -1659,7 +1706,7 @@ export default function Dashboard() {
       await apiDelete(`/api/campus/${campusAEliminar.id}`);
       setCampusMsg({
         tipo: "exito",
-        texto: `🗑️ Sede '${campusAEliminar.nombre}' eliminada correctamente.`,
+        texto: `Sede '${campusAEliminar.nombre}' eliminada correctamente.`,
       });
       setCampusAEliminar(null);
 
@@ -1688,7 +1735,7 @@ export default function Dashboard() {
       const d = new Date(base);
       d.setDate(base.getDate() + i);
       const isoStr = d.toISOString().split("T")[0];
-      let label = "";
+      let label;
       if (i === 0) label = "Hoy";
       else if (i === 1) label = "Mañana";
       else {
@@ -1729,31 +1776,116 @@ export default function Dashboard() {
   };
 
   // ---- Tokens visuales reutilizables (Estilo UCT Premium) ----
-  const CARD = "bg-white border border-slate-200/90 rounded-2xl shadow-[0_4px_20px_-4px_rgba(0,77,122,0.08),0_1px_3px_rgba(15,23,42,0.04)] hover:shadow-[0_8px_28px_-6px_rgba(0,77,122,0.14)] transition-all duration-200";
+  const CARD = "bg-white/95 backdrop-blur-sm border border-slate-200/80 rounded-3xl shadow-[0_8px_30px_-8px_rgba(0,45,76,0.06),0_2px_6px_rgba(15,23,42,0.03)] hover:shadow-[0_14px_38px_-10px_rgba(0,77,122,0.11)] transition-all duration-300";
   const INPUT = "w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-[#00A3E0] focus:ring-4 focus:ring-[#00A3E0]/15 shadow-2xs";
   const BTN_PRIMARY = "inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#004D7A] via-[#00629B] to-[#0082B8] hover:from-[#003a5c] hover:to-[#00629B] text-white text-xs font-bold shadow-[0_6px_18px_-6px_rgba(0,98,155,0.7)] hover:shadow-[0_10px_24px_-6px_rgba(0,98,155,0.85)] transition-all transform hover:-translate-y-0.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none";
   const BTN_ACCENT = "inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#FFD54A] via-[#FFC20E] to-[#E5AC00] hover:from-[#FFC20E] hover:to-[#EDB100] text-[#0F172A] text-xs font-extrabold shadow-[0_6px_18px_-6px_rgba(255,194,14,0.75)] hover:shadow-[0_10px_24px_-6px_rgba(255,194,14,0.9)] transition-all transform hover:-translate-y-0.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none";
   const BTN_GHOST = "inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-700 text-xs font-bold transition-all cursor-pointer shadow-2xs";
-  const BTN_SECONDARY = BTN_GHOST;
   const BTN_DANGER = "inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl border border-rose-200 bg-white hover:bg-rose-50 text-rose-600 text-xs font-bold transition-all cursor-pointer shadow-2xs disabled:opacity-40 disabled:cursor-not-allowed";
-  const EYEBROW = "inline-flex items-center gap-2 rounded-full border border-sky-200/70 bg-sky-50/80 px-3.5 py-1 text-[11px] font-extrabold text-[#00629B] tracking-wide uppercase";
-  const SECTION_TITLE = "text-xl md:text-2xl font-bold font-sans text-slate-900 tracking-tight";
+  const SECTION_TITLE = "text-xl md:text-2xl font-black font-sans text-[#0F172A] tracking-tight";
   const LABEL = "block text-[11px] font-bold text-slate-600 mb-1.5 uppercase tracking-wider";
   const OVERLAY = "fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-md p-4 animate-fadeIn";
   const MODAL = "w-full bg-white rounded-3xl shadow-[0_32px_80px_-24px_rgba(0,45,76,0.55)] border border-slate-200/80 ring-1 ring-slate-900/5";
 
-  const navTabs = [
-    { id: "monitoreo", label: "Actividad y Monitoreo", icon: "📊" },
-    { id: "calendario", label: "Calendario y Bloqueos", icon: "📅" },
-    { id: "sedes", label: "Sedes y Cubículos", icon: "🏛️" },
-    { id: "talleres", label: "Talleres Solicitados", icon: "🎓", badge: solicitudesTalleres.filter((s) => s.estado === "pendiente").length },
-    { id: "incidencias", label: "Incidencias de Cubículos", icon: "⚠️", badge: incidencias.filter((i) => i.estado === "pendiente" || i.estado === "en_revision").length },
-    { id: "sanciones", label: "Sanciones y Disciplina", icon: "⚖️" },
-    { id: "metricas", label: "Métricas y Análisis", icon: "📈" },
-    { id: "camara", label: "Cámara Terminal", icon: "📹" },
-    { id: "cms", label: "Portal Inicio", icon: "🖼️" },
-    { id: "faqs", label: "Preguntas Frecuentes", icon: "❓" },
-    { id: "historial", label: "Historial de Registros", icon: "📜" },
+  const navGroups = [
+    {
+      title: "Operaciones",
+      items: [
+        {
+          id: "monitoreo",
+          label: "Actividad y Monitoreo",
+          svg: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
+            </svg>
+          ),
+        },
+        {
+          id: "calendario",
+          label: "Calendario y Bloqueos",
+          svg: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+            </svg>
+          ),
+        },
+        {
+          id: "sedes",
+          label: "Sedes y Cubículos",
+          svg: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75z" />
+            </svg>
+          ),
+        },
+      ],
+    },
+    {
+      title: "Gestión y Analítica",
+      items: [
+        {
+          id: "talleres",
+          label: "Talleres Solicitados",
+          badge: solicitudesTalleres.filter((s) => s.estado === "pendiente").length,
+          svg: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5" />
+            </svg>
+          ),
+        },
+        {
+          id: "incidencias",
+          label: "Incidencias de Cubículos",
+          badge: incidencias.filter((i) => i.estado === "pendiente" || i.estado === "en_revision").length,
+          svg: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+            </svg>
+          ),
+        },
+        {
+          id: "metricas",
+          label: "Métricas y Análisis",
+          svg: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+            </svg>
+          ),
+        },
+      ],
+    },
+    {
+      title: "Portal y Archivo",
+      items: [
+        {
+          id: "cms",
+          label: "Portal Inicio",
+          svg: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+            </svg>
+          ),
+        },
+        {
+          id: "faqs",
+          label: "Preguntas Frecuentes",
+          svg: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
+            </svg>
+          ),
+        },
+        {
+          id: "historial",
+          label: "Historial de Registros",
+          svg: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          ),
+        },
+      ],
+    },
   ];
 
   const handleSelectTab = (tabId) => {
@@ -1763,7 +1895,6 @@ export default function Dashboard() {
     if (tabId === "calendario") fetchDiasBloqueados();
     if (tabId === "talleres") fetchSolicitudesTalleres();
     if (tabId === "historial") fetchHistorial();
-    if (tabId === "sanciones") fetchSancionados();
     if (tabId === "incidencias") fetchIncidencias();
     if (tabId === "metricas") {
       setTipoMetricas("selector");
@@ -1772,19 +1903,33 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F4F6F9] font-sans text-slate-800 selection:bg-[#00A3E0]/20 flex flex-col lg:flex-row">
+    <div style={{ fontFamily: '"Outfit", ui-sans-serif, system-ui, sans-serif' }} className="min-h-screen bg-[#F1F5F9] bg-[radial-gradient(ellipse_80%_45%_at_50%_-15%,rgba(0,163,224,0.10),transparent)] text-slate-800 selection:bg-[#00A3E0]/20 flex flex-col lg:flex-row">
       {sidebarMobileOpen && (
         <div
           onClick={() => setSidebarMobileOpen(false)}
-          className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-40 lg:hidden"
+          className="fixed inset-0 bg-slate-950/65 backdrop-blur-xs z-40 lg:hidden"
         />
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#002D4C] text-white flex flex-col border-r border-white/10 transition-transform duration-300 ease-in-out lg:translate-x-0 ${sidebarMobileOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"
-          }`}
+        className={`fixed inset-y-0 left-0 z-50 bg-gradient-to-b from-[#041525] via-[#00223D] to-[#031322] text-white flex flex-col border-r border-white/[0.08] shadow-[8px_0_35px_-10px_rgba(0,25,45,0.45)] transition-all duration-300 ease-in-out lg:translate-x-0 ${
+          sidebarCollapsed ? "lg:w-20" : "lg:w-[276px]"
+        } ${sidebarMobileOpen ? "w-72 translate-x-0" : "w-72 -translate-x-full"}`}
       >
-        <div className="pt-6 pb-4 px-5 flex flex-col items-center relative border-b border-white/10">
+        <div className="absolute inset-x-0 top-0 h-40 bg-[radial-gradient(circle_at_50%_0%,rgba(0,163,224,0.18),transparent_70%)] pointer-events-none" />
+
+        <button
+          type="button"
+          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+          title={sidebarCollapsed ? "Expandir barra lateral" : "Contraer barra lateral"}
+          className="hidden lg:flex absolute -right-3 top-8 z-50 w-6 h-6 rounded-full bg-[#00629B] hover:bg-[#00A3E0] text-white border-2 border-[#041525] items-center justify-center shadow-md transition-all cursor-pointer"
+        >
+          <svg className={`w-3 h-3 transition-transform duration-300 ${sidebarCollapsed ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+          </svg>
+        </button>
+
+        <div className={`relative pt-5 pb-4 ${sidebarCollapsed ? "px-2" : "px-5"} flex flex-col items-center border-b border-white/[0.08]`}>
           <button
             onClick={() => setSidebarMobileOpen(false)}
             className="lg:hidden absolute top-4 right-4 p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-white/10 cursor-pointer"
@@ -1792,79 +1937,125 @@ export default function Dashboard() {
             ✕
           </button>
 
-          <div className="w-full flex items-center justify-center py-3 px-2">
+          <div className="w-full flex items-center justify-center py-2">
             <img
               src={logoUCT}
               alt="Universidad Católica de Temuco"
-              className="h-[74px] w-auto max-w-[245px] object-contain drop-shadow-md filter brightness-105"
+              className={`${sidebarCollapsed ? "h-10" : "h-[64px]"} w-auto max-w-[230px] object-contain drop-shadow-md transition-all duration-300`}
             />
           </div>
 
-          <div className="mt-2 text-center">
-            <h2 className="text-xs font-black text-white tracking-widest uppercase">
-              BIBLIOTECA UCT
-            </h2>
-            <p className="text-[10px] text-sky-200/80 font-semibold tracking-wide mt-0.5">
-              Centro de Control Universitario
-            </p>
-            <div className="w-16 h-0.5 mx-auto mt-2 rounded-full bg-gradient-to-r from-[#00A3E0] via-[#FFC20E] to-[#00A3E0]" />
-          </div>
+          {!sidebarCollapsed && (
+            <div className="mt-1.5 text-center">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/[0.06] border border-white/10">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#FFC20E]" />
+                <span className="text-[10px] font-black text-sky-100 tracking-[0.16em] uppercase">
+                  BIBLIOTECA UCT
+                </span>
+              </div>
+            </div>
+          )}
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {navTabs.map((tab) => {
-            const isSelected = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => handleSelectTab(tab.id)}
-                className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${isSelected
-                  ? "bg-gradient-to-r from-[#00629B] to-[#0082B8] text-white shadow-md border-l-4 border-[#FFC20E] ring-1 ring-white/20 translate-x-1"
-                  : "text-sky-100/80 hover:text-white hover:bg-white/10"
-                  }`}
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-sm opacity-90">{tab.icon}</span>
-                  <span>{tab.label}</span>
+        <nav className="flex-1 px-3 py-3 space-y-4 overflow-y-auto scrollbar-none">
+          {navGroups.map((group, gIdx) => (
+            <div key={gIdx} className="space-y-1">
+              {!sidebarCollapsed && (
+                <div className="px-3 pb-1 text-[10px] font-extrabold uppercase tracking-[0.15em] text-sky-300/45 select-none">
+                  {group.title}
                 </div>
-                {tab.badge > 0 && (
-                  <span
-                    className={`min-w-5 h-5 px-1.5 flex items-center justify-center rounded-full text-[10px] font-black shadow-xs ${tab.id === "incidencias"
-                        ? "bg-[#EA3829] text-white ring-2 ring-red-400/30"
-                        : "bg-[#FFC20E] text-[#002D4C]"
-                      }`}
+              )}
+              {group.items.map((tab) => {
+                const isSelected = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => handleSelectTab(tab.id)}
+                    title={sidebarCollapsed ? tab.label : undefined}
+                    className={`group w-full flex items-center ${sidebarCollapsed ? "justify-center px-2" : "justify-between px-3"} py-2.5 rounded-2xl text-xs font-bold transition-all duration-200 cursor-pointer relative ${
+                      isSelected
+                        ? "bg-gradient-to-r from-[#00629B] via-[#00629B]/80 to-[#0082B8]/40 text-white shadow-[0_8px_20px_-6px_rgba(0,98,155,0.65)] ring-1 ring-white/20"
+                        : "text-slate-300/85 hover:text-white hover:bg-white/[0.06]"
+                    }`}
                   >
-                    {tab.badge}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+                    {isSelected && (
+                      <span className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-[#FFC20E] shadow-[0_0_10px_#FFC20E]" />
+                    )}
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span
+                        className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-all duration-200 ${
+                          isSelected
+                            ? "bg-gradient-to-br from-[#FFC20E] to-[#E5AC00] text-[#002D4C] shadow-[0_4px_12px_rgba(255,194,14,0.4)]"
+                            : "bg-white/[0.06] text-sky-200/80 group-hover:bg-white/10 group-hover:text-white"
+                        }`}
+                      >
+                        {tab.svg}
+                      </span>
+                      {!sidebarCollapsed && <span className="truncate">{tab.label}</span>}
+                    </div>
+                    {tab.badge > 0 && (
+                      <span
+                        className={`${sidebarCollapsed ? "absolute -top-1 -right-1 min-w-4 h-4 text-[9px]" : "min-w-5 h-5 text-[10px]"} px-1.5 flex items-center justify-center rounded-full font-black shadow-xs ${
+                          tab.id === "incidencias"
+                            ? "bg-[#EA3829] text-white ring-2 ring-red-400/30"
+                            : "bg-[#FFC20E] text-[#002D4C]"
+                        }`}
+                      >
+                        {tab.badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
         </nav>
 
-        <div className="p-4 border-t border-white/10 space-y-2 bg-black/10">
-          <Link
-            to="/"
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-sky-200/80 hover:text-white hover:bg-white/5 transition-all"
-          >
-            <span>🏛️</span>
-            <span>Portal Institucional</span>
-          </Link>
-          <button
-            onClick={logout}
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-rose-300 hover:text-white hover:bg-rose-500/20 transition-all cursor-pointer"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
-            <span>Cerrar sesión</span>
-          </button>
+        <div className="p-3 border-t border-white/[0.08] bg-black/20 space-y-2">
+          {!sidebarCollapsed && (
+            <div className="flex items-center gap-2.5 px-2.5 py-2 rounded-2xl bg-white/[0.04] border border-white/[0.06]">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#00A3E0] to-[#00629B] text-white font-black text-xs flex items-center justify-center shrink-0 shadow-xs">
+                {(user?.nombre || "AD").slice(0, 2).toUpperCase()}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-xs font-extrabold text-white truncate">
+                  {user?.nombre || "Administrador"}
+                </div>
+                <div className="text-[10px] text-sky-300/70 truncate">
+                  Panel de Administración
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className={`flex ${sidebarCollapsed ? "flex-col items-center gap-1.5" : "items-center gap-1.5"}`}>
+            <Link
+              to="/"
+              title="Portal Institucional"
+              className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-[11px] font-bold text-sky-200/85 bg-white/[0.05] hover:bg-white/10 hover:text-white border border-white/[0.06] transition-all`}
+            >
+              <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+              </svg>
+              {!sidebarCollapsed && <span>Inicio</span>}
+            </Link>
+            <button
+              onClick={logout}
+              title="Cerrar sesión"
+              className={`${sidebarCollapsed ? "w-full" : ""} flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold text-rose-300 bg-rose-500/10 hover:bg-rose-500/25 hover:text-white border border-rose-400/15 transition-all cursor-pointer`}
+            >
+              <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              {!sidebarCollapsed && <span>Salir</span>}
+            </button>
+          </div>
         </div>
       </aside>
 
-      <div className="flex-1 min-w-0 flex flex-col min-h-screen lg:pl-72">
-        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-6 sm:px-8 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-2xs">
-          <div className="flex items-center gap-3">
+      <div className={`flex-1 min-w-0 flex flex-col min-h-screen transition-all duration-300 ${sidebarCollapsed ? "lg:pl-20" : "lg:pl-[276px]"}`}>
+        <header className="sticky top-0 z-30 bg-white/85 backdrop-blur-xl border-b border-slate-200/80 px-5 sm:px-8 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-[0_4px_24px_-8px_rgba(0,45,76,0.06)]">
+          <div className="flex items-center gap-3.5">
             <button
               onClick={() => setSidebarMobileOpen(true)}
               className="lg:hidden p-2 rounded-xl text-slate-600 hover:bg-slate-100 cursor-pointer"
@@ -1874,44 +2065,48 @@ export default function Dashboard() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
+            <div className="hidden sm:block w-1.5 h-9 rounded-full bg-gradient-to-b from-[#00629B] via-[#00A3E0] to-[#FFC20E]" />
             <div>
-              <div className="flex items-center gap-2.5">
-                <h1 className="text-xl sm:text-2xl font-black font-sans text-slate-800 tracking-wider uppercase">
-                  {activeTab === "monitoreo" ? "PANEL DE CONTROL" :
-                    activeTab === "camara" ? "CÁMARA TERMINAL" :
-                      activeTab === "incidencias" ? "INCIDENCIAS" :
-                        activeTab === "talleres" ? "TALLERES" :
-                          activeTab === "metricas" ? (tipoMetricas === "talleres" ? "MÉTRICAS · TALLERES" : tipoMetricas === "reservas" ? "MÉTRICAS · RESERVAS" : "MÉTRICAS Y ANÁLISIS") :
-                            activeTab === "sanciones" ? "SANCIONES" :
-                              activeTab === "calendario" ? "CALENDARIO" :
-                                activeTab === "sedes" ? "SEDES Y CUBÍCULOS" :
-                                  activeTab === "cms" ? "PORTAL INICIO" :
-                                    activeTab === "faqs" ? "PREGUNTAS FRECUENTES" : "HISTORIAL"}
-                </h1>
+              <h1 className="text-lg sm:text-xl font-black text-[#0F172A] tracking-tight uppercase leading-tight">
+                {activeTab === "monitoreo" ? "Actividad y Monitoreo" :
+                  activeTab === "incidencias" ? "Incidencias de Cubículos" :
+                    activeTab === "talleres" ? "Talleres Solicitados" :
+                      activeTab === "metricas" ? (tipoMetricas === "talleres" ? "Métricas · Talleres" : tipoMetricas === "prediccion" ? "Métricas · Pronóstico" : tipoMetricas === "reservas" ? "Métricas · Reservas" : "Métricas y Análisis") :
+                        activeTab === "calendario" ? "Calendario y Bloqueos" :
+                          activeTab === "sedes" ? "Sedes y Cubículos" :
+                            activeTab === "cms" ? "Portal de Inicio" :
+                              activeTab === "faqs" ? "Preguntas Frecuentes" : "Historial de Registros"}
+              </h1>
+              <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-500 font-semibold">
+                <span className="inline-flex items-center gap-1.5 text-emerald-700 font-bold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Sede {campusSeleccionadoObj?.nombre || "Principal"}
+                </span>
+                <span>·</span>
+                <span>{cubiculosActuales} cubículos</span>
               </div>
-              <p className="text-[11px] text-slate-500 font-medium">
-                {campusSeleccionadoObj?.nombre ? `Sede: ${campusSeleccionadoObj.nombre} · ` : ""}Bienvenido/a, {user?.nombre || "Administrador"}
-              </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 self-end sm:self-auto">
+          <div className="flex items-center gap-2.5 self-end sm:self-auto">
             <div className="relative hidden md:flex items-center">
               <input
                 type="text"
-                placeholder="Buscar en el sistema..."
+                placeholder="Buscar estudiante, RUT o reserva..."
                 value={busquedaGlobal}
                 onChange={(e) => setBusquedaGlobal(e.target.value)}
-                className="w-48 lg:w-64 pl-4 pr-10 py-2 rounded-full bg-slate-100/90 border border-slate-200 text-xs font-medium text-slate-700 placeholder:text-slate-400 focus:bg-white focus:border-[#00A3E0] focus:ring-2 focus:ring-[#00A3E0]/20 outline-none transition-all"
+                className="w-48 lg:w-64 pl-9 pr-4 py-2 rounded-xl bg-slate-100/90 border border-slate-200/90 text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:bg-white focus:border-[#00A3E0] focus:ring-3 focus:ring-[#00A3E0]/15 outline-none transition-all"
               />
-              <span className="absolute right-3.5 text-slate-400 text-xs pointer-events-none">🔍</span>
+              <svg className="w-3.5 h-3.5 absolute left-3 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+              </svg>
             </div>
 
             <div className="relative">
               <select
                 value={campusSeleccionado || ""}
                 onChange={(e) => setCampusSeleccionado(Number(e.target.value))}
-                className="appearance-none pl-4 pr-8 py-2 rounded-full border border-slate-200 bg-white text-xs font-bold text-slate-700 shadow-2xs hover:border-[#00629B] focus:border-[#00A3E0] focus:ring-2 focus:ring-[#00A3E0]/20 outline-none transition-all cursor-pointer min-w-[140px]"
+                className="appearance-none pl-3.5 pr-8 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-[#002D4C] shadow-2xs hover:border-[#00629B] focus:border-[#00A3E0] focus:ring-3 focus:ring-[#00A3E0]/15 outline-none transition-all cursor-pointer min-w-[145px]"
               >
                 {campus.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -1919,16 +2114,26 @@ export default function Dashboard() {
                   </option>
                 ))}
               </select>
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">▼</span>
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-[10px]">▼</span>
             </div>
+
+            <button
+              type="button"
+              onClick={() => setModalManualUsuario(true)}
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50/80 hover:bg-sky-100 text-[#00629B] font-bold px-3 py-2 text-xs shadow-2xs transition-all cursor-pointer"
+              title="Manual de Usuario"
+            >
+              <span><UiIcon name="book" className="w-4 h-4" /></span>
+              <span className="hidden xl:inline">Manual</span>
+            </button>
 
             {incidencias.filter((i) => i.estado === "pendiente" || i.estado === "en_revision").length > 0 && (
               <button
                 onClick={() => handleSelectTab("incidencias")}
-                className="relative w-9 h-9 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 flex items-center justify-center text-sm shadow-2xs transition-all cursor-pointer"
-                title="Incidencias pendientes o en revisión"
+                className="relative w-9 h-9 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 flex items-center justify-center text-sm shadow-2xs transition-all cursor-pointer"
+                title="Incidencias pendientes"
               >
-                <span>🔔</span>
+                <span><UiIcon name="bell" className="w-4 h-4" /></span>
                 <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 bg-[#EA3829] text-white text-[10px] font-black rounded-full flex items-center justify-center shadow-xs ring-2 ring-white">
                   {incidencias.filter((i) => i.estado === "pendiente" || i.estado === "en_revision").length}
                 </span>
@@ -1938,17 +2143,16 @@ export default function Dashboard() {
             <div className="relative">
               <button
                 onClick={() => setSettingsDropdownOpen(!settingsDropdownOpen)}
-                className="w-9 h-9 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 flex items-center justify-center text-sm shadow-2xs transition-all cursor-pointer"
+                className="w-9 h-9 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 flex items-center justify-center text-sm shadow-2xs transition-all cursor-pointer"
                 title="Acciones rápidas"
               >
-                ⚙️
+                <UiIcon name="settings" className="w-4 h-4" />
               </button>
 
               {settingsDropdownOpen && (
                 <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-200 p-2 z-50 text-xs space-y-1 animate-fadeIn">
                   <div className="px-3 py-2 border-b border-slate-100">
                     <span className="font-bold text-slate-900 block">Acciones Rápidas</span>
-                    <span className="text-[10px] text-slate-400">Terminal & Sistema</span>
                   </div>
                   <button
                     onClick={() => {
@@ -1958,7 +2162,7 @@ export default function Dashboard() {
                     disabled={abriendoPuertaCamara}
                     className="w-full text-left px-3 py-2 rounded-xl hover:bg-sky-50 text-slate-700 flex items-center gap-2 cursor-pointer font-medium"
                   >
-                    <span>🔓</span>
+                    <span><UiIcon name="unlock" className="w-4 h-4" /></span>
                     <span>{abriendoPuertaCamara ? "Abriendo..." : "Abrir Puerta Terminal (Relé 1)"}</span>
                   </button>
                   <button
@@ -1968,7 +2172,7 @@ export default function Dashboard() {
                     }}
                     className="w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700 flex items-center gap-2 cursor-pointer font-medium"
                   >
-                    <span>🏛️</span>
+                    <span><UiIcon name="building" className="w-4 h-4" /></span>
                     <span>Administrar Sedes y Cubículos</span>
                   </button>
                 </div>
@@ -1997,204 +2201,17 @@ export default function Dashboard() {
             </div>
           )}
 
-          {activeTab === "camara" && (
-            <div className={`${CARD} p-6 md:p-8 mb-8 space-y-7 animate-fadeIn`}>
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
-                <div className="space-y-1.5">
-                  <span className={EYEBROW}>📹 Monitoreo Visual en Vivo</span>
-                  <h2 className={SECTION_TITLE}>Cámara del Terminal MinMoe</h2>
-                  <p className="text-xs text-slate-500 max-w-2xl leading-relaxed">
-                    Visualización en tiempo real del sensor óptico del dispositivo de reconocimiento facial para los cubículos de biblioteca.
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 px-3 py-1 text-[11px] font-bold">
-                    <span className="w-2 h-2 rounded-full bg-emerald-600 animate-ping"></span>
-                    Terminal Online (172.29.0.70)
-                  </span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 space-y-3">
-                  <div className="relative overflow-hidden rounded-2xl bg-slate-950 border border-slate-800 shadow-2xl flex items-center justify-center min-h-[340px] sm:min-h-[420px] group">
-                    {errorCamara ? (
-                      <div className="text-center p-8 space-y-3 text-slate-400">
-                        <span className="text-4xl">⚠️</span>
-                        <p className="text-sm font-semibold text-slate-200">Reconectando con la cámara del terminal...</p>
-                        <p className="text-xs text-slate-400">Reintentando enlace en 172.29.0.70...</p>
-                        <button
-                          type="button"
-                          onClick={() => { setErrorCamara(false); setCamaraTimestamp(Date.now()); setLoopTimestamp(Date.now()); }}
-                          className={`${BTN_PRIMARY} mt-2`}
-                        >
-                          🔄 Reintentar de inmediato
-                        </button>
-                      </div>
-                    ) : (
-                      <img
-                        key={modoCamara === "loop" ? loopTimestamp : camaraTimestamp}
-                        src={`${BASE_URL}/api/terminal/camara/${modoCamara === "stream" ? "stream" : "snapshot"}?t=${modoCamara === "loop" ? loopTimestamp : camaraTimestamp}`}
-                        alt="Cámara Terminal MinMoe"
-                        className="w-full h-auto max-h-[500px] object-contain rounded-2xl transition-all"
-                        onLoad={() => {
-                          if (modoCamara === "loop" && activeTab === "camara") {
-                            setTimeout(() => setLoopTimestamp(Date.now()), 70);
-                          }
-                        }}
-                        onError={() => setErrorCamara(true)}
-                      />
-                    )}
-
-                    <div className="absolute top-3 left-3 flex items-center gap-2">
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-900/80 backdrop-blur-md px-3 py-1 text-[11px] font-bold text-white border border-white/10 shadow-lg">
-                        <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
-                        {modoCamara === "stream" ? "EN VIVO · MJPEG" : modoCamara === "loop" ? "EN VIVO · FLUIDO" : "FOTOGRAMA"}
-                      </span>
-                      <span className="rounded-full bg-slate-900/80 backdrop-blur-md px-2.5 py-1 text-[10px] font-semibold text-sky-300 border border-white/10">
-                        Canal 102
-                      </span>
-                    </div>
-
-                    <div className="absolute top-3 right-3 flex items-center gap-2 opacity-90 group-hover:opacity-100 transition-opacity">
-                      <button
-                        type="button"
-                        onClick={() => { setErrorCamara(false); setCamaraTimestamp(Date.now()); setLoopTimestamp(Date.now()); }}
-                        className="p-2 rounded-xl bg-slate-900/80 backdrop-blur-md text-white hover:bg-slate-800 text-xs font-semibold border border-white/10 transition-all cursor-pointer shadow-lg"
-                        title="Refrescar transmisión"
-                      >
-                        🔄
-                      </button>
-                      <a
-                        href={`${BASE_URL}/api/terminal/camara/snapshot`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="p-2 rounded-xl bg-slate-900/80 backdrop-blur-md text-white hover:bg-slate-800 text-xs font-semibold border border-white/10 transition-all cursor-pointer shadow-lg"
-                        title="Abrir foto en tamaño completo"
-                      >
-                        ↗️
-                      </a>
-                    </div>
-
-                    <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-[11px] text-slate-300 bg-slate-900/80 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-white/10">
-                      <span>MinMoe DS-K1T673DWX</span>
-                      <span>Relé: Puerta 1</span>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200/80 text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-slate-600">Modo de visualización:</span>
-                      <button
-                        type="button"
-                        onClick={() => { setModoCamara("stream"); setErrorCamara(false); setCamaraTimestamp(Date.now()); }}
-                        className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${modoCamara === "stream"
-                          ? "bg-[#00629B] text-white shadow-xs"
-                          : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
-                          }`}
-                      >
-                        Transmisión directa (MJPEG)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { setModoCamara("loop"); setErrorCamara(false); setLoopTimestamp(Date.now()); }}
-                        className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${modoCamara === "loop"
-                          ? "bg-[#00629B] text-white shadow-xs"
-                          : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
-                          }`}
-                      >
-                        Secuencia fluida (Auto-recuperable)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { setModoCamara("snapshot"); setErrorCamara(false); setCamaraTimestamp(Date.now()); }}
-                        className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${modoCamara === "snapshot"
-                          ? "bg-[#00629B] text-white shadow-xs"
-                          : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
-                          }`}
-                      >
-                        Captura estática
-                      </button>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setCamaraTimestamp(Date.now())}
-                      className={BTN_GHOST}
-                    >
-                      📸 Capturar fotograma
-                    </button>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="p-5 rounded-2xl border border-sky-100 bg-gradient-to-br from-white to-sky-50/40 shadow-xs space-y-4">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-[#00629B] flex items-center gap-2">
-                      <span>⚡</span> Control de Acceso Directo
-                    </h3>
-                    <p className="text-xs text-slate-600 leading-relaxed">
-                      Abre el cerrojo eléctrico del cubículo directamente desde este panel de control mientras observas la cámara en tiempo real.
-                    </p>
-                    <button
-                      type="button"
-                      disabled={abriendoPuertaCamara}
-                      onClick={handleAbrirPuertaManualCamara}
-                      className={`${BTN_PRIMARY} w-full py-3.5 text-sm font-bold shadow-md`}
-                    >
-                      {abriendoPuertaCamara ? (
-                        <span className="flex items-center justify-center gap-2">
-                          <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                          Abriendo relé...
-                        </span>
-                      ) : (
-                        "🚪 Abrir Puerta (Relé 1)"
-                      )}
-                    </button>
-                  </div>
-
-                  <div className="p-5 rounded-2xl border border-slate-200/80 bg-white shadow-xs space-y-3.5">
-                    <h4 className="text-xs font-bold text-slate-900">Información del Dispositivo</h4>
-                    <div className="space-y-2 text-xs">
-                      <div className="flex justify-between py-1.5 border-b border-slate-100">
-                        <span className="text-slate-500">Modelo</span>
-                        <span className="font-semibold text-slate-800">DS-K1T673DWX</span>
-                      </div>
-                      <div className="flex justify-between py-1.5 border-b border-slate-100">
-                        <span className="text-slate-500">Dirección IP</span>
-                        <span className="font-mono font-semibold text-slate-800">172.29.0.70</span>
-                      </div>
-                      <div className="flex justify-between py-1.5 border-b border-slate-100">
-                        <span className="text-slate-500">Protocolo</span>
-                        <span className="font-semibold text-slate-800">ISAPI / HTTP Digest</span>
-                      </div>
-                      <div className="flex justify-between py-1.5 border-b border-slate-100">
-                        <span className="text-slate-500">Canal de Video</span>
-                        <span className="font-semibold text-slate-800">101 (JPEG Snapshot)</span>
-                      </div>
-                      <div className="flex justify-between py-1.5">
-                        <span className="text-slate-500">Modo de Autenticación</span>
-                        <span className="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100 text-[10px]">
-                          Verificación 1:N
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
           {(activeTab === "cms") && (
             <div className={`${CARD} p-6 md:p-8 mb-8 space-y-7 animate-fadeIn`}>
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
                 <div className="space-y-1.5">
-                  <span className={EYEBROW}>🖼️ Administrador de contenidos</span>
                   <h2 className={SECTION_TITLE}>Gestión del Portal de Inicio</h2>
                   <p className="text-xs text-slate-500 max-w-xl leading-relaxed">
                     Edita las diapositivas del carrusel informativo y las tarjetas de la página principal.
                   </p>
                 </div>
                 <button onClick={fetchCMS} className={BTN_GHOST}>
-                  🔄 Actualizar vistas
+                  Actualizar vistas
                 </button>
               </div>
 
@@ -2202,13 +2219,13 @@ export default function Dashboard() {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
                     <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                      <span>🎡</span> Diapositivas del carrusel principal
+                      <span><UiIcon name="layers" className="w-4 h-4" /></span> Diapositivas del carrusel principal
                       <span className="text-[11px] font-semibold text-[#00629B] bg-sky-50 border border-sky-100 px-2 py-0.5 rounded-full">{cmsAnuncios.length}</span>
                     </h3>
                     <p className="text-[11px] text-slate-500 mt-0.5">Banners animados que rotan en la sección superior del inicio</p>
                   </div>
                   <button type="button" onClick={handleAbrirCrearAnuncio} className={`${BTN_PRIMARY} px-4 py-2`}>
-                    ➕ Añadir diapositiva
+                    Añadir diapositiva
                   </button>
                 </div>
 
@@ -2247,10 +2264,10 @@ export default function Dashboard() {
 
                         <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 pl-2">
                           <button type="button" onClick={() => handleAbrirEditarAnuncio(an)} className={BTN_GHOST}>
-                            ✏️ Editar
+                            Editar
                           </button>
                           <button type="button" onClick={() => handleEliminarAnuncio(an.id, an.titulo)} className={BTN_DANGER}>
-                            🗑️ Eliminar
+                            Eliminar
                           </button>
                         </div>
                       </div>
@@ -2263,13 +2280,13 @@ export default function Dashboard() {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
                     <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                      <span>📋</span> Tarjetas informativas inferiores
+                      <span><UiIcon name="doc" className="w-4 h-4" /></span> Tarjetas informativas inferiores
                       <span className="text-[11px] font-semibold text-[#00629B] bg-sky-50 border border-sky-100 px-2 py-0.5 rounded-full">{cmsTarjetas.length}</span>
                     </h3>
                     <p className="text-[11px] text-slate-500 mt-0.5">Bloques con accesos directos situados abajo en el inicio</p>
                   </div>
                   <button type="button" onClick={handleAbrirCrearTarjeta} className={`${BTN_ACCENT} px-4 py-2`}>
-                    ➕ Añadir tarjeta
+                    Añadir tarjeta
                   </button>
                 </div>
 
@@ -2288,7 +2305,7 @@ export default function Dashboard() {
                       >
                         <div className="space-y-2.5">
                           <div className="flex items-center justify-between">
-                            <span className="text-xl w-11 h-11 flex items-center justify-center bg-sky-50 rounded-xl border border-sky-100">{tj.icono || "📚"}</span>
+                            <span className="text-xl w-11 h-11 flex items-center justify-center bg-sky-50 rounded-xl border border-sky-100"><UiIcon name={tj.icono || "book"} className="w-5 h-5 text-[#00629B]" /></span>
                             <span className="text-[10px] font-semibold text-slate-400">Orden {tj.orden}</span>
                           </div>
                           <h4 className="font-bold text-sm text-slate-900">{tj.titulo}</h4>
@@ -2300,10 +2317,10 @@ export default function Dashboard() {
 
                         <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
                           <button type="button" onClick={() => handleAbrirEditarTarjeta(tj)} className={BTN_GHOST}>
-                            ✏️ Editar
+                            Editar
                           </button>
                           <button type="button" onClick={() => handleEliminarTarjeta(tj.id, tj.titulo)} className={BTN_DANGER}>
-                            🗑️ Eliminar
+                            Eliminar
                           </button>
                         </div>
                       </div>
@@ -2318,7 +2335,6 @@ export default function Dashboard() {
             <div className={`${CARD} p-6 md:p-8 mb-8 space-y-7 animate-fadeIn`}>
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
                 <div className="space-y-1.5">
-                  <span className={EYEBROW}>❓ Centro de Ayuda & CMS</span>
                   <h2 className={SECTION_TITLE}>Gestión de Preguntas Frecuentes</h2>
                   <p className="text-xs text-slate-500 max-w-2xl leading-relaxed">
                     Administra las preguntas y respuestas dinámicas visibles para los estudiantes en el portal de Preguntas Frecuentes.
@@ -2329,7 +2345,7 @@ export default function Dashboard() {
                     {cmsFaqs.length} preguntas registradas
                   </span>
                   <button type="button" onClick={handleAbrirCrearFaq} className={`${BTN_PRIMARY} px-4 py-2`}>
-                    ➕ Añadir pregunta
+                    Añadir pregunta
                   </button>
                 </div>
               </div>
@@ -2360,10 +2376,10 @@ export default function Dashboard() {
 
                       <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
                         <button type="button" onClick={() => handleAbrirEditarFaq(faq)} className={BTN_GHOST}>
-                          ✏️ Editar
+                          Editar
                         </button>
                         <button type="button" onClick={() => handleEliminarFaq(faq.id, faq.pregunta)} className={BTN_DANGER}>
-                          🗑️ Eliminar
+                          Eliminar
                         </button>
                       </div>
                     </div>
@@ -2424,7 +2440,7 @@ export default function Dashboard() {
                     title="Actualizar datos"
                     className="w-8 h-8 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 flex items-center justify-center text-xs transition-colors cursor-pointer shadow-2xs"
                   >
-                    🔄
+                    <UiIcon name="refresh" className="w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -2432,9 +2448,7 @@ export default function Dashboard() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-[#004D7A] text-white rounded-2xl p-5 shadow-xs flex items-center justify-between relative overflow-hidden group">
                   <div className="space-y-1 z-10">
-                    <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center text-base mb-2">
-                      🏛️
-                    </div>
+                    <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center text-base mb-2"><UiIcon name="building" className="w-4 h-4" /></div>
                     <p className="text-[11px] font-medium text-white/80 uppercase tracking-wider">Total Sedes</p>
                     <p className="text-3xl font-extrabold tracking-tight text-white">{campus.length}</p>
                   </div>
@@ -2449,9 +2463,7 @@ export default function Dashboard() {
 
                 <div className="bg-[#C59B27] text-white rounded-2xl p-5 shadow-xs flex items-center justify-between relative overflow-hidden group">
                   <div className="space-y-1 z-10">
-                    <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center text-base mb-2">
-                      🚪
-                    </div>
+                    <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center text-base mb-2"><UiIcon name="door" className="w-4 h-4" /></div>
                     <p className="text-[11px] font-medium text-white/90 uppercase tracking-wider">Cubículos Totales</p>
                     <p className="text-3xl font-extrabold tracking-tight text-white">
                       {campus.reduce((acc, c) => acc + (c.cubiculas_fisicos || 0), 0)}
@@ -2466,9 +2478,7 @@ export default function Dashboard() {
 
                 <div className="bg-[#00629B] text-white rounded-2xl p-5 shadow-xs flex items-center justify-between relative overflow-hidden group">
                   <div className="space-y-1 z-10">
-                    <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center text-base mb-2">
-                      ⚡
-                    </div>
+                    <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center text-base mb-2"><UiIcon name="bolt" className="w-4 h-4" /></div>
                     <p className="text-[11px] font-medium text-white/80 uppercase tracking-wider">Operativos Hoy</p>
                     <p className="text-3xl font-extrabold tracking-tight text-white">
                       {cubiculosCampus.filter((cb) => !cb.en_mantenimiento).length}
@@ -2483,9 +2493,7 @@ export default function Dashboard() {
 
                 <div className="bg-[#B8860B] text-white rounded-2xl p-5 shadow-xs flex items-center justify-between relative overflow-hidden group">
                   <div className="space-y-1 z-10">
-                    <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center text-base mb-2">
-                      🛠️
-                    </div>
+                    <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center text-base mb-2"><UiIcon name="wrench" className="w-4 h-4" /></div>
                     <p className="text-[11px] font-medium text-white/90 uppercase tracking-wider">En Mantenimiento</p>
                     <p className="text-3xl font-extrabold tracking-tight text-white">
                       {cubiculosCampus.filter((cb) => cb.en_mantenimiento).length}
@@ -2562,7 +2570,7 @@ export default function Dashboard() {
                               className="min-w-0 cursor-pointer flex-1 pr-2"
                             >
                               <div className="flex items-center gap-1.5">
-                                <span className="text-xs">🏛️</span>
+                                <span className="text-xs"><UiIcon name="building" className="w-4 h-4" /></span>
                                 <p className="font-bold text-xs text-slate-800 truncate">{c.nombre}</p>
                               </div>
                               <p className="text-[10px] text-slate-500 mt-0.5">
@@ -2576,7 +2584,7 @@ export default function Dashboard() {
                                 className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 text-xs transition-colors cursor-pointer"
                                 title="Editar datos de sede"
                               >
-                                ✏️
+                                <UiIcon name="edit" className="w-4 h-4" />
                               </button>
                               <button
                                 type="button"
@@ -2584,7 +2592,7 @@ export default function Dashboard() {
                                 className="w-7 h-7 flex items-center justify-center rounded-lg border border-rose-200 bg-white text-rose-600 hover:bg-rose-50 text-xs transition-colors cursor-pointer"
                                 title="Eliminar sede"
                               >
-                                🗑️
+                                <UiIcon name="trash" className="w-4 h-4" />
                               </button>
                             </div>
                           </div>
@@ -2606,7 +2614,7 @@ export default function Dashboard() {
                       disabled={creandoCampus || !nuevoCampusNombre.trim()}
                       className="bg-[#004D7A] hover:bg-[#003859] disabled:opacity-50 text-white font-bold text-xs px-4 py-2 rounded-xl transition-all cursor-pointer whitespace-nowrap shadow-xs"
                     >
-                      {creandoCampus ? "Guardando..." : "➕ Registrar Sede"}
+                      {creandoCampus ? "Guardando..." : "Registrar Sede"}
                     </button>
                   </form>
                 </div>
@@ -2698,9 +2706,7 @@ export default function Dashboard() {
               <div className="bg-white rounded-3xl border border-slate-200/90 p-6 md:p-7 shadow-[0_8px_30px_rgb(0,0,0,0.04)] space-y-6">
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-100 pb-5">
                   <div className="flex items-start sm:items-center gap-3.5">
-                    <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#004D7A] via-[#00629B] to-[#00A3E0] text-white flex items-center justify-center text-lg shadow-[0_6px_16px_-4px_rgba(0,77,122,0.4)] shrink-0">
-                      🚪
-                    </div>
+                    <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#004D7A] via-[#00629B] to-[#00A3E0] text-white flex items-center justify-center text-lg shadow-[0_6px_16px_-4px_rgba(0,77,122,0.4)] shrink-0"><UiIcon name="door" className="w-4 h-4" /></div>
                     <div>
                       <div className="flex items-center gap-2.5">
                         <h3 className="text-base font-extrabold text-slate-900 tracking-tight">
@@ -2810,7 +2816,7 @@ export default function Dashboard() {
                                       : "bg-sky-50 text-[#00629B] border-sky-100"
                                     }`}
                                 >
-                                  <span className="text-base">{cb.en_mantenimiento ? "⚠️" : "🚪"}</span>
+                                  <UiIcon name={cb.en_mantenimiento ? "alert" : "door"} className="w-4 h-4" />
                                 </div>
                                 <div className="min-w-0">
                                   <h4 className="font-extrabold text-sm text-slate-900 truncate tracking-tight">
@@ -2883,9 +2889,7 @@ export default function Dashboard() {
                   </div>
                 ) : (
                   <div className="py-12 text-center space-y-3 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
-                    <span className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-xl mx-auto text-slate-400">
-                      🚪
-                    </span>
+                    <span className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-xl mx-auto text-slate-400"><UiIcon name="door" className="w-4 h-4" /></span>
                     <div className="space-y-1">
                       <p className="text-sm font-bold text-slate-700">
                         No hay cubículos en {campus.find((c) => String(c.id) === String(campusDestinoCubiculo))?.nombre || "esta sede"}
@@ -2903,7 +2907,7 @@ export default function Dashboard() {
                   <div className={`${MODAL} max-w-md p-6 space-y-4`}>
                     <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                       <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                        🏛️ Registrar Nueva Sede
+                        Registrar Nueva Sede
                       </h3>
                       <button
                         type="button"
@@ -2941,7 +2945,7 @@ export default function Dashboard() {
                           disabled={creandoCampus || !nuevoCampusNombre.trim()}
                           className={`${BTN_PRIMARY} px-4 py-2 text-xs`}
                         >
-                          {creandoCampus ? "Guardando..." : "➕ Guardar Sede"}
+                          {creandoCampus ? "Guardando..." : "Guardar Sede"}
                         </button>
                       </div>
                     </form>
@@ -2954,7 +2958,7 @@ export default function Dashboard() {
                   <div className={`${MODAL} max-w-md p-6 space-y-4`}>
                     <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                       <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                        🚪 Añadir Cubículo
+                        Añadir Cubículo
                       </h3>
                       <button
                         type="button"
@@ -2975,7 +2979,7 @@ export default function Dashboard() {
                         >
                           {campus.map((c) => (
                             <option key={c.id} value={c.id}>
-                              🏛️ {c.nombre}
+                              {c.nombre}
                             </option>
                           ))}
                         </select>
@@ -3007,7 +3011,7 @@ export default function Dashboard() {
                           disabled={creandoCubiculo || !nuevoCodigoCubiculo.trim() || !campusDestinoCubiculo}
                           className={`${BTN_ACCENT} px-4 py-2 text-xs`}
                         >
-                          {creandoCubiculo ? "Añadiendo..." : "🚪 Crear Cubículo"}
+                          {creandoCubiculo ? "Añadiendo..." : "Crear Cubículo"}
                         </button>
                       </div>
                     </form>
@@ -3022,7 +3026,7 @@ export default function Dashboard() {
               <div className={`${MODAL} max-w-xl p-6 space-y-5 max-h-[90vh] flex flex-col`}>
                 <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
                   <div>
-                    <h3 className="text-lg font-serif font-bold text-slate-900">
+                    <h3 className="text-lg font-sans font-bold text-slate-900">
                       Editar sede y cubículos
                     </h3>
                     <p className="text-xs text-slate-500 mt-0.5">{campusAEditar.nombre} · ID {campusAEditar.id}</p>
@@ -3070,14 +3074,14 @@ export default function Dashboard() {
                         disabled={guardandoEdit || !editNombre.trim()}
                         className={`${BTN_PRIMARY} px-4 py-2`}
                       >
-                        {guardandoEdit ? "Guardando..." : "💾 Guardar cambios"}
+                        {guardandoEdit ? "Guardando..." : "Guardar cambios"}
                       </button>
                     </div>
                   </form>
 
                   <div className="space-y-3">
                     <h4 className="text-xs font-bold text-slate-800 flex items-center gap-2">
-                      🚪 Cubículos registrados
+                      Cubículos registrados
                       <span className="text-[11px] font-semibold text-[#00629B] bg-sky-50 border border-sky-100 px-2 py-0.5 rounded-full">{cubiculosEditModal.length}</span>
                     </h4>
 
@@ -3094,7 +3098,7 @@ export default function Dashboard() {
                         disabled={!nuevoCubiculoModalCodigo.trim()}
                         className={`${BTN_ACCENT} px-4 py-2 whitespace-nowrap`}
                       >
-                        ➕ Añadir
+                        Añadir
                       </button>
                     </form>
 
@@ -3150,7 +3154,7 @@ export default function Dashboard() {
                               cb.en_mantenimiento ? (
                                 <div className="flex items-center gap-1.5">
                                   <span className="font-semibold text-xs text-amber-900 bg-amber-50 border border-amber-300 px-2.5 py-1 rounded-lg">
-                                    ⚠️ {cb.codigo}
+                                    {cb.codigo}
                                   </span>
                                   <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded border border-amber-200 uppercase">
                                     Mantenimiento
@@ -3158,7 +3162,7 @@ export default function Dashboard() {
                                 </div>
                               ) : (
                                 <span className="font-semibold text-xs text-slate-800 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200">
-                                  🚪 {cb.codigo}
+                                  {cb.codigo}
                                 </span>
                               )
                             )}
@@ -3174,7 +3178,7 @@ export default function Dashboard() {
                                     }`}
                                   title="Gestionar días de mantenimiento"
                                 >
-                                  🛠️
+                                  <UiIcon name="wrench" className="w-4 h-4" />
                                 </button>
                                 <button
                                   type="button"
@@ -3185,7 +3189,7 @@ export default function Dashboard() {
                                   className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 text-xs transition-all cursor-pointer"
                                   title="Editar código del cubículo"
                                 >
-                                  ✏️
+                                  <UiIcon name="edit" className="w-4 h-4" />
                                 </button>
                                 <button
                                   type="button"
@@ -3193,7 +3197,7 @@ export default function Dashboard() {
                                   className="w-7 h-7 flex items-center justify-center rounded-lg border border-rose-200 bg-white text-rose-600 hover:bg-rose-50 text-xs transition-all cursor-pointer"
                                   title="Eliminar cubículo"
                                 >
-                                  🗑️
+                                  <UiIcon name="trash" className="w-4 h-4" />
                                 </button>
                               </div>
                             )}
@@ -3221,10 +3225,8 @@ export default function Dashboard() {
           {campusAEliminar && (
             <div className={OVERLAY}>
               <div className={`${MODAL} max-w-md p-7 text-center space-y-4`}>
-                <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 text-2xl flex items-center justify-center mx-auto border border-rose-100">
-                  ⚠️
-                </div>
-                <h3 className="text-lg font-serif font-bold text-slate-900">
+                <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 text-2xl flex items-center justify-center mx-auto border border-rose-100"><UiIcon name="alert" className="w-4 h-4" /></div>
+                <h3 className="text-lg font-sans font-bold text-slate-900">
                   ¿Eliminar el campus «{campusAEliminar.nombre}»?
                 </h3>
                 <p className="text-xs text-slate-600 leading-relaxed">
@@ -3252,10 +3254,10 @@ export default function Dashboard() {
 
           {(activeTab === "monitoreo") && (
             <>
-              <div className={`${CARD} p-4 sm:p-5 mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4`}>
+              <div className={`${CARD} p-4 sm:px-6 mb-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4`}>
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mr-2">
-                    Fecha:
+                  <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider mr-1">
+                    Jornada
                   </span>
                   {proximosDias.map((d) => {
                     const esActivo = fechaSeleccionada === d.fechaStr;
@@ -3263,10 +3265,11 @@ export default function Dashboard() {
                       <button
                         key={d.fechaStr}
                         onClick={() => setFechaSeleccionada(d.fechaStr)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold capitalize transition-all cursor-pointer ${esActivo
-                          ? "bg-gradient-to-r from-[#FFC20E] via-[#FFD034] to-[#FFC20E] text-slate-950 font-black shadow-[0_4px_12px_-2px_rgba(255,194,14,0.5)] scale-[1.02] border border-[#FFC20E]"
-                          : "bg-white border border-slate-200 text-slate-700 hover:border-amber-300 hover:bg-amber-50/50"
-                          }`}
+                        className={`px-3.5 py-1.5 rounded-xl text-xs font-bold capitalize transition-all cursor-pointer ${
+                          esActivo
+                            ? "bg-gradient-to-r from-[#002D4C] to-[#00629B] text-white shadow-sm scale-[1.02]"
+                            : "bg-slate-50 border border-slate-200/80 text-slate-700 hover:border-[#00629B]/40 hover:bg-white"
+                        }`}
                       >
                         {d.label}
                       </button>
@@ -3276,40 +3279,23 @@ export default function Dashboard() {
                     type="date"
                     value={fechaSeleccionada}
                     onChange={(e) => e.target.value && setFechaSeleccionada(e.target.value)}
-                    className="bg-white border border-slate-200 text-slate-800 rounded-xl px-2.5 py-1.5 text-xs font-semibold outline-none focus:border-[#FFC20E] focus:ring-2 focus:ring-[#FFC20E]/20 shadow-2xs cursor-pointer transition-all ml-1"
+                    className="bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3 py-1.5 text-xs font-bold outline-none focus:bg-white focus:border-[#00A3E0] focus:ring-2 focus:ring-[#00A3E0]/20 cursor-pointer transition-all"
                   />
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("camara")}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-[#FFC20E] via-[#FFCA28] to-[#FFC20E] hover:from-[#e5ad0d] hover:to-[#FFC20E] text-slate-950 text-xs font-extrabold shadow-[0_4px_16px_-3px_rgba(255,194,14,0.65)] border border-[#FFC20E] hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer whitespace-nowrap"
-                  >
-                    <span className="w-2 h-2 rounded-full bg-emerald-600 animate-ping"></span>
-                    📹 Cámara Terminal
-                  </button>
+                <div className="flex flex-wrap items-center gap-2.5 text-xs">
+                  <span className="px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 font-bold capitalize">
+                    {new Date(fechaSeleccionada + "T12:00:00").toLocaleDateString("es-CL", { weekday: "short", day: "numeric", month: "short" })}
+                  </span>
+                  <span className="px-3 py-1.5 rounded-xl bg-sky-50 border border-sky-100 text-[#00629B] font-extrabold">
+                    {cubiculosActuales} cubículos activos
+                  </span>
                 </div>
-              </div>
-
-              <div className="relative overflow-hidden bg-white/90 border border-sky-100 rounded-2xl p-4 mb-6 flex items-center justify-between gap-4 shadow-xs backdrop-blur-sm">
-                <span className="absolute left-0 top-0 h-full w-1.5 bg-gradient-to-b from-[#00A3E0] to-[#00629B]" />
-                <div className="flex items-center gap-3 pl-2">
-                  <div className="w-9 h-9 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center text-lg flex-shrink-0">
-                    💡
-                  </div>
-                  <p className="text-xs text-slate-600 leading-relaxed">
-                    <strong className="text-slate-900 font-semibold">Capacidad de la sede activa:</strong> esta sede dispone de <strong className="text-[#00629B]">{cubiculosActuales} cubículos</strong> de estudio simultáneo. Selecciona cualquier bloque con reservas para auditar los alumnos agendados.
-                  </p>
-                </div>
-                <span className="hidden sm:inline-flex text-[11px] font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full whitespace-nowrap">
-                  {cubiculosActuales} unidades
-                </span>
               </div>
 
               {error && (
                 <div className="bg-rose-50/80 border border-rose-200 text-rose-700 rounded-2xl p-4 text-xs font-semibold mb-6 shadow-xs">
-                  ⚠️ {error}
+                  {error}
                 </div>
               )}
 
@@ -3321,45 +3307,32 @@ export default function Dashboard() {
                 </div>
               ) : resumen && (
                 <>
-                  <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 mb-5">
-                    <div>
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-[#00629B]">Reporte en tiempo real</span>
-                      <h2 className="text-xl font-serif font-bold text-slate-900 capitalize">
-                        {new Date(fechaSeleccionada + "T12:00:00").toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
-                      </h2>
-                    </div>
-                    <span className="text-xs text-slate-500 font-medium">
-                      Actualizado para sede {campus.find(c => c.id === campusSeleccionado)?.nombre || "seleccionada"}
-                    </span>
-                  </div>
-
-                  {/* Layout Superior: 3 Tarjetas (Mini Calendar a la izquierda, Multi-Color Bar Chart al centro, Aforo a la derecha) */}
                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 mb-6">
-                    <div className="lg:col-span-4 bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden flex flex-col justify-between">
-                      <div className="bg-gradient-to-r from-[#004D7A] via-[#00629B] to-[#00A3E0] text-white px-4 py-3 flex items-center justify-between">
+                    <div className="lg:col-span-4 bg-white rounded-3xl border border-slate-200/80 shadow-[0_8px_30px_-8px_rgba(0,45,76,0.06)] overflow-hidden flex flex-col justify-between">
+                      <div className="bg-gradient-to-r from-[#002D4C] via-[#004D7A] to-[#00629B] text-white px-5 py-3.5 flex items-center justify-between">
                         <button
                           onClick={handleMiniCalPrev}
-                          className="p-1 hover:bg-white/15 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                          className="w-7 h-7 flex items-center justify-center hover:bg-white/15 rounded-lg text-xs font-bold transition-all cursor-pointer"
                           title="Mes anterior"
                         >
-                          &lt;
+                          ‹
                         </button>
                         <span className="text-xs font-black tracking-widest uppercase">
                           {miniCalMes.toLocaleDateString("es-CL", { month: "long", year: "numeric" }).toUpperCase()}
                         </span>
                         <button
                           onClick={handleMiniCalNext}
-                          className="p-1 hover:bg-white/15 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                          className="w-7 h-7 flex items-center justify-center hover:bg-white/15 rounded-lg text-xs font-bold transition-all cursor-pointer"
                           title="Mes siguiente"
                         >
-                          &gt;
+                          ›
                         </button>
                       </div>
 
-                      <div className="p-3.5">
+                      <div className="p-4">
                         <div className="grid grid-cols-7 gap-1 text-center mb-2">
                           {["D", "L", "M", "M", "J", "V", "S"].map((d, i) => (
-                            <span key={i} className="text-[11px] font-bold text-slate-400">
+                            <span key={i} className="text-[11px] font-extrabold text-slate-400">
                               {d}
                             </span>
                           ))}
@@ -3402,21 +3375,20 @@ export default function Dashboard() {
                       </div>
                     </div>
 
-                    <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs flex flex-col justify-between">
+                    <div className="lg:col-span-5 bg-white rounded-3xl border border-slate-200/80 p-5 shadow-[0_8px_30px_-8px_rgba(0,45,76,0.06)] flex flex-col justify-between">
                       <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                         <div className="flex items-center gap-2">
-                          <span className="px-2.5 py-1 rounded-md bg-[#00A3E0] text-white text-[10px] font-bold">
-                            Turnos de Hoy
+                          <span className="w-2 h-2 rounded-full bg-[#00A3E0]" />
+                          <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
+                            Ocupación por Turno
                           </span>
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            onClick={() => handleSelectTab("metricas")}
-                            className="px-2.5 py-1 rounded-md bg-[#00629B] hover:bg-[#004D7A] text-white text-[10px] font-bold transition-all cursor-pointer"
-                          >
-                            Ver Métricas →
-                          </button>
-                        </div>
+                        <button
+                          onClick={() => handleSelectTab("metricas")}
+                          className="px-3 py-1 rounded-lg bg-sky-50 hover:bg-[#00629B] text-[#00629B] hover:text-white border border-sky-200/60 text-[11px] font-bold transition-all cursor-pointer"
+                        >
+                          Métricas →
+                        </button>
                       </div>
 
                       <div className="relative pt-4 pb-1">
@@ -3438,20 +3410,20 @@ export default function Dashboard() {
 
                             return (
                               <div key={idx} className="flex-1 flex flex-col items-center h-full justify-end group relative">
-                                <div className="absolute -top-7 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 text-white text-[10px] px-2 py-0.5 rounded shadow pointer-events-none whitespace-nowrap z-20">
-                                  {b.rango || b.hora}: {b.ocupados} ocupados / {cubiculosActuales} cupos
+                                <div className="absolute -top-7 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 text-white text-[10px] px-2 py-0.5 rounded-md shadow pointer-events-none whitespace-nowrap z-20 font-bold">
+                                  {b.rango || b.hora}: {b.ocupados}/{cubiculosActuales}
                                 </div>
                                 <div className="w-full flex items-end justify-center gap-1 h-36">
                                   <div
-                                    className="w-2.5 sm:w-3 rounded-t-sm transition-all duration-300 hover:brightness-110"
+                                    className="w-2.5 sm:w-3 rounded-t-md transition-all duration-300 hover:brightness-110"
                                     style={{ height: `${hOcupados}%`, backgroundColor: color }}
                                   />
                                   <div
-                                    className="w-2.5 sm:w-3 rounded-t-sm bg-slate-200 transition-all duration-300"
+                                    className="w-2.5 sm:w-3 rounded-t-md bg-slate-200 transition-all duration-300"
                                     style={{ height: `${hDisponibles}%` }}
                                   />
                                 </div>
-                                <span className="text-[10px] text-slate-500 font-medium mt-2 truncate w-full text-center">
+                                <span className="text-[10px] text-slate-500 font-bold mt-2 truncate w-full text-center">
                                   {(b.rango || b.hora || "").split("-")[0]?.trim()}
                                 </span>
                               </div>
@@ -3461,40 +3433,46 @@ export default function Dashboard() {
                       </div>
                     </div>
 
-                    <div className="lg:col-span-3 bg-gradient-to-br from-[#002D4C] via-[#00385E] to-[#001D33] text-white rounded-2xl p-5 shadow-sm border border-[#004E7C]/60 flex flex-col justify-between">
+                    <div className="lg:col-span-3 bg-gradient-to-br from-[#041525] via-[#002B49] to-[#004D7A] text-white rounded-3xl p-5 shadow-[0_14px_34px_-12px_rgba(0,45,76,0.45)] border border-white/10 flex flex-col justify-between relative overflow-hidden">
+                      <div className="absolute -right-8 -top-8 w-28 h-28 rounded-full bg-[#00A3E0]/15 blur-xl pointer-events-none" />
                       <div>
-                        <span className="text-[11px] font-semibold text-sky-200/80 uppercase tracking-wider">
-                          Aforo & Ocupación Diaria :
+                        <span className="text-[10px] font-extrabold text-sky-300 uppercase tracking-widest">
+                          Resumen de Jornada
                         </span>
-                        <div className="text-3xl font-black text-white tracking-tight mt-1 mb-4">
-                          {porcentaje}% Ocupación
+                        <div className="flex items-baseline gap-2 mt-1">
+                          <span className="text-3xl font-black text-white tracking-tight">
+                            {porcentaje}%
+                          </span>
+                          <span className="text-xs font-bold text-sky-200/80">Ocupación</span>
+                        </div>
+                        <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden mt-2.5 mb-3">
+                          <div
+                            className="h-full bg-gradient-to-r from-[#00A3E0] to-[#FFC20E] rounded-full transition-all duration-500"
+                            style={{ width: `${Math.min(100, Math.max(4, porcentaje))}%` }}
+                          />
                         </div>
                       </div>
 
-                      <div className="space-y-1.5 pt-3 border-t border-white/10 text-xs font-mono">
-                        <div className="flex justify-between items-center text-slate-300">
-                          <span className="text-[11px]">item #1 Reservas activas</span>
-                          <span className="text-white font-bold">: {resumen.total_reservas_dia}</span>
+                      <div className="space-y-2 pt-2 border-t border-white/10 text-xs">
+                        <div className="flex justify-between items-center text-sky-100/85">
+                          <span>Reservas activas</span>
+                          <span className="text-white font-extrabold">{resumen.total_reservas_dia}</span>
                         </div>
-                        <div className="flex justify-between items-center text-slate-300">
-                          <span className="text-[11px]">item #2 Cupos disponibles</span>
-                          <span className="text-white font-bold">: {resumen.cupos_disponibles_dia}</span>
+                        <div className="flex justify-between items-center text-sky-100/85">
+                          <span>Cupos disponibles</span>
+                          <span className="text-emerald-300 font-extrabold">{resumen.cupos_disponibles_dia}</span>
                         </div>
-                        <div className="flex justify-between items-center text-slate-300">
-                          <span className="text-[11px]">item #3 Cubículos en sede</span>
-                          <span className="text-white font-bold">: {cubiculosActuales}</span>
+                        <div className="flex justify-between items-center text-sky-100/85">
+                          <span>Cubículos en sede</span>
+                          <span className="text-white font-extrabold">{cubiculosActuales}</span>
                         </div>
-                        <div className="flex justify-between items-center text-slate-300">
-                          <span className="text-[11px]">item #4 Turnos con demanda</span>
-                          <span className="text-white font-bold">: {resumen.bloques?.filter((b) => b.ocupados > 0).length || 0}</span>
+                        <div className="flex justify-between items-center text-sky-100/85">
+                          <span>Turnos con demanda</span>
+                          <span className="text-white font-extrabold">{resumen.bloques?.filter((b) => b.ocupados > 0).length || 0}</span>
                         </div>
-                        <div className="flex justify-between items-center text-slate-300">
-                          <span className="text-[11px]">item #5 Incidencias activas</span>
-                          <span className="text-white font-bold">: {incidencias.filter((i) => i.estado === "pendiente").length}</span>
-                        </div>
-                        <div className="flex justify-between items-center pt-2.5 border-t border-white/10 font-bold text-[#FFC20E] text-[11px]">
-                          <span>Total aforo diario</span>
-                          <span>: {resumen.cupos_totales_diarios}</span>
+                        <div className="flex justify-between items-center pt-2 border-t border-white/10 font-black text-[#FFC20E]">
+                          <span>Capacidad total</span>
+                          <span>{resumen.cupos_totales_diarios} cupos</span>
                         </div>
                       </div>
                     </div>
@@ -3518,7 +3496,7 @@ export default function Dashboard() {
                               onChange={(e) => setBusquedaOrdenes(e.target.value)}
                               className="pl-3 pr-7 py-1 rounded-full bg-slate-100 text-[11px] font-medium text-slate-700 placeholder:text-slate-400 outline-none w-36 sm:w-44 focus:bg-white focus:border-[#00A3E0] border border-slate-200 transition-all"
                             />
-                            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none">🔍</span>
+                            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"><UiIcon name="search" className="w-4 h-4" /></span>
                           </div>
                         </div>
 
@@ -3618,7 +3596,7 @@ export default function Dashboard() {
                               onChange={(e) => setBusquedaCubiculos(e.target.value)}
                               className="pl-3 pr-7 py-1 rounded-full bg-slate-100 text-[11px] font-medium text-slate-700 placeholder:text-slate-400 outline-none w-36 sm:w-44 focus:bg-white focus:border-[#00A3E0] border border-slate-200 transition-all"
                             />
-                            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none">🔍</span>
+                            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"><UiIcon name="search" className="w-4 h-4" /></span>
                           </div>
                         </div>
 
@@ -3748,36 +3726,7 @@ export default function Dashboard() {
                                   </div>
                                 </div>
 
-                                <div className="space-y-2">
-                                  <div className="flex items-center gap-3">
-                                    <div className="w-9 h-9 rounded-full bg-[#00A3E0] flex items-center justify-center text-white text-[11px] font-bold shadow-xs shrink-0">
-                                      TM
-                                    </div>
-                                    <div className="min-w-0 flex-1">
-                                      <div className="text-xs font-bold text-slate-800 truncate">
-                                        Terminal MinMoe{" "}
-                                        <span className="font-semibold text-[#00629B] cursor-pointer hover:underline">
-                                          en Control de Acceso
-                                        </span>
-                                      </div>
-                                      <div className="text-[10px] text-slate-400">
-                                        En línea (172.29.0.70)
-                                      </div>
-                                    </div>
-                                  </div>
-                                  <p className="text-[11px] text-slate-600 line-clamp-2 leading-relaxed pl-12">
-                                    Acceso por reconocimiento facial funcionando con normalidad en relé principal.
-                                  </p>
-                                  <div className="pl-12 pt-1">
-                                    <button
-                                      onClick={() => handleSelectTab("camara")}
-                                      className="px-3.5 py-1 rounded-full bg-[#00629B] hover:bg-[#004D7A] text-white text-[10px] font-bold shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
-                                    >
-                                      <span>Ver cámara</span>
-                                      <span>➔</span>
-                                    </button>
-                                  </div>
-                                </div>
+
                               </div>
                             )}
                           </div>
@@ -3791,7 +3740,7 @@ export default function Dashboard() {
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
                         <div>
                           <div className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[#00629B] mb-1">
-                            <span>⏱️ Cronograma de ocupación</span>
+                            <span>Cronograma de ocupación</span>
                           </div>
                           <h3 className="text-base font-bold text-slate-900">
                             Bloques Horarios y Matriz de Cubículos
@@ -3921,62 +3870,36 @@ export default function Dashboard() {
           {(activeTab === "metricas") && (
             <>
               {tipoMetricas === "selector" && (
-                <div className={`${CARD} p-6 md:p-10 mb-8 space-y-8 animate-fadeIn`}>
-                  <div className="text-center max-w-3xl mx-auto space-y-3">
-                    <span className={EYEBROW}>📊 Inteligencia y Analítica Institucional UCT</span>
-                    <h2 className="text-2xl sm:text-3xl font-black text-[#002D4C] tracking-tight">
-                      Selecciona el Módulo de Métricas
+                <div className={`${CARD} p-6 md:p-8 mb-8 space-y-6 animate-fadeIn`}>
+                  <div className="text-center max-w-2xl mx-auto">
+                    <h2 className="text-2xl font-black text-[#002D4C] tracking-tight">
+                      Métricas y Análisis
                     </h2>
-                    <p className="text-sm text-slate-500 leading-relaxed">
-                      Elige el tipo de analítica que deseas visualizar para explorar estadísticas en tiempo real, tasas de ocupación o demanda formativa, y generar reportes oficiales.
-                    </p>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto pt-2">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
                     <div
                       onClick={() => setTipoMetricas("reservas")}
-                      className="group relative p-7 rounded-3xl bg-gradient-to-br from-white to-slate-50 border-2 border-slate-200 hover:border-[#00629B] hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden"
+                      className="group relative p-6 rounded-3xl bg-gradient-to-br from-white to-slate-50 border-2 border-slate-200 hover:border-[#00629B] hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden"
                     >
-                      <div className="absolute top-0 right-0 w-32 h-32 bg-sky-500/5 rounded-full blur-2xl group-hover:bg-[#00629B]/10 transition-all pointer-events-none" />
-                      <div className="space-y-4 relative z-10">
-                        <div className="flex items-center justify-between">
-                          <div className="w-14 h-14 rounded-2xl bg-[#002D4C] text-white flex items-center justify-center text-2xl shadow-md group-hover:scale-105 transition-transform">
-                            🏢
-                          </div>
-                          <span className="px-3 py-1 rounded-full text-[11px] font-extrabold bg-[#00629B]/10 text-[#00629B]">
-                            Espacios Físicos
-                          </span>
-                        </div>
+                      <div className="space-y-3 relative z-10">
+                        <div className="w-12 h-12 rounded-2xl bg-[#002D4C] text-white flex items-center justify-center text-xl shadow-md"><UiIcon name="building" className="w-4 h-4" /></div>
                         <div>
-                          <h3 className="text-xl font-black text-slate-800 group-hover:text-[#00629B] transition-colors">
+                          <h3 className="text-lg font-black text-slate-800 group-hover:text-[#00629B] transition-colors">
                             Métricas de Reservas
                           </h3>
-                          <p className="text-xs text-slate-500 mt-2 leading-relaxed">
-                            Monitoreo interactivo de ocupación de cubículos por bloque horario versus capacidad instalada, desglose por sede, aforo diario y análisis por carreras.
+                          <p className="text-xs text-slate-500 mt-1">
+                            Ocupación de cubículos por horario, sede y carrera.
                           </p>
-                        </div>
-                        <div className="space-y-2 pt-2 border-t border-slate-100 text-xs font-semibold text-slate-600">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[#00A3E0]">✓</span>
-                            <span>Inteligencia de afluencia por bloques y horas peak</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[#00A3E0]">✓</span>
-                            <span>Demanda y participación por carreras universitarias</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[#00A3E0]">✓</span>
-                            <span>Exportación en alta resolución (PNG y Excel .xlsx)</span>
-                          </div>
                         </div>
                       </div>
 
-                      <div className="pt-6 relative z-10">
+                      <div className="pt-5 relative z-10">
                         <button
                           type="button"
-                          className="w-full py-3 px-4 rounded-xl font-black text-xs bg-[#002D4C] hover:bg-[#00629B] text-white shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer group-hover:translate-x-1"
+                          className="w-full py-2.5 px-4 rounded-xl font-black text-xs bg-[#002D4C] hover:bg-[#00629B] text-white shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
                         >
-                          <span>Ver Métricas de Reservas</span>
+                          <span>Ver Reservas</span>
                           <span>→</span>
                         </button>
                       </div>
@@ -3984,48 +3907,53 @@ export default function Dashboard() {
 
                     <div
                       onClick={() => setTipoMetricas("talleres")}
-                      className="group relative p-7 rounded-3xl bg-gradient-to-br from-white to-slate-50 border-2 border-slate-200 hover:border-[#FFC20E] hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden"
+                      className="group relative p-6 rounded-3xl bg-gradient-to-br from-white to-slate-50 border-2 border-slate-200 hover:border-[#FFC20E] hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden"
                     >
-                      <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl group-hover:bg-[#FFC20E]/20 transition-all pointer-events-none" />
-                      <div className="space-y-4 relative z-10">
-                        <div className="flex items-center justify-between">
-                          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#FFC20E] to-amber-500 text-[#002D4C] flex items-center justify-center text-2xl shadow-md group-hover:scale-105 transition-transform">
-                            🎓
-                          </div>
-                          <span className="px-3 py-1 rounded-full text-[11px] font-extrabold bg-[#FFC20E]/20 text-amber-900">
-                            Formación & Capacitación
-                          </span>
-                        </div>
+                      <div className="space-y-3 relative z-10">
+                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#FFC20E] to-amber-500 text-[#002D4C] flex items-center justify-center text-xl shadow-md"><UiIcon name="academic" className="w-4 h-4" /></div>
                         <div>
-                          <h3 className="text-xl font-black text-slate-800 group-hover:text-amber-800 transition-colors">
+                          <h3 className="text-lg font-black text-slate-800 group-hover:text-amber-800 transition-colors">
                             Métricas de Talleres
                           </h3>
-                          <p className="text-xs text-slate-500 mt-2 leading-relaxed">
-                            Analítica de solicitudes de formación académica especializada, índice de aprobación, distribución temática de los 6 talleres y modalidades solicitadas.
+                          <p className="text-xs text-slate-500 mt-1">
+                            Solicitudes de talleres, modalidades y carreras.
                           </p>
-                        </div>
-                        <div className="space-y-2 pt-2 border-t border-slate-100 text-xs font-semibold text-slate-600">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[#00629B]">✓</span>
-                            <span>Demanda por taller temático y temas más solicitados</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[#00629B]">✓</span>
-                            <span>Distribución por modalidad (Presencial vs Virtual)</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[#00629B]">✓</span>
-                            <span>Tasa de aprobación, estado de solicitudes y exportación Excel</span>
-                          </div>
                         </div>
                       </div>
 
-                      <div className="pt-6 relative z-10">
+                      <div className="pt-5 relative z-10">
                         <button
                           type="button"
-                          className="w-full py-3 px-4 rounded-xl font-black text-xs bg-[#FFC20E] hover:bg-amber-400 text-[#002D4C] shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer group-hover:translate-x-1"
+                          className="w-full py-2.5 px-4 rounded-xl font-black text-xs bg-[#FFC20E] hover:bg-amber-400 text-[#002D4C] shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
                         >
-                          <span>Ver Métricas de Talleres</span>
+                          <span>Ver Talleres</span>
+                          <span>→</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div
+                      onClick={() => setTipoMetricas("prediccion")}
+                      className="group relative p-6 rounded-3xl bg-gradient-to-br from-white to-slate-50 border-2 border-slate-200 hover:border-[#00A3E0] hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden"
+                    >
+                      <div className="space-y-3 relative z-10">
+                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#00629B] to-[#00A3E0] text-white flex items-center justify-center text-xl shadow-md"><UiIcon name="trend" className="w-4 h-4" /></div>
+                        <div>
+                          <h3 className="text-lg font-black text-slate-800 group-hover:text-[#00629B] transition-colors">
+                            Pronóstico de Aforo
+                          </h3>
+                          <p className="text-xs text-slate-500 mt-1">
+                            Proyección de demanda y ocupación para los próximos días.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="pt-5 relative z-10">
+                        <button
+                          type="button"
+                          className="w-full py-2.5 px-4 rounded-xl font-black text-xs bg-gradient-to-r from-[#00629B] to-[#00A3E0] hover:from-[#004D7A] hover:to-[#0082B3] text-white shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
+                        >
+                          <span>Ver Pronóstico</span>
                           <span>→</span>
                         </button>
                       </div>
@@ -4051,7 +3979,7 @@ export default function Dashboard() {
                         onClick={() => setTipoMetricas("reservas")}
                         className="px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 bg-[#002D4C] text-white shadow-xs"
                       >
-                        <span>🏢</span>
+                        <span><UiIcon name="building" className="w-4 h-4" /></span>
                         <span>Métricas de Reservas</span>
                       </button>
                       <button
@@ -4059,19 +3987,23 @@ export default function Dashboard() {
                         onClick={() => setTipoMetricas("talleres")}
                         className="px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 text-slate-600 hover:text-slate-900"
                       >
-                        <span>🎓</span>
+                        <span><UiIcon name="academic" className="w-4 h-4" /></span>
                         <span>Métricas de Talleres</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTipoMetricas("prediccion")}
+                        className="px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 text-slate-600 hover:text-slate-900"
+                      >
+                        <span><UiIcon name="trend" className="w-4 h-4" /></span>
+                        <span>Pronóstico de Aforo</span>
                       </button>
                     </div>
                   </div>
 
                   <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-100 pb-5">
-                    <div className="space-y-1.5">
-                      <span className={EYEBROW}>📈 Análisis institucional de ocupación</span>
-                      <h2 className={SECTION_TITLE}>Inteligencia de Ocupación y Demanda Horaria</h2>
-                      <p className="text-xs text-slate-500 max-w-2xl leading-relaxed">
-                        Monitoreo interactivo de afluencia por bloque horario versus capacidad física instalada. Filtra por día, semana o mes y exporta reportes en alta resolución.
-                      </p>
+                    <div>
+                      <h2 className={SECTION_TITLE}>Métricas de Reservas</h2>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 self-start lg:self-auto">
                       <button
@@ -4079,7 +4011,7 @@ export default function Dashboard() {
                         disabled={exportandoGraficoPNG || cargandoMetricas}
                         className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold shadow-xs transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
                       >
-                        <span>📊</span>
+                        <span><UiIcon name="chart" className="w-4 h-4" /></span>
                         <span>{exportandoGraficoPNG ? "Exportando..." : "Exportar Gráfico (PNG)"}</span>
                       </button>
                       <button
@@ -4087,7 +4019,7 @@ export default function Dashboard() {
                         disabled={exportandoMetricasExcel || cargandoMetricas}
                         className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
                       >
-                        <span>📑</span>
+                        <span><UiIcon name="doc" className="w-4 h-4" /></span>
                         <span>{exportandoMetricasExcel ? "Generando..." : "Exportar Excel (.xlsx)"}</span>
                       </button>
                     </div>
@@ -4102,7 +4034,7 @@ export default function Dashboard() {
                           : "text-slate-600 hover:text-slate-900"
                           }`}
                       >
-                        📅 Por Día
+                        Por Día
                       </button>
                       <button
                         onClick={() => setPeriodoMetricas("semana")}
@@ -4111,7 +4043,7 @@ export default function Dashboard() {
                           : "text-slate-600 hover:text-slate-900"
                           }`}
                       >
-                        📆 Por Semana
+                        Por Semana
                       </button>
                       <button
                         onClick={() => setPeriodoMetricas("mes")}
@@ -4120,7 +4052,7 @@ export default function Dashboard() {
                           : "text-slate-600 hover:text-slate-900"
                           }`}
                       >
-                        🗓️ Por Mes
+                        Por Mes
                       </button>
                     </div>
 
@@ -4159,7 +4091,7 @@ export default function Dashboard() {
                         onChange={(e) => setCampusFiltroMetricas(e.target.value)}
                         className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 shadow-xs focus:ring-2 focus:ring-[#00629B] focus:outline-none cursor-pointer"
                       >
-                        <option value="todos">🏛️ Todas las Sedes</option>
+                        <option value="todos">Todas las Sedes</option>
                         {campus.map((c) => (
                           <option key={c.id} value={c.id}>
                             {c.nombre}
@@ -4178,7 +4110,7 @@ export default function Dashboard() {
                       <div className="absolute -right-2 bottom-[-28px] w-20 h-20 rounded-full bg-[#FFC20E]/25" />
                       <div className="relative flex items-center justify-between text-[11px] font-bold uppercase tracking-widest text-sky-100">
                         <span>Total reservas</span>
-                        <span className="w-8 h-8 rounded-xl bg-white/15 backdrop-blur-sm flex items-center justify-center text-sm">🎯</span>
+                        <span className="w-8 h-8 rounded-xl bg-white/15 backdrop-blur-sm flex items-center justify-center text-sm"><UiIcon name="target" className="w-4 h-4" /></span>
                       </div>
                       <div className="relative text-4xl font-black mt-2 tracking-tight">{metricas?.info_periodo?.total_reservas_periodo ?? 0}</div>
                       <div className="relative text-[11px] text-sky-100/90 mt-1">Registradas en este período</div>
@@ -4188,7 +4120,7 @@ export default function Dashboard() {
                       <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-[#FFC20E] via-amber-400 to-orange-500" />
                       <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-widest text-slate-500">
                         <span>Horario pico</span>
-                        <span className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-sm">🔥</span>
+                        <span className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-sm"><UiIcon name="flame" className="w-4 h-4" /></span>
                       </div>
                       <div className="text-xl font-black text-slate-900 mt-3 truncate">
                         {(metricas?.info_periodo?.bloque_pico?.total_reservas || 0) > 0 ? metricas.info_periodo.bloque_pico.rango : "Sin reservas"}
@@ -4226,7 +4158,7 @@ export default function Dashboard() {
                       <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-[#00629B] to-[#00A3E0]" />
                       <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-widest text-slate-500">
                         <span>Capacidad / bloque</span>
-                        <span className="w-8 h-8 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sm">🏛️</span>
+                        <span className="w-8 h-8 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sm"><UiIcon name="building" className="w-4 h-4" /></span>
                       </div>
                       <div className="text-3xl font-black text-slate-900 mt-2">
                         {metricas?.info_periodo?.capacidad_por_bloque ?? 0}<span className="text-sm font-bold text-slate-400 ml-1">cupos</span>
@@ -4240,11 +4172,9 @@ export default function Dashboard() {
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
                         <div>
                           <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                            <span className="text-[#00629B]">📊</span> Gráfico: Bloque Horario vs Reservas
+                            <span className="text-[#00629B]"><UiIcon name="chart" className="w-4 h-4" /></span> Gráfico: Bloque Horario vs Reservas
                           </h3>
-                          <p className="text-[11px] text-slate-500 mt-0.5">
-                            Pasa el cursor sobre cada columna para inspeccionar el flujo y aforo
-                          </p>
+                          
                         </div>
                         <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-sky-50 text-[#00629B] border border-sky-100 self-start sm:self-auto">
                           {periodoMetricas === "dia" ? "Vista Diaria" : periodoMetricas === "semana" ? "Vista Semanal" : "Vista Mensual"}
@@ -4436,11 +4366,9 @@ export default function Dashboard() {
                       <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-100">
                         <div>
                           <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                            <span>📑</span> Tabla de Ocupación por Bloque
+                            <span><UiIcon name="doc" className="w-4 h-4" /></span> Tabla de Ocupación por Bloque
                           </h3>
-                          <p className="text-[11px] text-slate-500 mt-0.5">
-                            Datos en tiempo real sincronizados con el gráfico
-                          </p>
+                          
                         </div>
                         <button
                           onClick={handleExportarMetricasExcel}
@@ -4475,7 +4403,7 @@ export default function Dashboard() {
                                 >
                                   <td className="py-2.5 px-3">
                                     <div className="flex items-center gap-1.5">
-                                      <span className="text-[#00629B] text-xs">🕒</span>
+                                      <span className="text-[#00629B] text-xs"><UiIcon name="clock" className="w-4 h-4" /></span>
                                       <span className="text-slate-800 font-medium">{b.rango}</span>
                                     </div>
                                   </td>
@@ -4514,7 +4442,7 @@ export default function Dashboard() {
                                           ? "bg-sky-50 text-[#00629B] border-sky-200"
                                           : "bg-slate-50 text-slate-600 border-slate-200"
                                       }`}>
-                                      {b.nivel_demanda === "Pico" ? "🔥 Pico" : b.nivel_demanda}
+                                      {b.nivel_demanda === "Pico" ? "Pico" : b.nivel_demanda}
                                     </span>
                                   </td>
                                 </tr>
@@ -4538,11 +4466,7 @@ export default function Dashboard() {
                         </table>
                       </div>
 
-                      <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between text-xs text-slate-600">
-                        <span className="flex items-center gap-1.5 font-medium">
-                          <span>💡</span> Selecciona o pasa el cursor sobre una fila para resaltar en el gráfico.
-                        </span>
-                      </div>
+                      
                     </div>
                   </div>
 
@@ -4550,12 +4474,12 @@ export default function Dashboard() {
                     <div className="bg-gradient-to-br from-white to-slate-50/90 border border-slate-200/80 rounded-3xl p-6 space-y-4 shadow-xs">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="w-8 h-8 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center text-sm">🔥</span>
+                          <span className="w-8 h-8 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center text-sm"><UiIcon name="flame" className="w-4 h-4" /></span>
                           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Horarios Pico Históricos</h3>
                         </div>
                         <span className="text-[10px] bg-rose-50 text-rose-700 border border-rose-100 font-bold px-2 py-0.5 rounded-full">Top Demanda</span>
                       </div>
-                      <p className="text-[11px] text-slate-500">Bloques con mayor volumen acumulado de reservas</p>
+                      
 
                       {metricas?.horarios_pico && metricas.horarios_pico.length > 0 ? (
                         <div className="space-y-3 pt-2">
@@ -4602,12 +4526,12 @@ export default function Dashboard() {
                     <div className="bg-gradient-to-br from-white to-slate-50/90 border border-slate-200/80 rounded-3xl p-6 space-y-4 shadow-xs">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="w-8 h-8 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sm">📅</span>
+                          <span className="w-8 h-8 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sm"><UiIcon name="calendar" className="w-4 h-4" /></span>
                           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Días Más Concurridos</h3>
                         </div>
                         <span className="text-[10px] bg-sky-50 text-[#00629B] border border-sky-100 font-bold px-2 py-0.5 rounded-full">Semanal</span>
                       </div>
-                      <p className="text-[11px] text-slate-500">Distribución de estudiantes según día de la semana</p>
+                      
 
                       {metricas?.dias_demanda && metricas.dias_demanda.length > 0 ? (
                         <div className="space-y-2.5 pt-2">
@@ -4634,12 +4558,12 @@ export default function Dashboard() {
                     <div className="bg-gradient-to-br from-white to-slate-50/90 border border-slate-200/80 rounded-3xl p-6 space-y-4 shadow-xs">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-sm">📉</span>
+                          <span className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-sm"><UiIcon name="trend-down" className="w-4 h-4" /></span>
                           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Cancelaciones</h3>
                         </div>
                         <span className="text-[10px] bg-rose-50 text-rose-800 border border-rose-100 font-bold px-2 py-0.5 rounded-full">Histórico</span>
                       </div>
-                      <p className="text-[11px] text-slate-500">Métricas de asistencias y cancelaciones de reservas</p>
+                      
 
                       <div className="space-y-3 pt-2">
                         <div className="p-3.5 bg-white rounded-2xl border border-slate-100 shadow-xs flex items-center justify-between">
@@ -4682,16 +4606,10 @@ export default function Dashboard() {
                   {/* Gráfico y Ranking de Reservas por Carrera (Histórico + Actuales) */}
                   <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-200/80 shadow-xs space-y-6">
                     <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-100">
-                      <div className="space-y-1">
-                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-50 text-[#00629B] border border-sky-100 text-[11px] font-black uppercase tracking-wider">
-                          <span>🎓</span> Métricas Académicas
-                        </div>
-                        <h3 className="text-base sm:text-lg font-serif font-bold text-slate-900 flex items-center gap-2">
-                          Demanda y Ocupación por Carrera
+                      <div>
+                        <h3 className="text-base sm:text-lg font-bold text-slate-900">
+                          Reservas por Carrera
                         </h3>
-                        <p className="text-xs text-slate-500 max-w-2xl leading-relaxed">
-                          Comparativa gráfica de demanda estudiantil segmentada por reservas en curso y registros históricos consolidados.
-                        </p>
                       </div>
 
                       <div className="flex flex-wrap items-center gap-2 self-start lg:self-auto">
@@ -4704,7 +4622,7 @@ export default function Dashboard() {
                               : "text-slate-600 hover:text-slate-900"
                               }`}
                           >
-                            <span>📊</span> Columnas
+                            <span><UiIcon name="chart" className="w-4 h-4" /></span> Columnas
                           </button>
                           <button
                             type="button"
@@ -4714,7 +4632,7 @@ export default function Dashboard() {
                               : "text-slate-600 hover:text-slate-900"
                               }`}
                           >
-                            <span>📈</span> Barras Apiladas
+                            <span><UiIcon name="trend" className="w-4 h-4" /></span> Barras Apiladas
                           </button>
                           <button
                             type="button"
@@ -4724,7 +4642,7 @@ export default function Dashboard() {
                               : "text-slate-600 hover:text-slate-900"
                               }`}
                           >
-                            <span>🍩</span> Distribución
+                            <span><UiIcon name="pie" className="w-4 h-4" /></span> Distribución
                           </button>
                         </div>
 
@@ -4778,7 +4696,7 @@ export default function Dashboard() {
                       if (listaBase.length === 0) {
                         return (
                           <div className="p-8 text-center bg-slate-50/70 rounded-2xl border border-slate-100 space-y-2">
-                            <span className="text-3xl">🎓</span>
+                            <span className="text-3xl"><UiIcon name="academic" className="w-4 h-4" /></span>
                             <p className="text-xs font-bold text-slate-700">No se registran reservas con carreras asociadas</p>
                             <p className="text-[11px] text-slate-400">Los datos se consolidarán conforme los estudiantes generen reservas en el sistema.</p>
                           </div>
@@ -4806,9 +4724,9 @@ export default function Dashboard() {
                       const itemsAMostrar = limiteCarrerasMetricas > 0 ? listaFiltrada.slice(0, limiteCarrerasMetricas) : listaFiltrada;
 
                       const medallas = [
-                        { badge: "🥇", bg: "bg-amber-100 text-amber-900 border-amber-200" },
-                        { badge: "🥈", bg: "bg-slate-200 text-slate-800 border-slate-300" },
-                        { badge: "🥉", bg: "bg-amber-200 text-amber-950 border-amber-300" }
+                        { badge: "1", bg: "bg-amber-100 text-amber-900 border-amber-200" },
+                        { badge: "2", bg: "bg-slate-200 text-slate-800 border-slate-300" },
+                        { badge: "3", bg: "bg-amber-200 text-amber-950 border-amber-300" }
                       ];
 
                       const paletaColores = [
@@ -4823,7 +4741,7 @@ export default function Dashboard() {
                             <div className="p-4 rounded-2xl bg-gradient-to-br from-sky-50 to-white border border-sky-100 shadow-2xs">
                               <span className="text-[10px] font-black uppercase tracking-wider text-[#00629B] block">Carrera Líder</span>
                               <div className="text-sm font-extrabold text-slate-900 mt-1 truncate" title={listaBase[0]?.carrera}>
-                                👑 {listaBase[0]?.carrera || "N/A"}
+                                {listaBase[0]?.carrera || "N/A"}
                               </div>
                               <span className="text-[11px] text-slate-500 font-semibold mt-0.5 block">
                                 {listaBase[0]?.total || 0} reservas ({totalGlobalReservas > 0 ? Math.round(((listaBase[0]?.total || 0) / totalGlobalReservas) * 100) : 0}% de participación)
@@ -4833,7 +4751,7 @@ export default function Dashboard() {
                             <div className="p-4 rounded-2xl bg-gradient-to-br from-white to-slate-50 border border-slate-200/80 shadow-2xs">
                               <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">Reservas en Curso</span>
                               <div className="text-xl font-black text-emerald-600 mt-1 flex items-center gap-1.5">
-                                <span>⚡</span> {totalActuales} <span className="text-xs font-semibold text-slate-500">activas</span>
+                                <span><UiIcon name="bolt" className="w-4 h-4" /></span> {totalActuales} <span className="text-xs font-semibold text-slate-500">activas</span>
                               </div>
                               <span className="text-[11px] text-slate-500 font-semibold mt-0.5 block">
                                 {totalGlobalReservas > 0 ? Math.round((totalActuales / totalGlobalReservas) * 100) : 0}% del volumen total en uso
@@ -4846,7 +4764,7 @@ export default function Dashboard() {
                                 {totalGlobalReservas} <span className="text-xs font-semibold text-slate-500">reservas</span>
                               </div>
                               <div className="flex items-center gap-2 mt-0.5 text-[11px] font-medium text-slate-600">
-                                <span className="text-slate-500 font-bold">📜 {totalHistoricas} históricas</span>
+                                <span className="text-slate-500 font-bold">{totalHistoricas} históricas</span>
                                 <span>•</span>
                                 <span className="text-[#00629B] font-bold">{listaBase.length} carreras</span>
                               </div>
@@ -4855,7 +4773,7 @@ export default function Dashboard() {
 
                           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-50/70 p-3 rounded-2xl border border-slate-200/60 text-xs">
                             <div className="relative flex-1 max-w-sm">
-                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🔍</span>
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"><UiIcon name="search" className="w-4 h-4" /></span>
                               <input
                                 type="text"
                                 placeholder="Buscar carrera académica..."
@@ -5016,7 +4934,7 @@ export default function Dashboard() {
                                                 textAnchor="middle"
                                                 fontSize="13"
                                               >
-                                                👑
+                                                #1
                                               </text>
                                             )}
 
@@ -5117,7 +5035,7 @@ export default function Dashboard() {
                                               fontWeight="700"
                                               fill="#38BDF8"
                                             >
-                                              ⚡ {hoverItem.actuales} activas · 📜 {hoverItem.historicas} históricas
+                                              {hoverItem.actuales} activas · {hoverItem.historicas} históricas
                                             </text>
                                             <text
                                               x={bx + 12}
@@ -5140,16 +5058,14 @@ export default function Dashboard() {
                                 <div className="flex items-center gap-4">
                                   <span className="flex items-center gap-2">
                                     <span className="w-3 h-3 rounded-md bg-gradient-to-r from-[#00629B] to-[#00A3E0]" />
-                                    <strong className="text-slate-700">Reservas Activas (⚡)</strong>
+                                    <strong className="text-slate-700">Reservas Activas ()</strong>
                                   </span>
                                   <span className="flex items-center gap-2">
                                     <span className="w-3 h-3 rounded-md bg-gradient-to-r from-[#004D7A] to-[#1E293B]" />
-                                    <strong className="text-slate-700">Registros Históricos (📜)</strong>
+                                    <strong className="text-slate-700">Registros Históricos ()</strong>
                                   </span>
                                 </div>
-                                <span className="text-[11px] text-slate-400">
-                                  Pasa el cursor sobre cada columna para inspeccionar el desglose exacto
-                                </span>
+                                
                               </div>
                             </div>
                           )}
@@ -5190,10 +5106,10 @@ export default function Dashboard() {
 
                                       <div className="flex flex-wrap items-center gap-2 shrink-0">
                                         <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                                          ⚡ {c.actuales} activas
+                                          {c.actuales} activas
                                         </span>
                                         <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                                          📜 {c.historicas} históricas
+                                          {c.historicas} históricas
                                         </span>
                                         <span className="px-2.5 py-1 rounded-lg text-xs font-black text-[#00629B] bg-sky-50 border border-sky-100 shadow-2xs">
                                           {c.total} reservas ({pctAbsoluto}%)
@@ -5375,7 +5291,7 @@ export default function Dashboard() {
                         onClick={() => setTipoMetricas("reservas")}
                         className="px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 text-slate-600 hover:text-slate-900"
                       >
-                        <span>🏢</span>
+                        <span><UiIcon name="building" className="w-4 h-4" /></span>
                         <span>Métricas de Reservas</span>
                       </button>
                       <button
@@ -5383,8 +5299,16 @@ export default function Dashboard() {
                         onClick={() => setTipoMetricas("talleres")}
                         className="px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 bg-[#002D4C] text-white shadow-xs"
                       >
-                        <span>🎓</span>
+                        <span><UiIcon name="academic" className="w-4 h-4" /></span>
                         <span>Métricas de Talleres</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTipoMetricas("prediccion")}
+                        className="px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 text-slate-600 hover:text-slate-900"
+                      >
+                        <span><UiIcon name="trend" className="w-4 h-4" /></span>
+                        <span>Pronóstico de Aforo</span>
                       </button>
                     </div>
                   </div>
@@ -5415,12 +5339,12 @@ export default function Dashboard() {
                     });
 
                     const TALLERES_ESTANDAR = [
-                      { nombre: "Conoce tu biblioteca: Taller de inicio", icono: "🧭", tag: "Inducción" },
-                      { nombre: "Búsqueda y evaluación de información", icono: "🔎", tag: "Investigación" },
-                      { nombre: "Gestión de referencias y estilo de citas", icono: "📑", tag: "Citas y Normas" },
-                      { nombre: "Uso ético de la información", icono: "⚖️", tag: "Integridad" },
-                      { nombre: "Introducción a Leganto", icono: "📚", tag: "Plataforma" },
-                      { nombre: "ORCID", icono: "🆔", tag: "Identidad Digital" },
+                      { nombre: "Conoce tu biblioteca: Taller de inicio", icono: "compass", tag: "Inducción" },
+                      { nombre: "Búsqueda y evaluación de información", icono: "search", tag: "Investigación" },
+                      { nombre: "Gestión de referencias y estilo de citas", icono: "doc", tag: "Citas y Normas" },
+                      { nombre: "Uso ético de la información", icono: "scale", tag: "Integridad" },
+                      { nombre: "Introducción a Leganto", icono: "book", tag: "Plataforma" },
+                      { nombre: "ORCID", icono: "id", tag: "Identidad Digital" },
                     ];
 
                     TALLERES_ESTANDAR.forEach((t) => {
@@ -5431,7 +5355,7 @@ export default function Dashboard() {
 
                     const rankingTalleres = Object.entries(talleresCountMap)
                       .map(([nombre, count]) => {
-                        const meta = TALLERES_ESTANDAR.find((m) => m.nombre === nombre) || { icono: "🎓", tag: "Taller" };
+                        const meta = TALLERES_ESTANDAR.find((m) => m.nombre === nombre) || { icono: "academic", tag: "Taller" };
                         return {
                           nombre,
                           count,
@@ -5460,12 +5384,8 @@ export default function Dashboard() {
                     return (
                       <div className="space-y-7">
                         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-100 pb-5">
-                          <div className="space-y-1.5">
-                            <span className={EYEBROW}>🎓 Formación y Competencias en Información</span>
-                            <h2 className={SECTION_TITLE}>Inteligencia y Demanda de Talleres Especializados</h2>
-                            <p className="text-xs text-slate-500 max-w-2xl leading-relaxed">
-                              Estadísticas consolidadas de solicitudes de capacitación, índice de atención, desglose temático por taller, modalidades solicitadas y carreras universitarias con mayor demanda.
-                            </p>
+                          <div>
+                            <h2 className={SECTION_TITLE}>Métricas de Talleres</h2>
                           </div>
                           <div className="flex flex-wrap items-center gap-2 self-start lg:self-auto">
                             <button
@@ -5473,7 +5393,7 @@ export default function Dashboard() {
                               onClick={handleExportarMetricasTalleresExcel}
                               className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors flex items-center gap-2 cursor-pointer"
                             >
-                              <span>📑</span>
+                              <span><UiIcon name="doc" className="w-4 h-4" /></span>
                               <span>Exportar Excel (.xlsx)</span>
                             </button>
                           </div>
@@ -5483,7 +5403,7 @@ export default function Dashboard() {
                           <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
                             <div className="flex items-center justify-between">
                               <span className="text-xs font-bold text-slate-500">Total Solicitudes</span>
-                              <span className="w-8 h-8 rounded-xl bg-blue-100 text-[#00629B] flex items-center justify-center text-sm font-bold">📚</span>
+                              <span className="w-8 h-8 rounded-xl bg-blue-100 text-[#00629B] flex items-center justify-center text-sm font-bold"><UiIcon name="book" className="w-4 h-4" /></span>
                             </div>
                             <div className="text-2xl font-black text-slate-900">{totalTalleres}</div>
                             <p className="text-[11px] text-slate-500 font-medium">
@@ -5494,7 +5414,7 @@ export default function Dashboard() {
                           <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
                             <div className="flex items-center justify-between">
                               <span className="text-xs font-bold text-slate-500">Tasa de Aprobación</span>
-                              <span className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center text-sm font-bold">🎯</span>
+                              <span className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center text-sm font-bold"><UiIcon name="target" className="w-4 h-4" /></span>
                             </div>
                             <div className="text-2xl font-black text-emerald-600">{tasaExitoTalleres}%</div>
                             <p className="text-[11px] text-slate-500 font-medium">
@@ -5505,7 +5425,7 @@ export default function Dashboard() {
                           <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
                             <div className="flex items-center justify-between">
                               <span className="text-xs font-bold text-slate-500">Taller Más Solicitado</span>
-                              <span className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center text-sm font-bold">🏆</span>
+                              <span className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center text-sm font-bold"><UiIcon name="trophy" className="w-4 h-4" /></span>
                             </div>
                             <div className="text-sm font-black text-slate-900 line-clamp-1" title={topTallerObj ? topTallerObj.nombre : "Sin datos"}>
                               {topTallerObj ? topTallerObj.nombre : "Sin datos"}
@@ -5518,7 +5438,7 @@ export default function Dashboard() {
                           <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
                             <div className="flex items-center justify-between">
                               <span className="text-xs font-bold text-slate-500">Modalidad Preferida</span>
-                              <span className="w-8 h-8 rounded-xl bg-sky-100 text-[#00A3E0] flex items-center justify-center text-sm font-bold">💻</span>
+                              <span className="w-8 h-8 rounded-xl bg-sky-100 text-[#00A3E0] flex items-center justify-center text-sm font-bold"><UiIcon name="laptop" className="w-4 h-4" /></span>
                             </div>
                             <div className="text-2xl font-black text-[#00629B]">{pctPresencial}% Presencial</div>
                             <p className="text-[11px] text-slate-500 font-medium">
@@ -5531,7 +5451,7 @@ export default function Dashboard() {
                           <div className="flex items-center justify-between flex-wrap gap-2">
                             <div>
                               <h3 className="text-sm font-bold text-slate-800">Estado del Flujo de Solicitudes</h3>
-                              <p className="text-xs text-slate-500">Proporción según el ciclo de atención institucional</p>
+                              
                             </div>
                             <span className="text-xs font-bold text-slate-600">{totalTalleres} solicitudes totales</span>
                           </div>
@@ -5621,7 +5541,7 @@ export default function Dashboard() {
                             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                               <div>
                                 <h3 className="text-sm font-bold text-slate-900">Demanda por Taller Temático</h3>
-                                <p className="text-xs text-slate-500">Distribución de las solicitudes entre los 6 talleres</p>
+                                
                               </div>
                               <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-sky-50 text-[#00629B] border border-sky-200/60">
                                 Catálogo Oficial
@@ -5633,7 +5553,7 @@ export default function Dashboard() {
                                 <div key={idx} className="p-3 rounded-xl bg-slate-50/70 border border-slate-100 hover:border-slate-200 transition-all space-y-1.5">
                                   <div className="flex items-center justify-between gap-2 text-xs">
                                     <div className="flex items-center gap-2 font-bold text-slate-800">
-                                      <span>{t.icono}</span>
+                                      <UiIcon name={t.icono} className="w-4 h-4 text-[#00629B]" />
                                       <span>{t.nombre}</span>
                                     </div>
                                     <div className="flex items-center gap-2 shrink-0">
@@ -5659,20 +5579,20 @@ export default function Dashboard() {
                               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                                 <div>
                                   <h3 className="text-sm font-bold text-slate-900">Preferencia de Modalidad</h3>
-                                  <p className="text-xs text-slate-500">Presencialidad vs formato virtual</p>
+                                  
                                 </div>
                               </div>
 
                               <div className="grid grid-cols-2 gap-4">
                                 <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center space-y-1">
-                                  <div className="text-2xl">🏛️</div>
+                                  <div className="text-2xl"><UiIcon name="building" className="w-4 h-4" /></div>
                                   <div className="text-xs font-bold text-slate-600">Presencial</div>
                                   <div className="text-2xl font-black text-[#002D4C]">{presencialTalleres}</div>
                                   <div className="text-[11px] font-bold text-slate-400">{pctPresencial}% del total</div>
                                 </div>
 
                                 <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center space-y-1">
-                                  <div className="text-2xl">🌐</div>
+                                  <div className="text-2xl"><UiIcon name="globe" className="w-4 h-4" /></div>
                                   <div className="text-xs font-bold text-slate-600">Virtual / En Línea</div>
                                   <div className="text-2xl font-black text-[#00A3E0]">{virtualTalleres}</div>
                                   <div className="text-[11px] font-bold text-slate-400">{pctVirtual}% del total</div>
@@ -5684,7 +5604,7 @@ export default function Dashboard() {
                               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                                 <div>
                                   <h3 className="text-sm font-bold text-slate-900">Demanda por Carrera / Programa</h3>
-                                  <p className="text-xs text-slate-500">Programas académicos con mayor participación</p>
+                                  
                                 </div>
                               </div>
 
@@ -5714,7 +5634,7 @@ export default function Dashboard() {
 
                         <div className="flex items-center justify-between p-4 bg-sky-50/60 rounded-2xl border border-sky-100">
                           <div className="flex items-center gap-3">
-                            <span className="text-2xl">📋</span>
+                            <span className="text-2xl"><UiIcon name="doc" className="w-4 h-4" /></span>
                             <div>
                               <h4 className="text-xs font-bold text-slate-800">¿Deseas gestionar o responder solicitudes?</h4>
                               <p className="text-[11px] text-slate-500">Accede directamente al panel operativo de talleres para responder o gestionar solicitudes.</p>
@@ -5733,6 +5653,335 @@ export default function Dashboard() {
                   })()}
                 </div>
               )}
+              {tipoMetricas === "prediccion" && (
+                <div className={`${CARD} p-6 md:p-8 mb-8 space-y-6 animate-fadeIn`}>
+                  <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setTipoMetricas("selector")}
+                      className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-all flex items-center gap-2 cursor-pointer shadow-2xs"
+                    >
+                      <span>←</span>
+                      <span>Cambiar tipo de métricas</span>
+                    </button>
+                    <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200 shadow-xs">
+                      <button
+                        type="button"
+                        onClick={() => setTipoMetricas("reservas")}
+                        className="px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 text-slate-600 hover:text-slate-900"
+                      >
+                        <span><UiIcon name="building" className="w-4 h-4" /></span>
+                        <span>Métricas de Reservas</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTipoMetricas("talleres")}
+                        className="px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 text-slate-600 hover:text-slate-900"
+                      >
+                        <span><UiIcon name="academic" className="w-4 h-4" /></span>
+                        <span>Métricas de Talleres</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTipoMetricas("prediccion")}
+                        className="px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 bg-[#002D4C] text-white shadow-xs"
+                      >
+                        <span><UiIcon name="trend" className="w-4 h-4" /></span>
+                        <span>Pronóstico de Aforo</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+                    <h2 className={SECTION_TITLE}>Pronóstico de Aforo</h2>
+                    <div className="flex items-center gap-3">
+                      <select
+                        value={campusFiltroPrediccion}
+                        onChange={(e) => setCampusFiltroPrediccion(Number(e.target.value))}
+                        className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 shadow-xs focus:ring-2 focus:ring-[#00629B] focus:outline-none cursor-pointer"
+                      >
+                        {campus.map((c) => (
+                          <option key={c.id} value={c.id}>{c.nombre}</option>
+                        ))}
+                      </select>
+                      <select
+                        value={diasFiltroPrediccion}
+                        onChange={(e) => setDiasFiltroPrediccion(Number(e.target.value))}
+                        className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 shadow-xs focus:ring-2 focus:ring-[#00629B] focus:outline-none cursor-pointer"
+                      >
+                        <option value={7}>Próximos 7 días</option>
+                        <option value={14}>Próximos 14 días</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => fetchPrediccion(campusFiltroPrediccion, diasFiltroPrediccion, false)}
+                        disabled={cargandoPrediccion}
+                        className={`${BTN_GHOST} shrink-0`}
+                      >
+                        {cargandoPrediccion ? "Calculando..." : "Actualizar"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => fetchPrediccion(campusFiltroPrediccion, diasFiltroPrediccion, true)}
+                        disabled={cargandoPrediccion}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#002D4C] hover:bg-[#00416D] text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-50 shrink-0"
+                        title="Contrastar predicciones pasadas con la ocupación real y recalibrar el modelo"
+                      >
+                        <span><UiIcon name="bolt" className="w-4 h-4" /></span>
+                        <span>{cargandoPrediccion ? "Calibrando..." : "Autoentrenar"}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {cargandoPrediccion ? (
+                    <div className="py-20 px-6 rounded-3xl bg-slate-50/70 border border-slate-200/80 flex flex-col items-center justify-center text-center gap-4">
+                      <div className="relative w-14 h-14 flex items-center justify-center">
+                        <div className="absolute inset-0 rounded-full border-4 border-sky-100"></div>
+                        <div className="absolute inset-0 rounded-full border-4 border-[#00629B] border-t-transparent animate-spin"></div>
+                        <span className="text-lg"><UiIcon name="trend" className="w-4 h-4" /></span>
+                      </div>
+                      <div className="space-y-1">
+                        <h3 className="text-sm font-black text-slate-800">Cargando pronóstico de aforo...</h3>
+                        <p className="text-xs text-slate-500 max-w-sm">
+                          Procesando historial de reservas y calibrando las proyecciones por bloque horario.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="p-5 rounded-3xl bg-gradient-to-br from-[#00629B] via-[#0077B8] to-[#00A3E0] text-white shadow-md">
+                          <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-widest text-sky-100">
+                            <span>Ocupación Promedio</span>
+                            <span className="w-8 h-8 rounded-xl bg-white/15 flex items-center justify-center text-sm"><UiIcon name="chart" className="w-4 h-4" /></span>
+                          </div>
+                          <div className="text-3xl font-black mt-2 tracking-tight">
+                            {prediccionData?.resumen?.ocupacion_promedio_semana ?? 0}%
+                          </div>
+                        </div>
+
+                        <div className="p-5 rounded-3xl bg-white border border-rose-200/80 shadow-xs">
+                          <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-widest text-rose-600">
+                            <span>Mayor Demanda</span>
+                            <span className="w-8 h-8 rounded-xl bg-rose-50 flex items-center justify-center text-sm"><UiIcon name="flame" className="w-4 h-4" /></span>
+                          </div>
+                          <div className="text-xl font-black text-slate-800 mt-2 truncate">
+                            {prediccionData?.resumen?.dia_mayor_demanda || "—"}
+                          </div>
+                        </div>
+
+                        <div className="p-5 rounded-3xl bg-white border border-emerald-200/80 shadow-xs">
+                          <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-widest text-emerald-600">
+                            <span>Menor Demanda</span>
+                            <span className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center text-sm"><UiIcon name="leaf" className="w-4 h-4" /></span>
+                          </div>
+                          <div className="text-xl font-black text-slate-800 mt-2 truncate">
+                            {prediccionData?.resumen?.dia_menor_demanda || "—"}
+                          </div>
+                        </div>
+
+                        <div className="p-5 rounded-3xl bg-white border border-sky-200/80 shadow-xs">
+                          <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-widest text-[#00629B]">
+                            <span>Precisión Real</span>
+                            <span className="w-8 h-8 rounded-xl bg-sky-50 flex items-center justify-center text-sm"><UiIcon name="target" className="w-4 h-4" /></span>
+                          </div>
+                          <div className="flex items-baseline gap-2 mt-2">
+                            <span className="text-2xl font-black text-slate-800">
+                              {prediccionData?.autoevaluacion?.precision_real_pct ?? 93.9}%
+                            </span>
+                            <span className="text-[11px] font-semibold text-slate-500">
+                              ({prediccionData?.autoevaluacion?.bloques_evaluados ?? 0} bloques)
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="p-6 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                          <h3 className="text-sm font-black text-slate-800 flex items-center gap-2">
+                            <span className="text-[#00629B]"><UiIcon name="trend" className="w-4 h-4" /></span> Proyección por Día
+                          </h3>
+                          <div className="flex items-center gap-3 text-[10px] font-bold text-slate-600">
+                            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span> Alta (&ge;70%)</span>
+                            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#00629B]"></span> Media (45-69%)</span>
+                            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Baja (&lt;45%)</span>
+                          </div>
+                        </div>
+
+                        <div className="h-64 flex items-end justify-between gap-2 sm:gap-3 pt-8 pb-3 px-3 bg-gradient-to-b from-sky-50/40 via-white to-slate-50/60 rounded-2xl border border-slate-100 overflow-x-auto">
+                          {(prediccionData?.proyeccion_diaria || []).map((dia) => {
+                            const pct = Math.round(dia.ocupacion_promedio_dia || 0);
+                            const isSelected = diaPrediccionSeleccionado?.fecha === dia.fecha;
+                            const esCerrado = dia.estado_atencion === "Cerrado";
+                            const barHeight = esCerrado ? 10 : Math.max(pct, 12);
+                            const barColor = esCerrado
+                              ? "bg-slate-200 text-slate-400"
+                              : pct >= 70
+                                ? "bg-gradient-to-t from-rose-600 to-amber-500"
+                                : pct >= 45
+                                  ? "bg-gradient-to-t from-[#004D7A] via-[#00629B] to-[#00A3E0]"
+                                  : "bg-gradient-to-t from-emerald-600 to-teal-400";
+
+                            return (
+                              <div
+                                key={dia.fecha}
+                                onClick={() => setDiaPrediccionSeleccionado(dia)}
+                                className={`flex-1 min-w-[55px] max-w-[120px] flex flex-col items-center gap-2 cursor-pointer transition-all duration-200 p-1.5 rounded-xl group ${
+                                  isSelected ? "bg-sky-50 ring-2 ring-[#00629B] shadow-xs scale-105" : "hover:bg-slate-100/70"
+                                }`}
+                              >
+                                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md border shadow-2xs transition-transform group-hover:scale-110 ${
+                                  esCerrado
+                                    ? "bg-slate-100 text-slate-500 border-slate-200"
+                                    : isSelected
+                                      ? "bg-[#002D4C] text-white border-[#002D4C]"
+                                      : "bg-white text-slate-700 border-slate-200"
+                                }`}>
+                                  {esCerrado ? "Cerrado" : `${pct}%`}
+                                </span>
+
+                                <div className="w-full h-36 bg-slate-100 rounded-xl flex items-end justify-center p-1 relative overflow-hidden border border-slate-200/70">
+                                  <div
+                                    className={`w-full rounded-lg transition-all duration-500 ${barColor} ${isSelected ? "brightness-110" : ""}`}
+                                    style={{ height: `${barHeight}%` }}
+                                  />
+                                </div>
+
+                                <div className="text-center">
+                                  <div className={`text-[11px] font-extrabold truncate uppercase ${isSelected ? "text-[#00629B]" : "text-slate-700"}`}>
+                                    {dia.dia_nombre.slice(0, 3)}
+                                  </div>
+                                  <div className="text-[10px] text-slate-600 font-mono">
+                                    {dia.fecha.slice(5)}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {diaPrediccionSeleccionado && (
+                        <div className="p-5 rounded-3xl bg-slate-50/70 border border-slate-200/80 space-y-4">
+                          <div className="flex items-center justify-between border-b border-slate-200/60 pb-3">
+                            <div>
+                              <h4 className="text-sm font-black text-slate-800">
+                                {diaPrediccionSeleccionado.dia_nombre} {diaPrediccionSeleccionado.fecha}
+                              </h4>
+                              <p className="text-[11px] text-slate-500">
+                                {prediccionData?.campus_nombre} · {prediccionData?.capacidad_campus || 10} cubículos
+                              </p>
+                            </div>
+                            <span className="px-3 py-1 rounded-full text-xs font-bold bg-[#00629B]/10 text-[#00629B]">
+                              {diaPrediccionSeleccionado.ocupacion_promedio_dia}% promedio
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                            {diaPrediccionSeleccionado.bloques.map((b) => {
+                              const pct = b.ocupacion_proyectada_pct;
+                              const badgeColor =
+                                b.nivel_demanda === "Alta"
+                                  ? "bg-rose-100 text-rose-800 border-rose-200"
+                                  : b.nivel_demanda === "Media"
+                                    ? "bg-amber-100 text-amber-800 border-amber-200"
+                                    : b.nivel_demanda === "Baja"
+                                      ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+                                      : "bg-slate-200 text-slate-600 border-slate-300";
+                              const barColor =
+                                pct >= 75 ? "bg-rose-500" : pct >= 45 ? "bg-amber-500" : "bg-emerald-500";
+                              return (
+                                <div key={b.hora} className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-2.5">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-black text-slate-800">{b.rango}</span>
+                                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md border ${badgeColor}`}>
+                                      {b.nivel_demanda === "Cerrado" ? "Cerrado" : b.nivel_demanda}
+                                    </span>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <div className="flex justify-between text-[11px] font-semibold text-slate-600">
+                                      <span>Ocupación</span>
+                                      <span className="font-extrabold text-slate-900">{pct}%</span>
+                                    </div>
+                                    <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
+                                      <div className={`h-full rounded-full transition-all duration-500 ${barColor}`} style={{ width: `${pct}%` }} />
+                                    </div>
+                                  </div>
+                                  <div className="flex justify-between text-[10px] text-slate-500 pt-1 border-t border-slate-100">
+                                    <span>Ocupados: <strong className="text-slate-800">{b.cubiculos_ocupados_estimados}</strong></span>
+                                    <span>Libres: <strong className="text-emerald-700">{b.cubiculos_libres_estimados}</strong></span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {(prediccionData?.autoevaluacion?.comparativa_diaria?.length > 0) && (
+                        <div className="p-6 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-4">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                            <div>
+                              <h3 className="text-sm font-black text-slate-800 flex items-center gap-2">
+                                <span className="text-[#00629B]"><UiIcon name="target" className="w-4 h-4" /></span> Predicción vs Ocupación Real (Autoentrenamiento)
+                              </h3>
+                              <p className="text-[11px] text-slate-500 mt-0.5">
+                                Contraste automático entre el aforo proyectado y la asistencia real registrada para calibrar futuras proyecciones.
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-3 text-[11px] font-bold">
+                              <span className="flex items-center gap-1.5 text-slate-600">
+                                <span className="w-2.5 h-2.5 rounded-full bg-[#00629B]"></span> Predicho
+                              </span>
+                              <span className="flex items-center gap-1.5 text-slate-600">
+                                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Real
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                            {prediccionData.autoevaluacion.comparativa_diaria.map((item) => (
+                              <div key={item.fecha} className="p-3.5 rounded-2xl bg-slate-50/70 border border-slate-200/80 space-y-2.5">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <div className="text-xs font-black text-slate-800">{item.dia_nombre}</div>
+                                    <div className="text-[10px] font-mono text-slate-500">{item.fecha}</div>
+                                  </div>
+                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    {item.precision_dia}% precisión
+                                  </span>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                  <div className="space-y-0.5">
+                                    <div className="flex justify-between text-[10px] font-semibold text-slate-600">
+                                      <span>Predicho</span>
+                                      <span className="font-bold text-[#00629B]">{item.pct_predicho}%</span>
+                                    </div>
+                                    <div className="w-full h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                                      <div className="h-full rounded-full bg-[#00629B]" style={{ width: `${Math.min(100, item.pct_predicho)}%` }} />
+                                    </div>
+                                  </div>
+
+                                  <div className="space-y-0.5">
+                                    <div className="flex justify-between text-[10px] font-semibold text-slate-600">
+                                      <span>Real</span>
+                                      <span className="font-bold text-emerald-600">{item.pct_real}%</span>
+                                    </div>
+                                    <div className="w-full h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                                      <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.min(100, item.pct_real)}%` }} />
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
             </>
           )}
 
@@ -5740,7 +5989,6 @@ export default function Dashboard() {
             <div className={`${CARD} p-6 md:p-8 mb-8 space-y-6 animate-fadeIn`}>
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
                 <div className="space-y-1.5">
-                  <span className={EYEBROW}>🏛️ Registro histórico</span>
                   <h2 className={SECTION_TITLE}>Historial de Reservas y Cancelaciones</h2>
                   <p className="text-xs text-slate-500 max-w-2xl leading-relaxed">
                     Consulta el registro permanente de reservas pasadas, archivadas o canceladas por los estudiantes.
@@ -5754,7 +6002,7 @@ export default function Dashboard() {
                     className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl shadow-[0_6px_16px_-8px_rgba(5,150,105,0.9)] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     title="Exportar archivo Excel (.xlsx)"
                   >
-                    <span>📊</span>
+                    <span><UiIcon name="chart" className="w-4 h-4" /></span>
                     <span>{exportandoExcel ? "Generando Excel..." : "Descargar Excel"}</span>
                   </button>
 
@@ -5765,7 +6013,7 @@ export default function Dashboard() {
                     className={BTN_DANGER}
                     title="Purgar y vaciar historial antiguo"
                   >
-                    <span>🗑️</span>
+                    <span><UiIcon name="trash" className="w-4 h-4" /></span>
                     <span>{limpiandoHistorial ? "Limpiando..." : "Limpiar historial"}</span>
                   </button>
 
@@ -5776,7 +6024,7 @@ export default function Dashboard() {
                     }}
                     className={`${BTN_PRIMARY} px-4 py-2.5`}
                   >
-                    <span>{mostrarHistorial ? "🙈 Ocultar" : "👁️ Mostrar"}</span>
+                    <span>{mostrarHistorial ? "Ocultar" : "Mostrar"}</span>
                   </button>
                 </div>
               </div>
@@ -5790,7 +6038,7 @@ export default function Dashboard() {
                           type="text"
                           value={busquedaHistorial}
                           onChange={(e) => setBusquedaHistorial(e.target.value)}
-                          placeholder="🔍 Buscar por alumno o RUT..."
+                          placeholder="Buscar por alumno o RUT..."
                           className={INPUT}
                         />
                       </div>
@@ -5799,9 +6047,9 @@ export default function Dashboard() {
                         onChange={(e) => setCampusFiltroHistorial(e.target.value)}
                         className={`${INPUT} sm:w-auto font-semibold cursor-pointer`}
                       >
-                        <option value="todos">🌐 Todas las sedes</option>
+                        <option value="todos">Todas las sedes</option>
                         {campus.map((c) => (
-                          <option key={c.id} value={c.id}>📍 {c.nombre}</option>
+                          <option key={c.id} value={c.id}>{c.nombre}</option>
                         ))}
                       </select>
                       <select
@@ -5809,17 +6057,17 @@ export default function Dashboard() {
                         onChange={(e) => setFiltroEstadoHistorial(e.target.value)}
                         className={`${INPUT} sm:w-auto font-semibold cursor-pointer`}
                       >
-                        <option value="todos">📋 Todos los estados</option>
-                        <option value="completada">✅ Completada con éxito</option>
-                        <option value="liberada">🔓 Liberada por estudiante</option>
-                        <option value="cancelada">🚫 Cancelada por admin</option>
-                        <option value="inasistencia">⚠️ Inasistencia</option>
-                        <option value="activa">🔵 Activa / En curso</option>
-                        <option value="justificada">⚖️ Justificada</option>
+                        <option value="todos">Todos los estados</option>
+                        <option value="completada">Completada con éxito</option>
+                        <option value="liberada">Liberada por estudiante</option>
+                        <option value="cancelada">Cancelada por admin</option>
+                        <option value="inasistencia">Inasistencia</option>
+                        <option value="activa">Activa / En curso</option>
+                        <option value="justificada">Justificada</option>
                       </select>
                     </div>
                     <button onClick={() => fetchHistorial(1, limiteHistorial)} className={BTN_GHOST}>
-                      🔄 Actualizar registros
+                      Actualizar registros
                     </button>
                   </div>
 
@@ -5876,16 +6124,16 @@ export default function Dashboard() {
                                       }`}
                                   >
                                     {h.estado === "inasistencia"
-                                      ? "⚠️ Inasistencia"
+                                      ? "Inasistencia"
                                       : h.estado === "liberada"
-                                        ? "🔓 Liberada"
+                                        ? "Liberada"
                                         : h.estado === "cancelada"
-                                          ? "🚫 Cancelada"
+                                          ? "Cancelada"
                                           : h.estado === "completada" || h.estado === "expirada"
-                                            ? "✅ Completada con éxito"
+                                            ? "Completada con éxito"
                                             : h.estado === "justificada"
-                                              ? "⚖️ Justificada"
-                                              : "🔵 Activa"}
+                                              ? "Justificada"
+                                              : "Activa"}
                                   </span>
                                 </td>
                               </tr>
@@ -5967,282 +6215,181 @@ export default function Dashboard() {
                 String(r.id || "").includes(termModal)
               )
               : reservasBloque;
-            const esCompacto = (cubiculosActuales >= 10) || (reservasBloque.length >= 6);
+
+            const pctOcupacion = Math.min(100, Math.round((reservasBloque.length / (cubiculosActuales || 1)) * 100));
+            const fechaFormateada = new Date(fechaSeleccionada + "T12:00:00").toLocaleDateString("es-CL", {
+              weekday: "long",
+              day: "numeric",
+              month: "long"
+            });
 
             return (
-              <div className={OVERLAY}>
-                <div className={`${MODAL} ${reservasBloque.length > 4 || cubiculosActuales >= 10 ? "max-w-6xl xl:max-w-7xl" : "max-w-4xl"} overflow-hidden max-h-[92vh] flex flex-col border border-slate-200/90 shadow-[0_32px_80px_-20px_rgba(0,45,76,0.35)] transition-all duration-300`}>
-                  <div className="h-1.5 w-full bg-gradient-to-r from-[#004D7A] via-[#00A3E0] to-[#FFC20E]" />
-
-                  <div className="p-5 sm:p-6 bg-white border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="space-y-1.5 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-sky-50 text-[#00629B] border border-sky-200/70 shadow-2xs">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#00A3E0] animate-pulse" />
-                          Auditoría de Turno
-                        </span>
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200/80">
-                          🏛️ {campusSeleccionadoObj?.nombre || "Sede activa"}
-                        </span>
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-200/70">
-                          📅 {new Date(fechaSeleccionada + "T12:00:00").toLocaleDateString("es-CL", { weekday: "short", day: "numeric", month: "short" })}
-                        </span>
+              <div className={OVERLAY} onClick={() => setBloqueSeleccionado(null)}>
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className={`${MODAL} ${reservasBloque.length > 4 ? "max-w-5xl" : "max-w-3xl"} overflow-hidden max-h-[88vh] flex flex-col bg-white border border-slate-200/90 rounded-2xl shadow-[0_24px_60px_-15px_rgba(15,23,42,0.22)] transition-all duration-200`}
+                >
+                  <div className="px-6 py-5 bg-white border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 capitalize">
+                        <span>{campusSeleccionadoObj?.nombre || "Sede activa"}</span>
+                        <span className="text-slate-300">•</span>
+                        <span>{fechaFormateada}</span>
                       </div>
-
-                      <h3 className="text-xl sm:text-2xl font-black font-sans text-slate-900 tracking-tight flex items-center gap-2.5 pt-0.5">
-                        <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#004D7A] to-[#00629B] text-white flex items-center justify-center text-sm shadow-[0_4px_12px_-2px_rgba(0,77,122,0.35)] shrink-0">
-                          ⏰
-                        </span>
-                        Bloque Horario {bloqueSeleccionado.rango}
+                      <h3 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight mt-0.5">
+                        Bloque {bloqueSeleccionado.rango}
                       </h3>
-
-                      <p className="text-xs text-slate-500 font-medium flex items-center gap-2">
-                        <span>Turno: <strong className="text-[#00629B] font-bold">{bloqueSeleccionado.hora} hrs</strong></span>
-                      </p>
                     </div>
 
-                    <div className="flex items-center gap-4 self-stretch md:self-center justify-between md:justify-end">
-                      <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-200/80 min-w-[190px]">
-                        <div className="flex items-center justify-between text-[11px] mb-1.5 font-bold">
-                          <span className="text-slate-500">Ocupación Sede:</span>
-                          <span className="text-slate-800">{reservasBloque.length} / {cubiculosActuales}</span>
+                    <div className="flex items-center gap-4 self-stretch sm:self-center justify-between sm:justify-end">
+                      <div className="min-w-[150px]">
+                        <div className="flex items-center justify-between text-xs mb-1.5">
+                          <span className="text-slate-500 font-medium">Ocupación</span>
+                          <span className="font-bold text-slate-800">{reservasBloque.length} / {cubiculosActuales}</span>
                         </div>
-                        <div className="h-2 w-full bg-slate-200/80 rounded-full overflow-hidden">
+                        <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
                           <div
-                            className="h-full bg-gradient-to-r from-[#00629B] via-[#00A3E0] to-[#FFC20E] rounded-full transition-all duration-300"
-                            style={{ width: `${Math.min(100, Math.round((reservasBloque.length / (cubiculosActuales || 1)) * 100))}%` }}
+                            className="h-full bg-[#00629B] rounded-full transition-all duration-300"
+                            style={{ width: `${pctOcupacion}%` }}
                           />
                         </div>
                       </div>
 
+                      {reservasBloque.length >= 4 && (
+                        <div className="relative w-48 sm:w-56">
+                          <input
+                            type="text"
+                            placeholder="Filtrar por alumno o RUT..."
+                            value={busquedaModalBloque}
+                            onChange={(e) => setBusquedaModalBloque(e.target.value)}
+                            className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-800 placeholder:text-slate-400 focus:bg-white focus:border-[#00629B] outline-none transition-all"
+                          />
+                          <svg className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 104.5 4.5a7.5 7.5 0 0012.15 12.15z" />
+                          </svg>
+                        </div>
+                      )}
+
                       <button
                         onClick={() => setBloqueSeleccionado(null)}
-                        className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-slate-500 hover:text-slate-900 font-bold flex items-center justify-center cursor-pointer transition-all hover:scale-105 active:scale-95 text-xs shrink-0"
-                        title="Cerrar ventana"
+                        className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center cursor-pointer transition-colors shrink-0"
+                        title="Cerrar"
                       >
                         ✕
                       </button>
                     </div>
                   </div>
 
-                  <div className="px-5 sm:px-6 py-3 bg-gradient-to-r from-slate-50 to-sky-50/40 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                    {haPasadoTolerancia10Min(fechaSeleccionada, bloqueSeleccionado?.hora) ? (
-                      <div className="flex items-center gap-2 text-amber-900">
-                        <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping shrink-0" />
-                        <span className="font-bold text-[11px] sm:text-xs">
-                          ⚠️ Ventana de tolerancia superada (+10 min transcurridos). Puedes registrar la inasistencia si el estudiante no asistió.
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2 text-slate-600">
-                        <span className="w-2 h-2 rounded-full bg-sky-500 shrink-0" />
-                        <span className="font-medium text-[11px] sm:text-xs">
-                          ⏱️ Ventana de espera activa. El botón para registrar inasistencia se activará tras 10 minutos de inicio del bloque.
-                        </span>
-                      </div>
-                    )}
-
-                    {reservasBloque.length >= 4 && (
-                      <div className="relative w-full sm:w-64">
-                        <input
-                          type="text"
-                          placeholder="Buscar cubículo o alumno..."
-                          value={busquedaModalBloque}
-                          onChange={(e) => setBusquedaModalBloque(e.target.value)}
-                          className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#00629B] focus:ring-2 focus:ring-[#00629B]/20 outline-none transition-all shadow-2xs"
-                        />
-                        <span className="absolute left-2.5 top-1.5 text-slate-400 text-xs pointer-events-none">🔍</span>
-                      </div>
-                    )}
-                  </div>
-
                   <div
-                    className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4 bg-slate-50/60 overscroll-contain"
-                    style={{ WebkitOverflowScrolling: "touch", willChange: "scroll-position", transform: "translateZ(0)" }}
+                    className="flex-1 overflow-y-auto p-6 bg-slate-50/50 overscroll-contain"
+                    style={{ WebkitOverflowScrolling: "touch" }}
                   >
                     {cargandoBloque ? (
-                      <div className={`grid grid-cols-1 ${cubiculosActuales >= 10 ? "sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "md:grid-cols-2"} gap-4 sm:gap-5`}>
-                        {Array.from({ length: Math.min(cubiculosActuales || 4, 8) }).map((_, i) => (
-                          <div key={i} className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-xs flex flex-col justify-between">
-                            <div className={`${esCompacto ? "h-24 sm:h-26" : "h-28 sm:h-32"} w-full bg-slate-200/80`} />
-                            <div className="p-4 sm:p-5 space-y-3">
-                              <div className="flex gap-2">
-                                <div className="h-4 w-20 rounded-full bg-slate-200/80" />
-                                <div className="h-4 w-24 rounded-full bg-slate-200/60" />
-                              </div>
-                              <div className="h-5 w-40 rounded-lg bg-slate-200/70" />
-                              <div className="h-4 w-28 rounded bg-slate-200/50" />
-                              <div className="h-9 w-full rounded-xl bg-slate-100" />
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {Array.from({ length: Math.min(cubiculosActuales || 3, 6) }).map((_, i) => (
+                          <div key={i} className="p-5 rounded-xl border border-slate-200/80 bg-white space-y-3 animate-pulse">
+                            <div className="flex justify-between">
+                              <div className="h-5 w-24 rounded-md bg-slate-200/80" />
+                              <div className="h-4 w-12 rounded bg-slate-100" />
                             </div>
-                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/60 to-transparent animate-shimmer" />
+                            <div className="h-4 w-40 rounded bg-slate-200/70" />
+                            <div className="h-3 w-28 rounded bg-slate-100" />
+                            <div className="h-8 w-full rounded-lg bg-slate-100 mt-2" />
                           </div>
                         ))}
                       </div>
                     ) : reservasBloque.length === 0 ? (
-                      <div className="py-14 px-6 text-center bg-white rounded-3xl border border-dashed border-slate-200 shadow-2xs space-y-3">
-                        <div className="w-14 h-14 rounded-2xl bg-sky-50 text-2xl flex items-center justify-center mx-auto border border-sky-100">
-                          📭
-                        </div>
-                        <h4 className="text-sm font-extrabold text-slate-800">No hay reservas activas en este bloque</h4>
-                        <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
-                          No se encontraron alumnos con cupos asignados en este horario para la fecha seleccionada.
+                      <div className="py-14 px-6 text-center bg-white rounded-xl border border-slate-200/80 space-y-1.5">
+                        <h4 className="text-sm font-semibold text-slate-800">Sin reservas activas en este horario</h4>
+                        <p className="text-xs text-slate-500">
+                          Todos los cubículos se encuentran disponibles en este bloque.
                         </p>
                       </div>
                     ) : reservasBloqueFiltradas.length === 0 ? (
-                      <div className="py-12 px-6 text-center bg-white rounded-3xl border border-dashed border-slate-200 shadow-2xs space-y-2">
-                        <span className="text-2xl">🔎</span>
-                        <h4 className="text-sm font-extrabold text-slate-800">Sin coincidencias</h4>
-                        <p className="text-xs text-slate-500">No se encontraron reservas con el filtro '{busquedaModalBloque}'.</p>
+                      <div className="py-12 px-6 text-center bg-white rounded-xl border border-slate-200/80 space-y-2">
+                        <h4 className="text-sm font-semibold text-slate-800">Sin coincidencias</h4>
+                        <p className="text-xs text-slate-500">No se encontraron resultados para "{busquedaModalBloque}".</p>
                         <button
                           type="button"
                           onClick={() => setBusquedaModalBloque("")}
-                          className="mt-2 text-xs font-bold text-[#00629B] hover:underline cursor-pointer"
+                          className="text-xs font-semibold text-[#00629B] hover:underline cursor-pointer"
                         >
-                          Mostrar todos los cubículos
+                          Limpiar filtro
                         </button>
                       </div>
                     ) : (
-                      <div className={`grid grid-cols-1 ${reservasBloqueFiltradas.length === 1
+                      <div className={`grid grid-cols-1 ${
+                        reservasBloqueFiltradas.length === 1
                           ? "max-w-md mx-auto"
-                          : reservasBloqueFiltradas.length <= 4 && cubiculosActuales < 10
+                          : reservasBloqueFiltradas.length === 2
                             ? "sm:grid-cols-2"
-                            : "sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
-                        } gap-4 sm:gap-5`}>
-                        {reservasBloqueFiltradas.map((res, idx) => {
-                          const haPasado10 = haPasadoTolerancia10Min(res.fecha || fechaSeleccionada, res.hora || bloqueSeleccionado?.hora);
-
-                          return (
-                            <div
-                              key={res.id || idx}
-                              className="group rounded-3xl border border-slate-200/90 bg-white hover:border-[#00629B]/50 hover:shadow-md transition-[border-color,box-shadow] duration-150 shadow-xs overflow-hidden flex flex-col justify-between"
-                              style={{ transform: "translateZ(0)", backfaceVisibility: "hidden" }}
-                            >
-                              <div
-                                className={`relative ${esCompacto ? "h-24 sm:h-26" : "h-28 sm:h-32"} w-full overflow-hidden bg-gradient-to-br from-[#003B5C] via-[#00629B] to-[#00A3E0]`}
-                                style={{ transform: "translateZ(0)" }}
-                              >
-                                <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 360 140" preserveAspectRatio="none" fill="none">
-                                  <path d="M -20,35 C 60,95 100,10 180,50 C 260,90 300,15 380,55" stroke="rgba(255,255,255,0.25)" strokeWidth="2.2" />
-                                  <path d="M -15,100 C 55,30 135,125 215,80 C 295,35 325,105 385,85" stroke="rgba(255,255,255,0.3)" strokeWidth="2" />
-                                  <path d="M 45,-15 C 95,55 55,110 135,125 C 215,140 205,60 295,95" stroke="rgba(255,255,255,0.2)" strokeWidth="1.8" />
-                                  <path d="M 85,25 C 140,60 160,105 130,130 C 100,155 55,125 65,85 C 75,45 105,50 135,70" stroke="rgba(255,255,255,0.25)" strokeWidth="2" />
-                                  <path d="M 175,15 C 230,45 255,95 220,120 C 185,145 155,95 175,55" stroke="rgba(255,255,255,0.18)" strokeWidth="1.6" />
-                                </svg>
-
-                                <div className="absolute top-3 left-3">
-                                  <span className="bg-white/25 border border-white/40 text-white font-black text-xs px-3 py-1 rounded-full shadow-2xs tracking-wide">
-                                    🏛️ Cubículo {res.cubiculo_codigo || `CUB-${idx + 1}`}
-                                  </span>
-                                </div>
-
-                                <div className="absolute top-3 right-3">
-                                  <span className="bg-slate-950/40 border border-white/20 text-white font-mono text-[11px] font-bold px-2.5 py-0.5 rounded-full shadow-2xs">
-                                    #{res.id}
-                                  </span>
-                                </div>
+                            : "sm:grid-cols-2 lg:grid-cols-3"
+                      } gap-4`}>
+                        {reservasBloqueFiltradas.map((res, idx) => (
+                          <div
+                            key={res.id || idx}
+                            className="rounded-xl border border-slate-200/90 border-l-4 border-l-[#00629B] bg-white hover:border-slate-300 hover:shadow-sm transition-all p-4 flex flex-col justify-between gap-4"
+                          >
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-bold bg-[#002D4C] text-white tracking-wide">
+                                  Cubículo {res.cubiculo_codigo || `C-${idx + 1}`}
+                                </span>
+                                <span className="text-[11px] font-mono text-slate-400">
+                                  #{res.id}
+                                </span>
                               </div>
 
-                              <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3.5 bg-white">
-                                <div className="space-y-2.5">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <span className="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-gradient-to-r from-[#004D7A] to-[#00629B] text-white shadow-2xs">
-                                      Cubículo Asignado
-                                    </span>
-                                    <span className="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-[#FFC20E] text-slate-950 shadow-2xs">
-                                      {haPasado10 ? "⚠️ Tolerancia Cumplida" : "⏱️ En Espera (10m)"}
-                                    </span>
-                                  </div>
+                              <div>
+                                <h4 className="text-sm font-bold text-slate-900 leading-snug">
+                                  {res.nombre}
+                                </h4>
+                                <p className="text-xs font-mono text-slate-500 mt-0.5">
+                                  RUT: {res.rut}
+                                </p>
+                              </div>
 
-                                  <div>
-                                    <span className="text-[10px] uppercase font-extrabold tracking-wider text-slate-400 block">
-                                      Alumno Titular
-                                    </span>
-                                    <h4 className="text-base font-black font-sans text-slate-900 tracking-tight">
-                                      {res.nombre}
-                                    </h4>
-                                    <p className="text-xs font-mono font-semibold text-slate-500 mt-0.5 flex items-center gap-1.5">
-                                      <span className="text-slate-400">🪪</span> RUT: <strong className="text-slate-700 font-bold">{res.rut}</strong>
-                                    </p>
-                                  </div>
-
-                                  {res.acompanantes && res.acompanantes.length > 0 && (
-                                    <div className="pt-2 border-t border-slate-100 text-xs">
-                                      <span className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider block mb-1">
-                                        Acompañantes ({res.acompanantes.length}):
+                              {res.acompanantes && res.acompanantes.length > 0 && (
+                                <div className="pt-2.5 border-t border-slate-100">
+                                  <span className="text-[11px] font-semibold text-slate-500 block mb-1.5">
+                                    Acompañantes ({res.acompanantes.length})
+                                  </span>
+                                  <div className="flex flex-wrap gap-1">
+                                    {res.acompanantes.map((ac, i) => (
+                                      <span key={i} className="text-[11px] bg-slate-50 border border-slate-200/80 text-slate-700 px-2 py-0.5 rounded-md">
+                                        {ac.nombre}{ac.rut ? ` · ${ac.rut}` : ""}
                                       </span>
-                                      <div className="flex flex-wrap gap-1.5">
-                                        {res.acompanantes.map((ac, i) => (
-                                          <span key={i} className="text-[11px] font-medium bg-slate-50 border border-slate-200 text-slate-700 px-2 py-0.5 rounded-lg">
-                                            {ac.nombre} {ac.rut ? `(${ac.rut})` : ""}
-                                          </span>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
+                                    ))}
+                                  </div>
                                 </div>
-
-                                <div className="pt-3 border-t border-slate-100 flex items-center gap-2">
-                                  {haPasado10 ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleMarcarInasistencia(res.id, res.rut, res.nombre)}
-                                      disabled={eliminandoReservaId === res.id}
-                                      className="flex-1 py-2 px-3 rounded-xl bg-gradient-to-r from-[#FFD54A] via-[#FFC20E] to-[#E5AC00] hover:from-[#FFC20E] hover:to-[#EDB100] text-slate-950 font-black text-xs transition-colors duration-150 flex items-center justify-center gap-1.5 shadow-xs cursor-pointer disabled:opacity-50"
-                                      title="Pasaron 10 minutos. Eliminar y registrar como inasistencia."
-                                    >
-                                      {eliminandoReservaId === res.id ? (
-                                        <span>Procesando...</span>
-                                      ) : (
-                                        <>
-                                          <span>⚠️</span> Inasistencia (+10m)
-                                        </>
-                                      )}
-                                    </button>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      disabled
-                                      className="flex-1 py-2 px-3 rounded-xl bg-slate-100 border border-slate-200 text-slate-400 font-bold text-xs flex items-center justify-center gap-1.5 cursor-not-allowed"
-                                      title="Se activará tras 10 minutos del inicio del bloque"
-                                    >
-                                      <span>⏱️</span> Espera 10m
-                                    </button>
-                                  )}
-
-                                  <button
-                                    type="button"
-                                    onClick={() => handleEliminarReserva(res.id)}
-                                    disabled={eliminandoReservaId === res.id}
-                                    className="py-2 px-3.5 rounded-xl bg-white hover:bg-rose-50 border border-rose-200 text-rose-600 font-bold text-xs transition-colors duration-150 flex items-center justify-center gap-1 shadow-2xs cursor-pointer hover:border-rose-300 disabled:opacity-50"
-                                    title="Eliminar o cancelar esta reserva"
-                                  >
-                                    {eliminandoReservaId === res.id ? (
-                                      <span>Eliminando...</span>
-                                    ) : (
-                                      <>
-                                        <span>🗑️</span> Cancelar
-                                      </>
-                                    )}
-                                  </button>
-                                </div>
-                              </div>
+                              )}
                             </div>
-                          );
-                        })}
+
+                            <div className="pt-3 border-t border-slate-100">
+                              <button
+                                type="button"
+                                onClick={() => handleLiberarCubiculo(res.id, res.rut, res.nombre)}
+                                disabled={eliminandoReservaId === res.id}
+                                className="w-full py-2 px-3 rounded-lg border border-slate-200 bg-slate-50 hover:bg-[#00629B] hover:border-[#00629B] text-slate-700 hover:text-white font-semibold text-xs transition-colors cursor-pointer disabled:opacity-50"
+                              >
+                                {eliminandoReservaId === res.id ? "Liberando..." : "Liberar cubículo"}
+                              </button>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
 
-                  <div className="p-4 sm:p-5 bg-white border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-3">
-                    <p className="text-[11px] text-slate-500 flex items-center gap-1.5">
-                      <span>💡</span>
-                      <span>Las inasistencias registradas aplican al contador de suspensiones (2 inasistencias = suspensión de 3 días).</span>
-                    </p>
+                  <div className="px-6 py-3.5 bg-white border-t border-slate-100 flex items-center justify-between gap-3">
+                    <span className="text-xs text-slate-500">
+                      {reservasBloqueFiltradas.length} {reservasBloqueFiltradas.length === 1 ? "reserva registrada" : "reservas registradas"}
+                    </span>
                     <button
                       onClick={() => setBloqueSeleccionado(null)}
-                      className="w-full sm:w-auto py-2.5 px-6 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-sm hover:shadow transition-all cursor-pointer"
+                      className="py-2 px-5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
                     >
-                      Entendido / Cerrar
+                      Cerrar
                     </button>
                   </div>
                 </div>
@@ -6255,8 +6402,7 @@ export default function Dashboard() {
               <div className={`${MODAL} max-w-4xl p-6 md:p-8 space-y-6 max-h-[90vh] flex flex-col overflow-hidden`}>
                 <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
                   <div className="space-y-1.5">
-                    <span className={EYEBROW}>Visualización interactiva</span>
-                    <h3 className="text-xl font-serif font-bold text-slate-900">
+                    <h3 className="text-xl font-sans font-bold text-slate-900">
                       Análisis de demanda y ocupación
                     </h3>
                   </div>
@@ -6273,7 +6419,7 @@ export default function Dashboard() {
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
                       <div>
                         <h4 className="text-xs font-bold text-slate-900 flex items-center gap-2">
-                          <span className="text-[#00629B]">📊</span> Horarios de mayor ocupación
+                          <span className="text-[#00629B]"><UiIcon name="chart" className="w-4 h-4" /></span> Horarios de mayor ocupación
                         </h4>
                         <p className="text-[11px] text-slate-500 mt-0.5">
                           Distribución del flujo de estudiantes agendados por bloque horario
@@ -6330,7 +6476,7 @@ export default function Dashboard() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div className="p-5 bg-white rounded-2xl border border-slate-200/80 space-y-4 shadow-xs">
                       <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                        <span>📅</span> Ocupación por día de la semana
+                        <span><UiIcon name="calendar" className="w-4 h-4" /></span> Ocupación por día de la semana
                       </h4>
                       <div className="space-y-3">
                         {(metricas?.dias_demanda && metricas.dias_demanda.length > 0
@@ -6371,7 +6517,7 @@ export default function Dashboard() {
                     <div className="p-5 bg-white rounded-2xl border border-slate-200/80 space-y-4 flex flex-col justify-between shadow-xs">
                       <div>
                         <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                          <span>🎯</span> Resumen de eficiencia
+                          <span><UiIcon name="target" className="w-4 h-4" /></span> Resumen de eficiencia
                         </h4>
                         <p className="text-[11px] text-slate-500 mt-1">
                           Indicadores clave para decisiones de infraestructura.
@@ -6406,7 +6552,7 @@ export default function Dashboard() {
                       </div>
 
                       <div className="p-3.5 bg-sky-50/70 rounded-xl text-[11px] text-slate-700 border border-sky-100 leading-relaxed">
-                        💡 <strong>Recomendación:</strong> optimizar cubículos en bloques de alta demanda durante los días pico.
+                        <strong>Recomendación:</strong> optimizar cubículos en bloques de alta demanda durante los días pico.
                       </div>
                     </div>
                   </div>
@@ -6424,183 +6570,10 @@ export default function Dashboard() {
             </div>
           )}
 
-          {(activeTab === "sanciones") && (
-            <div className={`${CARD} p-6 md:p-8 mb-8 space-y-7 animate-fadeIn`}>
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
-                <div className="space-y-1.5">
-                  <span className={EYEBROW}>⚖️ Asistencia y Disciplina</span>
-                  <h2 className={SECTION_TITLE}>Estudiantes Sancionados y Penalizaciones</h2>
-                  <p className="text-xs text-slate-500 max-w-2xl leading-relaxed">
-                    Supervisa a los estudiantes con inasistencias acumuladas y suspensiones temporales activas. Puedes levantar sanciones justificando sus inasistencias directamente.
-                  </p>
-                </div>
-                <button onClick={fetchSancionados} className={BTN_GHOST}>
-                  🔄 Actualizar
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="p-4 rounded-2xl bg-rose-50/70 border border-rose-200/80 shadow-xs flex items-center gap-3.5">
-                  <div className="w-12 h-12 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center text-xl shrink-0">
-                    🚫
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-semibold text-rose-600 uppercase tracking-wider">Cuentas Suspendidas</p>
-                    <p className="text-2xl font-extrabold text-rose-950">
-                      {sancionados.filter((s) => s.suspendido).length}
-                    </p>
-                    <p className="text-[10px] text-rose-700">Bloqueados temporalmente (≥ 2 inasistencias)</p>
-                  </div>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200/80 shadow-xs flex items-center gap-3.5">
-                  <div className="w-12 h-12 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center text-xl shrink-0">
-                    ⚠️
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-semibold text-amber-700 uppercase tracking-wider">En Advertencia</p>
-                    <p className="text-2xl font-extrabold text-amber-950">
-                      {sancionados.filter((s) => !s.suspendido).length}
-                    </p>
-                    <p className="text-[10px] text-amber-800">1 inasistencia registrada</p>
-                  </div>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-slate-50/80 border border-slate-200/80 shadow-xs flex items-center gap-3.5">
-                  <div className="w-12 h-12 rounded-xl bg-slate-200/70 text-slate-700 flex items-center justify-center text-xl shrink-0">
-                    👥
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-semibold text-slate-600 uppercase tracking-wider">Total Con Inasistencias</p>
-                    <p className="text-2xl font-extrabold text-slate-900">
-                      {sancionados.length}
-                    </p>
-                    <p className="text-[10px] text-slate-500">Estudiantes en el registro disciplinario</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                <div className="relative flex-1 max-w-md">
-                  <input
-                    type="text"
-                    placeholder="Buscar estudiante por nombre o RUT..."
-                    value={busquedaSancionados}
-                    onChange={(e) => setBusquedaSancionados(e.target.value)}
-                    className={`${INPUT} pl-9`}
-                  />
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">
-                    🔍
-                  </span>
-                  {busquedaSancionados && (
-                    <button
-                      type="button"
-                      onClick={() => setBusquedaSancionados("")}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                {cargandoSancionados ? (
-                  <div className="py-16 text-center text-xs text-[#00629B] font-medium animate-pulse">
-                    Cargando estudiantes sancionados...
-                  </div>
-                ) : sancionados.length === 0 ? (
-                  <div className="py-14 text-center border border-dashed border-slate-200 rounded-2xl bg-slate-50/60 text-xs text-slate-500 space-y-2">
-                    <span className="text-3xl block">🎉</span>
-                    <p className="font-bold text-slate-700">No hay estudiantes sancionados</p>
-                    <p className="text-[11px] text-slate-400">Todos los estudiantes cuentan con su historial de asistencia al día.</p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-xs">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead>
-                        <tr className="border-b border-slate-100 bg-slate-50/75 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                          <th className="py-3 px-4">Estudiante</th>
-                          <th className="py-3 px-4">RUT</th>
-                          <th className="py-3 px-4 text-center">Inasistencias</th>
-                          <th className="py-3 px-4">Estado Disciplinario</th>
-                          <th className="py-3 px-4">Última Inasistencia</th>
-                          <th className="py-3 px-4 text-right">Acción</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {sancionados
-                          .filter((s) => {
-                            if (!busquedaSancionados.trim()) return true;
-                            const q = busquedaSancionados.toLowerCase();
-                            return (
-                              (s.nombre || "").toLowerCase().includes(q) ||
-                              (s.rut || "").toLowerCase().includes(q)
-                            );
-                          })
-                          .map((est) => (
-                            <tr key={est.rut} className="hover:bg-slate-50/70 transition-colors">
-                              <td className="py-3.5 px-4 font-bold text-slate-900">
-                                {est.nombre}
-                              </td>
-                              <td className="py-3.5 px-4 font-mono text-[11px] text-slate-600">
-                                {est.rut}
-                              </td>
-                              <td className="py-3.5 px-4 text-center">
-                                <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[11px] font-bold ${est.suspendido
-                                  ? "bg-rose-100 text-rose-800"
-                                  : "bg-amber-100 text-amber-800"
-                                  }`}>
-                                  {est.total_inasistencias}
-                                </span>
-                              </td>
-                              <td className="py-3.5 px-4">
-                                {est.suspendido ? (
-                                  <div className="space-y-0.5">
-                                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-rose-50 text-rose-700 border border-rose-200">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
-                                      Suspendido ({est.dias_restantes}d restantes)
-                                    </span>
-                                    {est.fecha_desbloqueo && (
-                                      <p className="text-[10px] text-slate-500">
-                                        Hasta el {est.fecha_desbloqueo}
-                                      </p>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-200">
-                                    ⚠️ Advertencia (1 falta)
-                                  </span>
-                                )}
-                              </td>
-                              <td className="py-3.5 px-4 text-slate-500 text-[11px]">
-                                {est.ultima_inasistencia || "Reciente"}
-                              </td>
-                              <td className="py-3.5 px-4 text-right">
-                                <button
-                                  type="button"
-                                  onClick={() => handleLevantarSancion(est)}
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-semibold text-xs cursor-pointer shadow-xs transition-all"
-                                  title="Justificar inasistencias y levantar sanción"
-                                >
-                                  <span>🕊️</span> Quitar sanción
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
           {(activeTab === "incidencias") && (
             <div className={`${CARD} p-6 md:p-8 mb-8 space-y-7 animate-fadeIn`}>
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
                 <div className="space-y-1.5">
-                  <span className={EYEBROW}>⚠️ Mesa de Ayuda y Mantenimiento</span>
                   <div className="flex items-center gap-2.5">
                     <h2 className={SECTION_TITLE}>Reporte de Incidencias en Cubículos</h2>
                     {incidencias.filter((i) => i.estado === "pendiente" || i.estado === "en_revision").length > 0 && (
@@ -6631,9 +6604,7 @@ export default function Dashboard() {
 
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                 <div className="relative flex-1 max-w-md">
-                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                    🔍
-                  </span>
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400"><UiIcon name="search" className="w-4 h-4" /></span>
                   <input
                     type="text"
                     placeholder="Buscar por cubículo, sede, alumno o descripción..."
@@ -6673,11 +6644,11 @@ export default function Dashboard() {
               <div className="space-y-4">
                 {cargandoIncidencias ? (
                   <div className="p-8 text-center text-slate-400 text-xs flex items-center justify-center gap-2">
-                    <span className="animate-spin text-base">⏳</span> Cargando incidencias...
+                    <span className="animate-spin text-base"><UiIcon name="clock" className="w-4 h-4" /></span> Cargando incidencias...
                   </div>
                 ) : incidencias.length === 0 ? (
                   <div className="p-12 text-center border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
-                    <span className="text-3xl block mb-2">🎉</span>
+                    <span className="text-3xl block mb-2"><UiIcon name="check" className="w-4 h-4" /></span>
                     <p className="text-sm font-semibold text-slate-700">No hay incidencias registradas</p>
                     <p className="text-xs text-slate-400 mt-1">Todos los cubículos están operando sin reportes de fallas.</p>
                   </div>
@@ -6724,12 +6695,12 @@ export default function Dashboard() {
                               </td>
                               <td className="py-3.5 px-4">
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-slate-700 capitalize">
-                                  {inc.categoria === "electricidad" && "⚡ Electricidad"}
-                                  {inc.categoria === "mobiliario" && "🪑 Mobiliario"}
-                                  {inc.categoria === "limpieza" && "🧹 Limpieza"}
-                                  {inc.categoria === "tecnologia" && "🖥️ Tecnología"}
-                                  {inc.categoria === "clima" && "❄️ Climatización"}
-                                  {inc.categoria === "otro" && "📌 Otro"}
+                                  {inc.categoria === "electricidad" && "Electricidad"}
+                                  {inc.categoria === "mobiliario" && "Mobiliario"}
+                                  {inc.categoria === "limpieza" && "Limpieza"}
+                                  {inc.categoria === "tecnologia" && "Tecnología"}
+                                  {inc.categoria === "clima" && "Climatización"}
+                                  {inc.categoria === "otro" && "Otro"}
                                   {!["electricidad", "mobiliario", "limpieza", "tecnologia", "clima", "otro"].includes(inc.categoria) && inc.categoria}
                                 </span>
                               </td>
@@ -6752,9 +6723,9 @@ export default function Dashboard() {
                                     ? "bg-amber-50 text-amber-800 border border-amber-200"
                                     : "bg-emerald-50 text-emerald-800 border border-emerald-200"
                                   }`}>
-                                  {inc.estado === "pendiente" && "⚠️ Pendiente"}
-                                  {inc.estado === "en_revision" && "🔧 En revisión"}
-                                  {inc.estado === "resuelta" && "✅ Resuelta"}
+                                  {inc.estado === "pendiente" && "Pendiente"}
+                                  {inc.estado === "en_revision" && "En revisión"}
+                                  {inc.estado === "resuelta" && "Resuelta"}
                                 </span>
                               </td>
                               <td className="py-3.5 px-4 text-right">
@@ -6767,7 +6738,7 @@ export default function Dashboard() {
                                         className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-900 font-semibold text-[11px] cursor-pointer shadow-xs transition"
                                         title="Poner cubículo en mantenimiento"
                                       >
-                                        <span>🛠️</span> Mantención
+                                        <span><UiIcon name="wrench" className="w-4 h-4" /></span> Mantención
                                       </button>
                                       <button
                                         type="button"
@@ -6775,7 +6746,7 @@ export default function Dashboard() {
                                         className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-semibold text-[11px] cursor-pointer shadow-xs transition"
                                         title="Marcar como resuelta"
                                       >
-                                        <span>✅</span> Resolver
+                                        <span><UiIcon name="check" className="w-4 h-4" /></span> Resolver
                                       </button>
                                     </>
                                   )}
@@ -6786,7 +6757,7 @@ export default function Dashboard() {
                                       className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 font-medium text-[11px] cursor-pointer transition"
                                       title="Reabrir incidencia"
                                     >
-                                      <span>🔄</span> Reabrir
+                                      <span><UiIcon name="refresh" className="w-4 h-4" /></span> Reabrir
                                     </button>
                                   )}
                                 </div>
@@ -6805,7 +6776,6 @@ export default function Dashboard() {
             <div className={`${CARD} p-6 md:p-8 mb-8 space-y-7 animate-fadeIn`}>
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
                 <div className="space-y-1.5">
-                  <span className={EYEBROW}>🎓 Asistente Virtual & n8n</span>
                   <h2 className={SECTION_TITLE}>Talleres Especializados Solicitados</h2>
                   <p className="text-xs text-slate-500 max-w-2xl leading-relaxed">
                     Gestiona las solicitudes de talleres de biblioteca enviadas por los estudiantes a través del asistente virtual.
@@ -6816,7 +6786,7 @@ export default function Dashboard() {
                   disabled={cargandoTalleres}
                   className={BTN_GHOST}
                 >
-                  🔄 {cargandoTalleres ? "Cargando..." : "Actualizar"}
+                  {cargandoTalleres ? "Cargando..." : "Actualizar"}
                 </button>
               </div>
 
@@ -6824,23 +6794,23 @@ export default function Dashboard() {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
                 <div className="p-4 rounded-2xl bg-sky-50/60 border border-sky-100 text-sky-950">
                   <p className="text-[11px] font-bold text-[#00629B] uppercase tracking-wider">Total Solicitudes</p>
-                  <p className="text-2xl font-serif font-bold text-slate-900 mt-1">{solicitudesTalleres.length}</p>
+                  <p className="text-2xl font-sans font-bold text-slate-900 mt-1">{solicitudesTalleres.length}</p>
                 </div>
                 <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-100 text-amber-950">
                   <p className="text-[11px] font-bold text-amber-700 uppercase tracking-wider">Pendientes</p>
-                  <p className="text-2xl font-serif font-bold text-slate-900 mt-1">
+                  <p className="text-2xl font-sans font-bold text-slate-900 mt-1">
                     {solicitudesTalleres.filter((s) => s.estado === "pendiente").length}
                   </p>
                 </div>
                 <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-100 text-emerald-950">
                   <p className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider">Aprobados</p>
-                  <p className="text-2xl font-serif font-bold text-slate-900 mt-1">
+                  <p className="text-2xl font-sans font-bold text-slate-900 mt-1">
                     {solicitudesTalleres.filter((s) => s.estado === "aprobado").length}
                   </p>
                 </div>
                 <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-slate-800">
                   <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Realizados</p>
-                  <p className="text-2xl font-serif font-bold text-slate-900 mt-1">
+                  <p className="text-2xl font-sans font-bold text-slate-900 mt-1">
                     {solicitudesTalleres.filter((s) => s.estado === "realizado").length}
                   </p>
                 </div>
@@ -6857,7 +6827,7 @@ export default function Dashboard() {
                     placeholder="Buscar por estudiante, RUT, carrera o taller..."
                     className={`${INPUT} pl-9`}
                   />
-                  <span className="absolute left-3 top-2.5 text-slate-400 text-xs">🔍</span>
+                  <span className="absolute left-3 top-2.5 text-slate-400 text-xs"><UiIcon name="search" className="w-4 h-4" /></span>
                 </div>
 
                 <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -6867,10 +6837,10 @@ export default function Dashboard() {
                     className={`${INPUT} sm:w-44 font-semibold cursor-pointer`}
                   >
                     <option value="">Todos los estados</option>
-                    <option value="pendiente">⏳ Pendientes</option>
-                    <option value="aprobado">✅ Aprobados</option>
-                    <option value="realizado">🎯 Realizados</option>
-                    <option value="rechazado">❌ Rechazados</option>
+                    <option value="pendiente">Pendientes</option>
+                    <option value="aprobado">Aprobados</option>
+                    <option value="realizado">Realizados</option>
+                    <option value="rechazado">Rechazados</option>
                   </select>
                   <button
                     onClick={fetchSolicitudesTalleres}
@@ -6888,7 +6858,7 @@ export default function Dashboard() {
                 </div>
               ) : solicitudesTalleres.length === 0 ? (
                 <div className="py-16 text-center border border-dashed border-slate-200 rounded-2xl bg-slate-50/60 space-y-2">
-                  <span className="text-3xl">🎓</span>
+                  <span className="text-3xl"><UiIcon name="academic" className="w-4 h-4" /></span>
                   <p className="text-xs font-bold text-slate-800">No hay solicitudes de talleres</p>
                   <p className="text-[11px] text-slate-500">
                     {busquedaTaller || filtroEstadoTaller ? "No se encontraron resultados con los filtros actuales." : "Las solicitudes registradas por los estudiantes desde el chatbot aparecerán aquí."}
@@ -6917,7 +6887,7 @@ export default function Dashboard() {
                             <td className="py-3.5 px-4 font-mono font-bold text-slate-500">#{s.id}</td>
                             <td className="py-3.5 px-4 font-semibold text-slate-900 max-w-[220px]">
                               <div className="flex items-center gap-2">
-                                <span className="text-base shrink-0">🎓</span>
+                                <span className="text-base shrink-0"><UiIcon name="academic" className="w-4 h-4" /></span>
                                 <span className="leading-tight">{s.taller}</span>
                               </div>
                             </td>
@@ -6931,11 +6901,11 @@ export default function Dashboard() {
                                 ? "bg-purple-50 border-purple-200 text-purple-700"
                                 : "bg-sky-50 border-sky-200 text-[#00629B]"
                                 }`}>
-                                {s.modalidad?.toLowerCase().includes("virtual") ? "💻 Virtual" : "🏛️ Presencial"}
+                                {s.modalidad?.toLowerCase().includes("virtual") ? "Virtual" : "Presencial"}
                               </span>
                             </td>
                             <td className="py-3.5 px-4 font-semibold text-slate-700">
-                              👥 {s.participantes} pers.
+                              {s.participantes} pers.
                             </td>
                             <td className="py-3.5 px-4 text-slate-500 text-[11px]">
                               {s.created_at ? s.created_at.slice(0, 16).replace("T", " ") : "Reciente"}
@@ -6949,7 +6919,7 @@ export default function Dashboard() {
                                     ? "bg-rose-50 border-rose-200 text-rose-700"
                                     : "bg-amber-50 border-amber-200 text-amber-800"
                                 }`}>
-                                {s.estado === "aprobado" ? "✅ Aprobado" : s.estado === "realizado" ? "🎯 Realizado" : s.estado === "rechazado" ? "❌ Rechazado" : "⏳ Pendiente"}
+                                {s.estado === "aprobado" ? "Aprobado" : s.estado === "realizado" ? "Realizado" : s.estado === "rechazado" ? "Rechazado" : "Pendiente"}
                               </span>
                             </td>
                             <td className="py-3.5 px-4 text-right">
@@ -6970,7 +6940,7 @@ export default function Dashboard() {
                                   className="px-2 py-1 rounded-lg bg-sky-50 text-[#00629B] hover:bg-sky-100 border border-sky-200 text-[10px] font-bold cursor-pointer transition-colors inline-flex items-center gap-1"
                                   title="Responder por correo al estudiante"
                                 >
-                                  ✉️ Responder
+                                  Responder
                                 </button>
                                 <button
                                   type="button"
@@ -6978,7 +6948,7 @@ export default function Dashboard() {
                                   className="p-1 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 cursor-pointer transition-colors"
                                   title="Eliminar registro"
                                 >
-                                  🗑️
+                                  <UiIcon name="trash" className="w-4 h-4" />
                                 </button>
                               </div>
                             </td>
@@ -7035,14 +7005,14 @@ export default function Dashboard() {
                   )}
                 </div>
               )}
-            </div>
+
+                          </div>
           )}
 
           {(activeTab === "calendario") && (
             <div className="space-y-7 mb-8 animate-fadeIn">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
                 <div className="space-y-1.5">
-                  <span className={EYEBROW}>📅 Control de disponibilidad</span>
                   <h2 className={SECTION_TITLE}>Bloqueo de Días en el Calendario</h2>
                   <p className="text-xs text-slate-500 max-w-2xl leading-relaxed">
                     Haz clic en cualquier día del calendario para inhabilitarlo o habilitarlo. Los días bloqueados se marcan en rojo y no permitirán reservas.
@@ -7058,7 +7028,7 @@ export default function Dashboard() {
                     className={BTN_GHOST}
                     title="Actualizar datos"
                   >
-                    🔄 Actualizar
+                    Actualizar
                   </button>
                 </div>
               </div>
@@ -7155,7 +7125,7 @@ export default function Dashboard() {
 
                           {esBloqueado && (
                             <span className="text-[9px] font-black text-rose-700 uppercase tracking-tight flex items-center gap-0.5">
-                              <span>🔒</span>
+                              <span><UiIcon name="lock" className="w-4 h-4" /></span>
                               <span className="hidden sm:inline">Bloq.</span>
                             </span>
                           )}
@@ -7184,7 +7154,7 @@ export default function Dashboard() {
                                   }`}
                                 title={b.motivo}
                               >
-                                {b.campus_nombre ? `🏛️ ${b.campus_nombre}` : "🌐 Toda la red"}
+                                {b.campus_nombre ? `${b.campus_nombre}` : "Toda la red"}
                               </div>
                             ))
                           ) : esPasado ? (
@@ -7207,7 +7177,7 @@ export default function Dashboard() {
                 <div className="max-w-3xl mx-auto bg-white rounded-3xl border border-slate-200/90 p-5 md:p-6 shadow-xs space-y-4">
                   <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                     <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                      <span>📋</span> Listado de Días Bloqueados ({diasBloqueados.length})
+                      <span><UiIcon name="doc" className="w-4 h-4" /></span> Listado de Días Bloqueados ({diasBloqueados.length})
                     </h3>
                   </div>
 
@@ -7229,7 +7199,7 @@ export default function Dashboard() {
                                   : "bg-rose-200/90 border-rose-300 text-rose-900"
                                 }`}
                             >
-                              {b.campus_nombre ? `🏛️ ${b.campus_nombre}` : "🌐 Todas las sedes"}
+                              {b.campus_nombre ? `${b.campus_nombre}` : "Todas las sedes"}
                             </span>
                           </div>
                           <p className="text-xs font-medium text-slate-700 leading-snug">
@@ -7245,7 +7215,7 @@ export default function Dashboard() {
                             onClick={() => handleEliminarBloqueo(b.id, b.fecha, b.campus_nombre)}
                             className="text-rose-600 hover:text-rose-800 font-bold text-xs hover:underline cursor-pointer"
                           >
-                            🔓 Desbloquear
+                            Desbloquear
                           </button>
                         </div>
                       </div>
@@ -7268,7 +7238,7 @@ export default function Dashboard() {
                           Control de Disponibilidad
                         </span>
                         <h3 className="text-base font-extrabold tracking-tight text-white flex items-center gap-2 mt-0.5">
-                          <span>{diaModalBloqueo.bloqueos?.length > 0 ? "🔒" : "📅"}</span>
+                          <UiIcon name={diaModalBloqueo.bloqueos?.length > 0 ? "lock" : "calendar"} className="w-4 h-4" />
                           <span>{diaModalBloqueo.fechaIso}</span>
                         </h3>
                       </div>
@@ -7297,7 +7267,7 @@ export default function Dashboard() {
                               >
                                 <div className="flex items-center justify-between gap-2">
                                   <span className="text-xs font-extrabold text-rose-950">
-                                    {b.campus_nombre ? `🏛️ ${b.campus_nombre}` : "🌐 Todas las sedes institucionales"}
+                                    {b.campus_nombre ? `${b.campus_nombre}` : "Todas las sedes institucionales"}
                                   </span>
                                   <span className="text-[10px] font-bold bg-rose-200 text-rose-900 px-2 py-0.5 rounded-full">
                                     Inhabilitado
@@ -7313,7 +7283,7 @@ export default function Dashboard() {
                                     onClick={() => handleDesbloquearDesdeModal(b.id, b.fecha, b.campus_nombre)}
                                     className="px-3 py-1 bg-white hover:bg-rose-100 text-rose-700 font-bold rounded-lg border border-rose-300 text-xs transition-colors cursor-pointer shadow-2xs"
                                   >
-                                    🔓 Desbloquear día
+                                    Desbloquear día
                                   </button>
                                 </div>
                               </div>
@@ -7346,10 +7316,10 @@ export default function Dashboard() {
                             onChange={(e) => setFormModalBloqueo((prev) => ({ ...prev, campus_id: e.target.value }))}
                             className={`${INPUT} font-semibold cursor-pointer`}
                           >
-                            <option value="">🌐 Todas las sedes (bloqueo global)</option>
+                            <option value="">Todas las sedes (bloqueo global)</option>
                             {campus.map((c) => (
                               <option key={c.id} value={c.id}>
-                                🏛️ {c.nombre}
+                                {c.nombre}
                               </option>
                             ))}
                           </select>
@@ -7380,7 +7350,7 @@ export default function Dashboard() {
                             disabled={guardandoBloqueo || !formModalBloqueo.motivo.trim() || diaModalBloqueo.fechaIso < hoyStr}
                             className="inline-flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-50"
                           >
-                            <span>🔒</span>
+                            <span><UiIcon name="lock" className="w-4 h-4" /></span>
                             <span>{guardandoBloqueo ? "Guardando..." : "Bloquear esta Fecha"}</span>
                           </button>
                         </div>
@@ -7396,7 +7366,7 @@ export default function Dashboard() {
             <div className={OVERLAY}>
               <div className={`${MODAL} max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto`}>
                 <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-4">
-                  <h3 className="text-lg font-serif font-bold text-slate-900">
+                  <h3 className="text-lg font-sans font-bold text-slate-900">
                     {anuncioEdit ? "Editar diapositiva" : "Crear diapositiva de anuncio"}
                   </h3>
                   <button
@@ -7520,7 +7490,7 @@ export default function Dashboard() {
             <div className={OVERLAY}>
               <div className={`${MODAL} max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto`}>
                 <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-4">
-                  <h3 className="text-lg font-serif font-bold text-slate-900">
+                  <h3 className="text-lg font-sans font-bold text-slate-900">
                     {tarjetaEdit ? "Editar tarjeta informativa" : "Crear tarjeta informativa"}
                   </h3>
                   <button
@@ -7540,7 +7510,7 @@ export default function Dashboard() {
                         value={formTarjeta.icono}
                         onChange={(e) => setFormTarjeta({ ...formTarjeta, icono: e.target.value })}
                         className={`${INPUT} text-center text-base`}
-                        placeholder="📚"
+                        placeholder=""
                         required
                       />
                     </div>
@@ -7627,7 +7597,7 @@ export default function Dashboard() {
             <div className={OVERLAY}>
               <div className={`${MODAL} max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto`}>
                 <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-4">
-                  <h3 className="text-lg font-serif font-bold text-slate-900">
+                  <h3 className="text-lg font-sans font-bold text-slate-900">
                     {faqEdit ? "Editar pregunta frecuente" : "Crear pregunta frecuente"}
                   </h3>
                   <button
@@ -7711,9 +7681,7 @@ export default function Dashboard() {
               <div className={`${MODAL} max-w-lg p-6 space-y-5 animate-slideUp`}>
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-lg border border-amber-200">
-                      🛠️
-                    </div>
+                    <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-lg border border-amber-200"><UiIcon name="wrench" className="w-4 h-4" /></div>
                     <div>
                       <h3 className="text-sm font-bold text-slate-900">
                         Mantenimiento: Cubículo {modalMantenimiento.cubiculo.codigo}
@@ -7734,7 +7702,7 @@ export default function Dashboard() {
 
                 <form onSubmit={handleGuardarMantenimientoCubiculo} className="space-y-3.5 bg-slate-50/70 p-4 rounded-xl border border-slate-200/80">
                   <p className="text-xs font-bold text-slate-800">
-                    📅 Programar fecha fuera de servicio
+                    Programar fecha fuera de servicio
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
@@ -7765,14 +7733,14 @@ export default function Dashboard() {
                       disabled={modalMantenimiento.guardando || !modalMantenimiento.fecha}
                       className={`${BTN_PRIMARY} text-xs py-2 px-4`}
                     >
-                      {modalMantenimiento.guardando ? "Guardando..." : "➕ Asignar mantenimiento"}
+                      {modalMantenimiento.guardando ? "Guardando..." : "Asignar mantenimiento"}
                     </button>
                   </div>
                 </form>
 
                 <div className="space-y-2.5">
                   <p className="text-xs font-bold text-slate-800">
-                    📋 Fechas programadas ({modalMantenimiento.mantenimientos.length})
+                    Fechas programadas ({modalMantenimiento.mantenimientos.length})
                   </p>
 
                   {modalMantenimiento.cargando ? (
@@ -7792,7 +7760,7 @@ export default function Dashboard() {
                         >
                           <div className="min-w-0">
                             <p className="font-bold text-slate-800">
-                              🗓️ {m.fecha}
+                              {m.fecha}
                             </p>
                             <p className="text-[11px] text-slate-600 truncate">
                               {m.motivo || "Mantenimiento / Fuera de servicio"}
@@ -7886,7 +7854,7 @@ export default function Dashboard() {
           {toastNotificacion.texto && (
             <div className={`fixed bottom-24 right-6 z-50 max-w-sm flex items-start gap-3 px-4 py-3.5 rounded-xl text-xs font-medium shadow-[0_20px_40px_rgba(0,0,0,0.35)] animate-slideUp ${toastNotificacion.tipo === "error" ? "bg-[#EA3829] text-white" : "bg-slate-900 text-white border border-white/10"}`}>
               <span className={`w-7 h-7 shrink-0 rounded-lg flex items-center justify-center text-[11px] ${toastNotificacion.tipo === "error" ? "bg-black/20 text-white" : "bg-emerald-500/20 text-emerald-300"}`}>
-                {toastNotificacion.tipo === "error" ? "⚠️" : "✅"}
+                <UiIcon name={toastNotificacion.tipo === "error" ? "alert" : "check"} className="w-4 h-4" />
               </span>
               <p className="leading-relaxed pt-1 flex-1">{toastNotificacion.texto}</p>
               <button
@@ -7911,7 +7879,7 @@ export default function Dashboard() {
                 onClick={() => setModalManualUsuario(true)}
                 className="inline-flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50/90 hover:bg-sky-100 text-[#00629B] font-bold px-4 py-2 text-[11px] shadow-2xs hover:shadow-xs transition-all cursor-pointer active:scale-95"
               >
-                <span className="text-sm">📖</span>
+                <span className="text-sm"><UiIcon name="book" className="w-4 h-4" /></span>
                 <span>Manual de Usuario</span>
                 <span className="w-1.5 h-1.5 rounded-full bg-[#00A3E0] animate-pulse" />
               </button>
@@ -7927,9 +7895,9 @@ export default function Dashboard() {
             <div className="bg-gradient-to-r from-[#002D4C] via-[#004D7A] to-[#00629B] p-5 sm:p-6 text-white shrink-0 flex items-start justify-between gap-4 border-b border-white/10">
               <div className="space-y-1">
                 <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-white/15 text-sky-200 text-[10px] font-black uppercase tracking-wider">
-                  <span>📚 Documentación Oficial</span>
+                  <span>Documentación Oficial</span>
                 </div>
-                <h3 className="text-xl sm:text-2xl font-serif font-black tracking-tight text-white">
+                <h3 className="text-xl sm:text-2xl font-sans font-black tracking-tight text-white">
                   Manual de Usuario — Panel Administrador
                 </h3>
                 <p className="text-xs text-sky-100/90 max-w-2xl leading-relaxed">
@@ -7949,9 +7917,9 @@ export default function Dashboard() {
             <div className="p-4 sm:p-5 bg-slate-50 border-b border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
               <div className="flex items-center gap-1.5 p-1 bg-white rounded-xl border border-slate-200 w-full sm:w-auto shadow-2xs">
                 {[
-                  { id: "terminologia", label: "Terminología y Conceptos", icon: "📑" },
-                  { id: "modulos", label: "Guía por Módulo", icon: "🧭" },
-                  { id: "faq", label: "Preguntas Frecuentes", icon: "💡" },
+                  { id: "terminologia", label: "Terminología y Conceptos", icon: "doc" },
+                  { id: "modulos", label: "Guía por Módulo", icon: "compass" },
+                  { id: "faq", label: "Preguntas Frecuentes", icon: "bulb" },
                 ].map((tab) => (
                   <button
                     key={tab.id}
@@ -7963,7 +7931,7 @@ export default function Dashboard() {
                         : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
                     }`}
                   >
-                    <span>{tab.icon}</span>
+                    <UiIcon name={tab.icon} className="w-3.5 h-3.5" />
                     <span>{tab.label}</span>
                   </button>
                 ))}
@@ -7977,9 +7945,7 @@ export default function Dashboard() {
                   onChange={(e) => setBusquedaManual(e.target.value)}
                   className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs font-medium text-slate-800 outline-none focus:border-[#00629B] focus:ring-2 focus:ring-[#00629B]/20 shadow-2xs transition-all"
                 />
-                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none">
-                  🔍
-                </span>
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"><UiIcon name="search" className="w-4 h-4" /></span>
                 {busquedaManual && (
                   <button
                     type="button"
@@ -8011,7 +7977,7 @@ export default function Dashboard() {
                         categoria: "Capacidad",
                         color: "border-sky-200 bg-sky-50/30",
                         badge: "bg-sky-100 text-[#00629B]",
-                        icono: "👥",
+                        icono: "users",
                         descripcion: "El Aforo Diario representa el volumen total teórico de estudiantes que pueden ser atendidos en una sede a lo largo del día (N° de bloques horarios × N° de cubículos activos). Los 'Cupos Disponibles' reflejan los turnos aún libres para agendamiento.",
                       },
                       {
@@ -8019,7 +7985,7 @@ export default function Dashboard() {
                         categoria: "Horarios",
                         color: "border-amber-200 bg-amber-50/30",
                         badge: "bg-amber-100 text-amber-900",
-                        icono: "⏱️",
+                        icono: "clock",
                         descripcion: "Franja preestablecida de 1 hora y 30 minutos de duración. El sistema opera con turnos continuos desde las 08:30 hasta las 19:00 hrs. Cada bloque inicia puntualmente y se asocia a un control de asistencia.",
                       },
                       {
@@ -8027,39 +7993,23 @@ export default function Dashboard() {
                         categoria: "Infraestructura",
                         color: "border-indigo-200 bg-indigo-50/30",
                         badge: "bg-indigo-100 text-indigo-900",
-                        icono: "🚪",
+                        icono: "door",
                         descripcion: "Espacio físico aislado para estudio grupal de hasta 6 alumnos. Posee 3 estados posibles: 'Disponible' (apto para reservas), 'En Uso' (con reserva confirmada activa en el horario) y 'En Mantenimiento' (bloqueado para limpieza, calibración o reparaciones).",
                       },
                       {
-                        termino: "Terminal MinMoe y Relé",
-                        categoria: "Control de Acceso",
-                        color: "border-emerald-200 bg-emerald-50/30",
-                        badge: "bg-emerald-100 text-emerald-900",
-                        icono: "📹",
-                        descripcion: "Terminal biométrico Hikvision instalado en el acceso. Valida a los alumnos mediante reconocimiento facial. El administrador puede enviar una señal manual remota al relé número 1 para desbloquear la puerta en caso de contingencias.",
-                      },
-                      {
-                        termino: "Tolerancia (+10 min) e Inasistencia",
-                        categoria: "Normativa",
-                        color: "border-rose-200 bg-rose-50/30",
-                        badge: "bg-rose-100 text-rose-900",
-                        icono: "⚠️",
-                        descripcion: "Margen de cortesía de 10 minutos desde el inicio del bloque horario. Si el estudiante titular no valida su llegada o no se presenta antes del minuto 10, la reserva se marca como inasistencia, liberando el cubículo para otros usuarios.",
-                      },
-                      {
-                        termino: "Sanción Disciplinaria (Suspensión)",
-                        categoria: "Disciplina",
-                        color: "border-purple-200 bg-purple-50/30",
-                        badge: "bg-purple-100 text-purple-900",
-                        icono: "⚖️",
-                        descripcion: "Bloqueo automático del sistema por 3 días corridos al acumular 2 inasistencias en el período. Durante la suspensión, el alumno no puede crear nuevas reservas ni ser ingresado como acompañante titular.",
+                        termino: "Liberación Inmediata de Cubículo",
+                        categoria: "Gestión de Espacios",
+                        color: "border-amber-200 bg-amber-50/30",
+                        badge: "bg-amber-100 text-amber-900",
+                        icono: "door",
+                        descripcion: "Mecanismo ágil que permite al personal de biblioteca liberar un cubículo reservado si los estudiantes no se presentan, dejándolo disponible de inmediato para otros alumnos sin aplicar suspensiones ni penalizaciones.",
                       },
                       {
                         termino: "Registro Nominal de Acompañantes",
                         categoria: "Trazabilidad",
                         color: "border-slate-200 bg-slate-50/50",
                         badge: "bg-slate-100 text-slate-800",
-                        icono: "📝",
+                        icono: "doc",
                         descripcion: "Requisito estricto que exige registrar nombre y RUT de cada estudiante secundario que ingresará con el titular del cubículo, evitando el ingreso de usuarios no individualizados a los espacios universitarios.",
                       },
                       {
@@ -8067,7 +8017,7 @@ export default function Dashboard() {
                         categoria: "Regla de Negocio",
                         color: "border-blue-200 bg-blue-50/30",
                         badge: "bg-blue-100 text-blue-900",
-                        icono: "🔒",
+                        icono: "lock",
                         descripcion: "Regla institucional que prohíbe reservar para el mismo día de la solicitud. Fomenta la planificación anticipada y evita acaparamientos inmediatos sin uso real.",
                       },
                       {
@@ -8075,7 +8025,7 @@ export default function Dashboard() {
                         categoria: "Gestión",
                         color: "border-rose-200 bg-rose-50/20",
                         badge: "bg-rose-100 text-rose-800",
-                        icono: "📅",
+                        icono: "calendar",
                         descripcion: "Cierre forzado de una fecha específica en el calendario (por feriados, recesos académicos o sanitización). Puede aplicarse a una sede particular o a toda la red universitaria.",
                       },
                       {
@@ -8083,7 +8033,7 @@ export default function Dashboard() {
                         categoria: "Comunicación",
                         color: "border-amber-200 bg-amber-50/20",
                         badge: "bg-amber-100 text-amber-800",
-                        icono: "📢",
+                        icono: "megaphone",
                         descripcion: "Módulo para publicar y ordenar avisos urgentes en la portada estudiantil, tarjetas de recursos (préstamos de calculadoras, salas) y respuestas a preguntas frecuentes sin requerir soporte informático.",
                       },
                     ]
@@ -8103,7 +8053,7 @@ export default function Dashboard() {
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex items-center gap-2">
-                              <span className="text-xl">{item.icono}</span>
+                              <UiIcon name={item.icono} className="w-4 h-4 text-[#00629B]" />
                               <h5 className="font-bold text-slate-900 text-xs sm:text-sm">
                                 {item.termino}
                               </h5>
@@ -8137,20 +8087,20 @@ export default function Dashboard() {
                       {
                         num: "01",
                         titulo: "Actividad y Monitoreo",
-                        icono: "📊",
+                        icono: "chart",
                         descripcion: "Panel de control en tiempo real para supervisión de cubículos y novedades del día.",
                         pasos: [
                           "Visualización en celdas: Cada tarjeta representa un cubículo (CB-01, CB-02, etc.). El gradiente azul marino oscuro indica ocupación activa; el fondo blanco/grisáceo indica cubículo libre.",
                           "Tarjeta flotante: Al hacer clic en un cubículo, una tarjeta indicadora flotante lo resalta y actualiza el panel derecho.",
                           "Cronograma lateral: Muestra los 7 turnos del día para el cubículo seleccionado. Permite auditar estudiantes con reserva y acompañantes.",
-                          "Apertura MinMoe: Presiona '🔓 Abrir Puerta Relé MinMoe' para accionar la chapa eléctrica de acceso de forma remota.",
+                          "Apertura MinMoe: Presiona 'Abrir Puerta Relé MinMoe' para accionar la chapa eléctrica de acceso de forma remota.",
                           "Lista de Tareas: Monitorea novedades pendientes (incidencias, talleres, alertas) con filtros por categoría y casillas de verificación.",
                         ],
                       },
                       {
                         num: "02",
                         titulo: "Calendario y Bloqueos",
-                        icono: "📅",
+                        icono: "calendar",
                         descripcion: "Control de fechas no laborables, feriados institucionales y recesos de biblioteca.",
                         pasos: [
                           "Navega entre los meses usando las flechas laterales < y >.",
@@ -8162,7 +8112,7 @@ export default function Dashboard() {
                       {
                         num: "03",
                         titulo: "Sedes y Cubículos",
-                        icono: "🏛️",
+                        icono: "building",
                         descripcion: "Administración de infraestructura física, sedes universitarias y unidades de cubículos.",
                         pasos: [
                           "Crear nueva sede: Pulsa '+ Crear Sede', escribe el nombre institucional y guarda.",
@@ -8174,11 +8124,11 @@ export default function Dashboard() {
                       {
                         num: "04",
                         titulo: "Talleres Solicitados",
-                        icono: "🎓",
+                        icono: "academic",
                         descripcion: "Gestión de solicitudes de talleres estudiantiles (Normas APA, Scopus, Web of Science).",
                         pasos: [
                           "Filtra las solicitudes por estado: 'Pendiente', 'Aprobado', 'Rechazado' o 'Realizado'.",
-                          "Haz clic en '✉️ Responder' para abrir la ventana de redacción de correo institucional hacia el alumno.",
+                          "Haz clic en 'Responder' para abrir la ventana de redacción de correo institucional hacia el alumno.",
                           "El sistema despacha automáticamente el correo mediante flujos n8n/SMTP y actualiza el estado de la solicitud.",
                           "Descarga reportes completos en formato Excel con métricas de carreras y talleres más demandados mediante el botón 'Exportar Excel'.",
                         ],
@@ -8186,7 +8136,7 @@ export default function Dashboard() {
                       {
                         num: "05",
                         titulo: "Incidencias de Cubículos",
-                        icono: "⚠️",
+                        icono: "alert",
                         descripcion: "Resolución de problemas técnicos y de infraestructura reportados en las salas.",
                         pasos: [
                           "Las alertas con más de 2 días sin resolver se destacan en color rojo para atención prioritaria.",
@@ -8197,37 +8147,14 @@ export default function Dashboard() {
                       },
                       {
                         num: "06",
-                        titulo: "Sanciones y Disciplina",
-                        icono: "⚖️",
-                        descripcion: "Seguimiento de penalizaciones por inasistencias y restitución de derechos de reserva.",
-                        pasos: [
-                          "Busca al estudiante por su RUT o Nombre en la barra de búsqueda superior.",
-                          "Visualiza la fecha exacta de inicio y de expiración del bloqueo disciplinario de 3 días.",
-                          "Si el estudiante presenta justificativo formal (licencia médica o carta de carrera), presiona 'Levantar Sanción'.",
-                          "El sistema solicitará confirmación en modal verde y restaurará de inmediato su capacidad para volver a reservar.",
-                        ],
-                      },
-                      {
-                        num: "07",
                         titulo: "Métricas y Análisis",
-                        icono: "📈",
+                        icono: "trend",
                         descripcion: "Inteligencia institucional para toma de decisiones sobre aforo, carreras y horarios pico.",
                         pasos: [
                           "Selecciona el período de análisis: 'Por Día', 'Por Semana' o 'Por Mes'.",
                           "Filtra por sede específica o visualiza la red completa de bibliotecas.",
                           "Inspecciona el gráfico interactivo pasando el cursor sobre cada hora para ver la tasa de ocupación porcentual.",
                           "Analiza el ranking de carreras con mayor uso (barras apiladas o distribución) y descarga la matriz en Excel (.xlsx) o PNG.",
-                        ],
-                      },
-                      {
-                        num: "08",
-                        titulo: "Cámara Terminal MinMoe",
-                        icono: "📹",
-                        descripcion: "Monitoreo visual del acceso biométrico facial y control de puerta.",
-                        pasos: [
-                          "Observa la transmisión de video del terminal para verificar el flujo de acceso físico.",
-                          "Verifica el estado en línea de la IP del terminal (172.29.0.70).",
-                          "En caso de que el rostro de un alumno autorizado no sea detectado de inmediato, pulsa 'Abrir Puerta Manualmente' para desbloquear el relé de paso.",
                         ],
                       },
                     ]
@@ -8247,7 +8174,7 @@ export default function Dashboard() {
                               {m.num}
                             </span>
                             <div className="flex items-center gap-2">
-                              <span className="text-xl">{m.icono}</span>
+                              <UiIcon name={m.icono} className="w-4 h-4 text-[#00629B]" />
                               <h5 className="font-bold text-slate-900 text-sm sm:text-base">
                                 {m.titulo}
                               </h5>
@@ -8288,16 +8215,12 @@ export default function Dashboard() {
                         a: "Por regla institucional de negocio (Anticipación de 24h), el sistema exige que las reservas se realicen con al menos 24 horas de antelación. Esto garantiza la correcta asignación de espacios y evita reservas impulsivas sin asistencia real.",
                       },
                       {
-                        q: "¿Cómo levantar la sanción a un alumno que justificó su falta?",
-                        a: "Dirígete a la pestaña 'Sanciones y Disciplina', busca al estudiante por su RUT o Nombre, y haz clic en el botón verde 'Levantar Sanción'. El sistema reseteará sus faltas y podrá volver a reservar de inmediato.",
-                      },
-                      {
-                        q: "¿Qué sucede si el grupo de un cubículo llega con 15 minutos de retraso?",
-                        a: "La tolerancia máxima es de 10 minutos. Una vez superado este lapso, el cubículo se considera en inasistencia y el administrador debe liberar el espacio desde el modal de bloque o lista de reservas, aplicando la falta correspondiente.",
+                        q: "¿Qué sucede si los estudiantes no se presentan a su reserva?",
+                        a: "El personal de biblioteca puede ingresar al bloque del cubículo correspondiente y presionar 'Liberar cubículo'. La reserva se cancelará de inmediato y el cubículo volverá a estar disponible para la comunidad sin aplicar suspensiones ni penalizaciones al alumno.",
                       },
                       {
                         q: "¿Cómo bloquear una sede completa durante un feriado institucional?",
-                        a: "Entra a 'Calendario y Bloqueos', haz clic sobre el día del feriado, escribe el motivo (ej. 'Feriado Nacional') y en el selector de campus elige '🌐 Todas las sedes'. Ningún alumno podrá reservar en ningún campus para esa fecha.",
+                        a: "Entra a 'Calendario y Bloqueos', haz clic sobre el día del feriado, escribe el motivo (ej. 'Feriado Nacional') y en el selector de campus elige 'Todas las sedes'. Ningún alumno podrá reservar en ningún campus para esa fecha.",
                       },
                       {
                         q: "¿Cómo enviar un cubículo a reparación sin eliminarlo del sistema?",
@@ -8305,7 +8228,7 @@ export default function Dashboard() {
                       },
                       {
                         q: "¿Cómo exportar el informe de uso para las autoridades de biblioteca?",
-                        a: "Desde la pestaña 'Métricas y Análisis' puedes hacer clic en '📑 Exportar Excel (.xlsx)' para descargar el detalle completo de horas de mayor afluencia, volumen de reservas y desglose por carreras universitarias.",
+                        a: "Desde la pestaña 'Métricas y Análisis' puedes hacer clic en 'Exportar Excel (.xlsx)' para descargar el detalle completo de horas de mayor afluencia, volumen de reservas y desglose por carreras universitarias.",
                       },
                     ]
                       .filter((f) => {
@@ -8350,14 +8273,12 @@ export default function Dashboard() {
           <div className={`${MODAL} max-w-xl p-6 md:p-7 space-y-5 animate-slideUp`}>
             <div className="flex items-start justify-between border-b border-slate-100 pb-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-sky-50 border border-sky-200 text-[#00629B] flex items-center justify-center text-xl shadow-xs">
-                  ✉️
-                </div>
+                <div className="w-10 h-10 rounded-xl bg-sky-50 border border-sky-200 text-[#00629B] flex items-center justify-center text-xl shadow-xs"><UiIcon name="mail" className="w-4 h-4" /></div>
                 <div>
                   <div className="text-[10px] font-mono font-bold text-[#00629B] uppercase">
                     Solicitud #{modalResponderTaller.solicitud.id}
                   </div>
-                  <h3 className="font-serif font-bold text-lg text-slate-900 leading-tight">
+                  <h3 className="font-sans font-bold text-lg text-slate-900 leading-tight">
                     Responder al Estudiante
                   </h3>
                 </div>
@@ -8428,10 +8349,10 @@ export default function Dashboard() {
                   onChange={(e) => setModalResponderTaller((prev) => ({ ...prev, nuevoEstado: e.target.value }))}
                   className={INPUT}
                 >
-                  <option value="pendiente">Mantener como Pendiente ⏳</option>
-                  <option value="aprobado">Aprobado ✅</option>
-                  <option value="realizado">Realizado 🎯</option>
-                  <option value="rechazado">Rechazado ❌</option>
+                  <option value="pendiente">Mantener como Pendiente </option>
+                  <option value="aprobado">Aprobado </option>
+                  <option value="realizado">Realizado </option>
+                  <option value="rechazado">Rechazado </option>
                 </select>
               </div>
 
@@ -8449,7 +8370,7 @@ export default function Dashboard() {
                   disabled={modalResponderTaller.enviando}
                   className={BTN_PRIMARY}
                 >
-                  {modalResponderTaller.enviando ? "Enviando vía n8n..." : "Enviar Respuesta ✉️"}
+                  {modalResponderTaller.enviando ? "Enviando vía n8n..." : "Enviar Respuesta "}
                 </button>
               </div>
             </form>
@@ -8562,7 +8483,7 @@ export default function Dashboard() {
                     >
                       <div className="flex items-center justify-between text-xs">
                         <span className="font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5">
-                          <span>🚪</span> {inc.cubiculo_codigo} • {inc.campus_nombre}
+                          <span><UiIcon name="door" className="w-4 h-4" /></span> {inc.cubiculo_codigo} • {inc.campus_nombre}
                         </span>
                         <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
                           {diasSinResolver} días pendiente
@@ -8588,7 +8509,7 @@ export default function Dashboard() {
                     >
                       <div className="flex items-center justify-between text-xs">
                         <span className="font-extrabold text-[#00629B] dark:text-sky-300 flex items-center gap-1.5">
-                          <span>🎓</span> {t.taller}
+                          <span><UiIcon name="academic" className="w-4 h-4" /></span> {t.taller}
                         </span>
                         <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
                           {diasSinRespuesta} días sin respuesta
@@ -8607,7 +8528,7 @@ export default function Dashboard() {
                           }}
                           className="font-bold text-[#00629B] dark:text-sky-300 hover:underline cursor-pointer"
                         >
-                          ✉️ Responder ahora →
+                          Responder ahora →
                         </button>
                       </div>
                     </div>
