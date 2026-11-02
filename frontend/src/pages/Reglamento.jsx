@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import "./Reglamento.css";
 
@@ -7,7 +7,7 @@ const Icon = ({ path, className = "w-4 h-4" }) => (
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
-    strokeWidth="1.8"
+    strokeWidth="1.9"
     strokeLinecap="round"
     strokeLinejoin="round"
     className={className}
@@ -20,72 +20,121 @@ const Icon = ({ path, className = "w-4 h-4" }) => (
 const IconClock = (p) => <Icon {...p} path={<><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>} />;
 const IconCalendar = (p) => <Icon {...p} path={<><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 11h18" /></>} />;
 const IconChat = (p) => <Icon {...p} path={<path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />} />;
-const IconAlert = (p) => <Icon {...p} path={<><path d="M12 9v4M12 17h.01" /><path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L14.7 3.9a2 2 0 00-3.4 0z" /></>} />;
 const IconCheck = (p) => <Icon {...p} path={<path d="M20 6L9 17l-5-5" />} />;
 const IconCross = (p) => <Icon {...p} path={<path d="M18 6L6 18M6 6l12 12" />} />;
 const IconShield = (p) => <Icon {...p} path={<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />} />;
-const IconArrowRight = (p) => <Icon {...p} path={<path d="M5 12h14M12 5l7 7-7 7" />} />;
+const IconUsers = (p) => <Icon {...p} path={<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" /></>} />;
+const IconCard = (p) => <Icon {...p} path={<><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20M6 15h4" /></>} />;
+const IconBuilding = (p) => <Icon {...p} path={<><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4M9 9v.01M9 12v.01M9 15v.01M9 18v.01" /></>} />;
+const IconSearch = (p) => <Icon {...p} path={<><circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" /></>} />;
 
 export default function Reglamento() {
-  const [sedeSeleccionada, setSedeSeleccionada] = useState("san-francisco");
+  const [categoriaActiva, setCategoriaActiva] = useState("todas");
   const [busqueda, setBusqueda] = useState("");
-  const [seccionActiva, setSeccionActiva] = useState("todas");
 
-  const sedesData = {
-    "san-francisco": {
-      nombre: "Biblioteca Central (San Francisco)",
+  const sedes = [
+    {
+      id: "san-francisco",
+      nombre: "Biblioteca Central",
       campus: "Campus San Francisco",
       ubicacion: "Manuel Montt 56, Temuco",
-      icono: "🏛️",
       horarios: [
-        { dias: "Lunes a Viernes", horas: "8:30 – 18:00 hrs" },
+        { dias: "Lunes a Viernes", horas: "08:30 – 18:00 hrs" },
         { dias: "Sábados y Domingos", horas: "Cerrado" }
       ],
-      servicios: ["Atención presencial en mesón", "Cubículos individuales y grupales", "Préstamo de material impreso"],
+      servicios: [
+        "Atención presencial y validación en mesón",
+        "Cubículos individuales y salas grupales",
+        "Préstamo de bibliografía y equipamiento"
+      ],
       checkOpen: () => {
         const now = new Date();
         const dia = now.getDay();
-        const minutos = now.getHours() * 60 + now.getMinutes();
-        return dia >= 1 && dia <= 5 && minutos >= 8 * 60 + 30 && minutos <= 18 * 60;
+        const min = now.getHours() * 60 + now.getMinutes();
+        return dia >= 1 && dia <= 5 && min >= 8 * 60 + 30 && min <= 18 * 60;
       }
     },
-    "juan-pablo": {
+    {
+      id: "juan-pablo",
       nombre: "Biblioteca San Juan Pablo II",
       campus: "Campus San Juan Pablo II",
       ubicacion: "Rudecindo Ortega 02950, Temuco",
-      icono: "🎓",
       horarios: [
-        { dias: "Lunes a Viernes", horas: "8:30 – 20:00 hrs" },
+        { dias: "Lunes a Viernes", horas: "08:30 – 20:00 hrs" },
         { dias: "Sábados", horas: "10:30 – 13:30 hrs" },
         { dias: "Domingos", horas: "Cerrado" }
       ],
-      servicios: ["Horario extendido vespertino", "Control de acceso HikCentral", "Salas de trabajo colaborativo"],
+      servicios: [
+        "Horario vespertino extendido",
+        "Control de acceso inteligente y mesón",
+        "Salas de estudio colaborativo equipadas"
+      ],
       checkOpen: () => {
         const now = new Date();
         const dia = now.getDay();
-        const minutos = now.getHours() * 60 + now.getMinutes();
-        if (dia >= 1 && dia <= 5) return minutos >= 8 * 60 + 30 && minutos <= 20 * 60;
-        if (dia === 6) return minutos >= 10 * 60 + 30 && minutos <= 13 * 60 + 30;
+        const min = now.getHours() * 60 + now.getMinutes();
+        if (dia >= 1 && dia <= 5) return min >= 8 * 60 + 30 && min <= 20 * 60;
+        if (dia === 6) return min >= 10 * 60 + 30 && min <= 13 * 60 + 30;
         return false;
       }
     }
-  };
+  ];
 
-  const sedeActual = sedesData[sedeSeleccionada];
-  const estaAbierto = sedeActual.checkOpen();
-
-  const scrollToSection = (id) => {
-    setSeccionActiva(id);
-    const el = document.getElementById(id);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
+  const pilares = [
+    {
+      titulo: "15 Min de Tolerancia",
+      desc: "Plazo máximo desde el inicio del bloque para validar tu ingreso en mesón.",
+      icon: <IconClock className="w-5 h-5 text-[#00629B] dark:text-[#38BDF8]" />,
+      bg: "bg-sky-50 dark:bg-sky-950/50 border border-sky-100 dark:border-sky-900"
+    },
+    {
+      titulo: "1 Reserva Activa",
+      desc: "Cada estudiante puede mantener un cupo vigente a la vez para uso equitativo.",
+      icon: <IconCalendar className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />,
+      bg: "bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-100 dark:border-emerald-900"
+    },
+    {
+      titulo: "Credencial TUI",
+      desc: "Presentación obligatoria de credencial física o digital (App UCT) al ingresar.",
+      icon: <IconCard className="w-5 h-5 text-amber-600 dark:text-amber-400" />,
+      bg: "bg-amber-50 dark:bg-amber-950/50 border border-amber-100 dark:border-amber-900"
+    },
+    {
+      titulo: "Aforo y Registro",
+      desc: "Respeto estricto de la capacidad de la sala y registro de acompañantes.",
+      icon: <IconUsers className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />,
+      bg: "bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-100 dark:border-indigo-900"
     }
-  };
+  ];
 
-  const matchesSearch = (textos) => {
+  const preguntasFrecuentes = [
+    {
+      q: "¿Qué ocurre si llego pasados los 15 minutos de inicio?",
+      a: "El cubículo se libera automáticamente en el minuto 15 para que otros estudiantes que esperan sala puedan ocuparlo."
+    },
+    {
+      q: "¿Puedo cancelar mi reserva si surge un imprevisto?",
+      a: "Sí. Puedes liberarla en cualquier momento desde la pestaña 'Mis Reservas' o solicitándolo directamente en el asistente virtual."
+    },
+    {
+      q: "¿Las reservas son transferibles a otro compañero?",
+      a: "No. La reserva está asociada al RUT del estudiante titular, quien debe presentarse con su credencial TUI para activar la ocupación."
+    },
+    {
+      q: "¿Puedo reservar otro bloque el mismo día?",
+      a: "Una vez finalizado o liberado tu bloque activo, el sistema te habilita nuevamente para agendar otro horario disponible."
+    }
+  ];
+
+  const coincideBusqueda = (palabras) => {
     if (!busqueda.trim()) return true;
     const q = busqueda.toLowerCase().trim();
-    return textos.some((t) => t && t.toLowerCase().includes(q));
+    return palabras.some((p) => p && p.toLowerCase().includes(q));
+  };
+
+  const mostrarSeccion = (id, palabras) => {
+    const pasaTab = categoriaActiva === "todas" || categoriaActiva === id;
+    return pasaTab && coincideBusqueda(palabras);
   };
 
   return (
@@ -93,7 +142,6 @@ export default function Reglamento() {
       <div className="rg-ambient" aria-hidden="true">
         <div className="rg-orb rg-orb--1" />
         <div className="rg-orb rg-orb--2" />
-        <div className="rg-orb rg-orb--3" />
       </div>
 
       <header className="rg-header">
@@ -102,13 +150,26 @@ export default function Reglamento() {
           <div className="rg-header-content">
             <div>
               <div className="rg-tag-hub">
-                <span>✦</span> Portal Oficial de Convivencia y Políticas • Biblioteca UCT
+                <span className="rg-eyebrow-dot">★</span>
+                Portal del Estudiante — Biblioteca UCT
               </div>
               <h1 className="rg-title-hub">
-                Reglamento y Horarios de Atención
+                Reglamento y{" "}
+                <span className="rg-gradient-text rg-underline">
+                  Horarios.
+                  <svg viewBox="0 0 300 20" preserveAspectRatio="none" aria-hidden="true">
+                    <path
+                      d="M4 14 C 60 4, 120 4, 170 10 S 260 18, 296 6"
+                      fill="none"
+                      stroke="#FFC20E"
+                      strokeWidth="5"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                </span>
               </h1>
               <p className="rg-lead-hub">
-                Infórmate sobre los márgenes de puntualidad, el sistema disciplinario automático y las pautas para asegurar un entorno de estudio armónico en todas las salas.
+                Conoce los tiempos de validación, las normas de convivencia en sala y los horarios de funcionamiento de cada campus para aprovechar al máximo tu espacio de estudio.
               </p>
             </div>
 
@@ -123,7 +184,7 @@ export default function Reglamento() {
                 className="rg-btn-cta rg-btn-cta--glass"
               >
                 <IconChat className="w-4 h-4" />
-                Asistente IA 24/7
+                Consultar Asistente
               </button>
             </div>
           </div>
@@ -131,419 +192,407 @@ export default function Reglamento() {
       </header>
 
       <main className="rg-container">
-        <div className="rg-split-layout">
-          <aside className="rg-sidebar">
-            <div className="rg-card-panel">
-              <div className="text-xs font-black uppercase tracking-wider text-slate-400 mb-2">
-                🏛️ Sedes y Horarios
+        <section className="rg-pillars-grid" aria-label="Resumen de normas principales">
+          {pilares.map((p, idx) => (
+            <div key={idx} className="rg-pillar-card">
+              <div className={`rg-pillar-icon ${p.bg}`}>
+                {p.icon}
               </div>
-
-              <div className="rg-campus-switcher">
-                <button
-                  type="button"
-                  onClick={() => setSedeSeleccionada("san-francisco")}
-                  className={`rg-campus-tab ${sedeSeleccionada === "san-francisco" ? "is-active" : ""}`}
-                >
-                  San Francisco
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSedeSeleccionada("juan-pablo")}
-                  className={`rg-campus-tab ${sedeSeleccionada === "juan-pablo" ? "is-active" : ""}`}
-                >
-                  San Juan Pablo II
-                </button>
-              </div>
-
-              <div className="rg-live-status-row">
-                <span className="font-bold text-xs text-slate-700 dark:text-slate-300">
-                  {sedeActual.campus}
-                </span>
-                <span className={`rg-live-pill ${estaAbierto ? "rg-live-pill--open" : "rg-live-pill--closed"}`}>
-                  <span className="rg-live-dot" />
-                  {estaAbierto ? "Abierto Ahora" : "Cerrado"}
-                </span>
-              </div>
-
-              <div className="space-y-2 mb-4">
-                {sedeActual.horarios.map((h, i) => (
-                  <div key={i} className="flex justify-between items-center text-xs p-2 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800">
-                    <span className="font-semibold text-slate-600 dark:text-slate-400">{h.dias}</span>
-                    <span className="font-bold text-[#00629B] dark:text-[#38BDF8]">{h.horas}</span>
-                  </div>
-                ))}
-              </div>
-
-              <div className="text-[11px] text-slate-500 space-y-1 pt-2 border-t border-slate-100 dark:border-slate-800">
-                {sedeActual.servicios.map((s, idx) => (
-                  <div key={idx} className="flex items-center gap-1.5">
-                    <IconCheck className="w-3 h-3 text-emerald-500 shrink-0" />
-                    <span>{s}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="rg-card-panel">
-              <div className="text-xs font-black uppercase tracking-wider text-slate-400 mb-3">
-                📑 Navegación por Artículos
-              </div>
-              <div className="space-y-1.5">
-                <button
-                  type="button"
-                  onClick={() => scrollToSection("norma-tolerancia")}
-                  className={`w-full text-left rg-nav-item ${seccionActiva === "norma-tolerancia" ? "is-selected" : ""}`}
-                >
-                  <span className="flex items-center gap-2 truncate">
-                    <span>⏱️</span> 1. Tolerancia 15 Min
-                  </span>
-                  <IconArrowRight className="w-3.5 h-3.5 opacity-40" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => scrollToSection("norma-sanciones")}
-                  className={`w-full text-left rg-nav-item ${seccionActiva === "norma-sanciones" ? "is-selected" : ""}`}
-                >
-                  <span className="flex items-center gap-2 truncate">
-                    <span>🚫</span> 2. Inasistencias y Faltas
-                  </span>
-                  <IconArrowRight className="w-3.5 h-3.5 opacity-40" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => scrollToSection("norma-convivencia")}
-                  className={`w-full text-left rg-nav-item ${seccionActiva === "norma-convivencia" ? "is-selected" : ""}`}
-                >
-                  <span className="flex items-center gap-2 truncate">
-                    <span>🤝</span> 3. Convivencia e Higiene
-                  </span>
-                  <IconArrowRight className="w-3.5 h-3.5 opacity-40" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => scrollToSection("norma-canales")}
-                  className={`w-full text-left rg-nav-item ${seccionActiva === "norma-canales" ? "is-selected" : ""}`}
-                >
-                  <span className="flex items-center gap-2 truncate">
-                    <span>💻</span> 4. Canales y Aforo
-                  </span>
-                  <IconArrowRight className="w-3.5 h-3.5 opacity-40" />
-                </button>
-              </div>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-gradient-to-br from-sky-50 to-white dark:from-slate-900 dark:to-slate-800 border border-sky-100 dark:border-sky-950 flex items-center gap-3">
-              <span className="text-2xl">🤖</span>
               <div>
-                <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                  ¿Tienes dudas con el reglamento?
-                </h4>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Consulta de inmediato con el chatbot institucional.
+                <h2 className="text-sm font-black text-slate-900 dark:text-white leading-snug">
+                  {p.titulo}
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                  {p.desc}
                 </p>
-                <button
-                  type="button"
-                  onClick={() => window.dispatchEvent(new CustomEvent("open-chat"))}
-                  className="text-xs font-black text-[#00629B] dark:text-[#38BDF8] mt-1 hover:underline cursor-pointer block"
-                >
-                  Preguntar a la IA →
-                </button>
               </div>
             </div>
-          </aside>
+          ))}
+        </section>
 
-          <section className="rg-main-canvas">
-            <div className="rg-search-bar">
-              <span className="text-slate-400">🔍</span>
-              <input
-                type="text"
-                placeholder="Buscar por palabra clave (ej. 15 minutos, comida, sanción, acompañantes...)"
-                value={busqueda}
-                onChange={(e) => setBusqueda(e.target.value)}
-                className="rg-search-input"
-              />
-              {busqueda && (
-                <button
-                  type="button"
-                  onClick={() => setBusqueda("")}
-                  className="text-xs text-slate-400 hover:text-slate-600 px-2"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
+        <div className="rg-toolbar">
+          <div className="rg-tabs-row" role="tablist">
+            {[
+              { id: "todas", label: "Vista General" },
+              { id: "puntualidad", label: "Puntualidad y Reservas" },
+              { id: "convivencia", label: "Convivencia en Sala" },
+              { id: "horarios", label: "Horarios por Sede" },
+              { id: "faq", label: "Preguntas Frecuentes" }
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setCategoriaActiva(tab.id)}
+                className={`rg-tab-btn ${categoriaActiva === tab.id ? "is-active" : ""}`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
 
-            {matchesSearch(["tolerancia", "15 minutos", "asistencia", "liberacion", "cancelacion", "retraso"]) && (
-              <article id="norma-tolerancia" className="rg-hero-visual-card">
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                  <span className="px-3 py-1 rounded-full text-xs font-black bg-sky-100 text-sky-800 border border-sky-200 uppercase tracking-wider">
-                    Artículo 1 • Puntualidad
-                  </span>
-                  <span className="text-xs font-bold text-slate-400">Tolerancia Máxima</span>
-                </div>
-
-                <h2 className="text-xl sm:text-2xl font-serif font-black text-slate-900 dark:text-white">
-                  Margen de Tolerancia de 15 Minutos y Validación
-                </h2>
-                <p className="text-sm text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
-                  Para asegurar que los cubículos no permanezcan desocupados con demanda en espera, rige un protocolo automatizado de liberación presencial:
-                </p>
-
-                <div className="rg-visual-timeline">
-                  <div className="rg-timeline-node">
-                    <span className="rg-timeline-badge bg-emerald-100 text-emerald-800">00:00 Min</span>
-                    <strong className="text-xs font-extrabold text-slate-900 dark:text-white">Inicio del Bloque</strong>
-                    <p className="text-[11px] text-slate-500">Comienza tu hora reservada. Puedes ingresar de inmediato validando en mesón.</p>
-                  </div>
-
-                  <div className="rg-timeline-node">
-                    <span className="rg-timeline-badge bg-amber-100 text-amber-800">15:00 Min</span>
-                    <strong className="text-xs font-extrabold text-slate-900 dark:text-white">Fin de Tolerancia</strong>
-                    <p className="text-[11px] text-slate-500">Último minuto para presentar tu credencial TUI física o digital en el mesón.</p>
-                  </div>
-
-                  <div className="rg-timeline-node">
-                    <span className="rg-timeline-badge bg-rose-100 text-rose-800">15:01 Min</span>
-                    <strong className="text-xs font-extrabold text-slate-900 dark:text-white">Liberación Automática</strong>
-                    <p className="text-[11px] text-slate-500">El sistema cancela el cupo, lo asigna a la comunidad y genera 1 inasistencia.</p>
-                  </div>
-                </div>
-
-                <div className="mt-4 p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2.5">
-                  <IconAlert className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
-                  <div>
-                    <strong>Ejemplo práctico:</strong> Si tu reserva fue fijada a las 11:00 hrs, tu plazo improrrogable de presentación culmina a las 11:15 hrs. A las 11:16 hrs el cubículo pasa a estar disponible para cualquier otro estudiante.
-                  </div>
-                </div>
-              </article>
+          <div className="rg-search-box">
+            <IconSearch className="w-4 h-4 text-slate-400 shrink-0" />
+            <input
+              type="text"
+              placeholder="Filtrar norma o palabra clave..."
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              className="rg-search-input"
+            />
+            {busqueda && (
+              <button
+                type="button"
+                onClick={() => setBusqueda("")}
+                className="text-xs font-bold text-slate-400 hover:text-slate-600 px-1"
+              >
+                ✕
+              </button>
             )}
+          </div>
+        </div>
 
-            {matchesSearch(["sancion", "sanciones", "inasistencia", "inasistencias", "suspension", "bloqueo", "faltas", "dias"]) && (
-              <article id="norma-sanciones" className="rg-hero-visual-card">
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                  <span className="px-3 py-1 rounded-full text-xs font-black bg-rose-100 text-rose-800 border border-rose-200 uppercase tracking-wider">
-                    Artículo 2 • Disciplina
+        <div className="rg-sections-stack">
+          {mostrarSeccion("puntualidad", [
+            "puntualidad", "tolerancia", "15 minutos", "reserva", "liberacion", "tui", "credencial", "acompanantes", "cancelar"
+          ]) && (
+            <section className="rg-section-card">
+              <div className="rg-section-header">
+                <div>
+                  <span className="rg-section-badge bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300">
+                    Sección 01 • Gestión de Cupos
                   </span>
-                  <span className="text-xs font-bold text-slate-400">Régimen Automático</span>
+                  <h2 className="text-xl font-black text-slate-900 dark:text-white mt-2">
+                    Protocolo de Puntualidad, Validación y Reservas
+                  </h2>
+                </div>
+                <p className="text-xs font-semibold text-slate-400">
+                  Control presencial en mesón de biblioteca
+                </p>
+              </div>
+
+              <div className="rg-steps-grid">
+                <div className="rg-step-box">
+                  <div className="flex items-center justify-between">
+                    <span className="px-2.5 py-1 rounded-full text-[11px] font-black uppercase bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                      Minuto 00:00
+                    </span>
+                    <span className="text-xs font-bold text-slate-400">Paso 1</span>
+                  </div>
+                  <h3 className="text-sm font-extrabold text-slate-900 dark:text-white mt-1">
+                    Inicio del Bloque Reservado
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                    Acércate al mesón de tu sede al comenzar tu hora agendada para registrar tu ingreso y habilitar el cubículo.
+                  </p>
                 </div>
 
-                <h2 className="text-xl sm:text-2xl font-serif font-black text-slate-900 dark:text-white">
-                  Sistema de Inasistencias y Suspensión (2 Faltas = 3 Días)
-                </h2>
-                <p className="text-sm text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
-                  Las faltas injustificadas perjudican al resto del estudiantado. El sistema aplica suspensiones automáticas y graduales en la cuenta del titular:
-                </p>
-
-                <div className="rg-strike-grid">
-                  <div className="rg-strike-card rg-strike-card--warning">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-black text-amber-800 uppercase">Falta 1 de 2</span>
-                      <span className="text-xl">⚠️</span>
-                    </div>
-                    <strong className="text-sm font-bold text-amber-900 dark:text-amber-300">
-                      Advertencia Preventiva
-                    </strong>
-                    <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
-                      Se registra en tu ficha estudiantil y se notifica en tu panel de control. Puedes seguir reservando, pero una segunda falta detonará la sanción temporal.
-                    </p>
+                <div className="rg-step-box">
+                  <div className="flex items-center justify-between">
+                    <span className="px-2.5 py-1 rounded-full text-[11px] font-black uppercase bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                      Hasta Min 15:00
+                    </span>
+                    <span className="text-xs font-bold text-slate-400">Paso 2</span>
                   </div>
+                  <h3 className="text-sm font-extrabold text-slate-900 dark:text-white mt-1">
+                    Ventana de Tolerancia
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                    Dispones de 15 minutos desde el inicio del bloque para validar tu asistencia presentando tu credencial TUI física o digital.
+                  </p>
+                </div>
 
-                  <div className="rg-strike-card rg-strike-card--danger">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-black text-rose-800 uppercase">Falta 2 de 2</span>
-                      <span className="text-xl">🚫</span>
-                    </div>
-                    <strong className="text-sm font-bold text-rose-900 dark:text-rose-300">
-                      Suspensión por 3 Días Continuos
-                    </strong>
-                    <p className="text-xs text-rose-800 dark:text-rose-200 leading-relaxed">
-                      Bloqueo automático en plataforma web y chatbot IA. No podrás agendar cubículos durante 72 horas corridas contadas desde la infracción.
+                <div className="rg-step-box">
+                  <div className="flex items-center justify-between">
+                    <span className="px-2.5 py-1 rounded-full text-[11px] font-black uppercase bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300">
+                      Minuto 15:01
+                    </span>
+                    <span className="text-xs font-bold text-slate-400">Paso 3</span>
+                  </div>
+                  <h3 className="text-sm font-extrabold text-slate-900 dark:text-white mt-1">
+                    Liberación del Espacio
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                    Si no se registra el ingreso dentro del margen de tolerancia, el cubículo se libera automáticamente para otro estudiante.
+                  </p>
+                </div>
+              </div>
+
+              <div className="rg-rules-subgrid">
+                <div className="rg-rule-mini">
+                  <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 text-[#00629B] dark:text-[#38BDF8]">
+                    <IconCalendar className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-extrabold text-slate-900 dark:text-white">
+                      Límite de 1 Reserva Activa
+                    </h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
+                      Solo puedes mantener un horario vigente a la vez. Al finalizar tu bloque podrás agendar uno nuevo.
                     </p>
                   </div>
                 </div>
 
-                <div className="mt-4 p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 text-xs text-emerald-900 dark:text-emerald-200 flex items-start gap-2.5">
-                  <IconCheck className="w-4 h-4 shrink-0 text-emerald-600 mt-0.5" />
+                <div className="rg-rule-mini">
+                  <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 text-[#00629B] dark:text-[#38BDF8]">
+                    <IconUsers className="w-4 h-4" />
+                  </div>
                   <div>
-                    <strong>Cómo evitar sanciones:</strong> Si no podrás asistir, ingresa a la sección <em>Mis Reservas</em> o pídele al Chatbot que cancele tu cita antes de que comience el horario. Las cancelaciones previas no generan falta.
+                    <h4 className="text-xs font-extrabold text-slate-900 dark:text-white">
+                      Registro de Acompañantes
+                    </h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
+                      En cubículos grupales es requisito indicar el RUT de los integrantes del equipo al realizar la solicitud.
+                    </p>
                   </div>
                 </div>
-              </article>
-            )}
 
-            {matchesSearch(["convivencia", "comida", "alimentos", "silencio", "ruido", "sillas", "mesas", "mobiliario", "bebidas", "cuidado"]) && (
-              <article id="norma-convivencia" className="rg-hero-visual-card">
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                  <span className="px-3 py-1 rounded-full text-xs font-black bg-amber-100 text-amber-900 border border-amber-200 uppercase tracking-wider">
-                    Artículo 3 • Convivencia
-                  </span>
-                  <span className="text-xs font-bold text-slate-400">Uso de Espacios</span>
-                </div>
-
-                <h2 className="text-xl sm:text-2xl font-serif font-black text-slate-900 dark:text-white">
-                  Normas de Convivencia, Higiene y Cuidado Material
-                </h2>
-                <p className="text-sm text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
-                  Los cubículos son áreas diseñadas para la concentración y el trabajo colaborativo de alto rendimiento. Respeta las siguientes disposiciones:
-                </p>
-
-                <div className="rg-dos-donts-grid">
-                  <div className="rg-dos-card">
-                    <div className="flex items-center gap-2 text-xs font-black text-emerald-800 uppercase tracking-wider">
-                      <IconCheck className="w-4 h-4 text-emerald-600" /> Conductas Permitidas
-                    </div>
-                    <ul className="rg-list-checks">
-                      <li>
-                        <IconCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                        <span>Consumo de botellas de agua o termos con cierre hermético.</span>
-                      </li>
-                      <li>
-                        <IconCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                        <span>Diálogo en tono moderado orientado a materias académicas.</span>
-                      </li>
-                      <li>
-                        <IconCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                        <span>Uso de computadores personales y pizarras asignadas a la sala.</span>
-                      </li>
-                    </ul>
+                <div className="rg-rule-mini">
+                  <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 text-[#00629B] dark:text-[#38BDF8]">
+                    <IconCheck className="w-4 h-4" />
                   </div>
-
-                  <div className="rg-donts-card">
-                    <div className="flex items-center gap-2 text-xs font-black text-rose-800 uppercase tracking-wider">
-                      <IconCross className="w-4 h-4 text-rose-600" /> Prohibiciones Estrictas
-                    </div>
-                    <ul className="rg-list-checks">
-                      <li>
-                        <IconCross className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
-                        <span>Consumo de alimentos calientes, platos preparados o snacks ruidosos.</span>
-                      </li>
-                      <li>
-                        <IconCross className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
-                        <span>Trasladar sillas o mesas desde otras salas o pasillos.</span>
-                      </li>
-                      <li>
-                        <IconCross className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
-                        <span>Sobrepasar el aforo delimitado en la señalética exterior del cubículo.</span>
-                      </li>
-                    </ul>
+                  <div>
+                    <h4 className="text-xs font-extrabold text-slate-900 dark:text-white">
+                      Cancelación Anticipada
+                    </h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
+                      Si no podrás asistir, libera tu cupo desde "Mis Reservas" o mediante el asistente virtual para apoyar a la comunidad.
+                    </p>
                   </div>
-                </div>
-              </article>
-            )}
-
-            {matchesSearch(["canales", "aforo", "acompanantes", "reserva", "chatbot", "credencial", "tui", "limite"]) && (
-              <article id="norma-canales" className="rg-hero-visual-card">
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                  <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-100 text-emerald-800 border border-emerald-200 uppercase tracking-wider">
-                    Artículo 4 • Gestión Digital
-                  </span>
-                  <span className="text-xs font-bold text-slate-400">Políticas de Asignación</span>
-                </div>
-
-                <h2 className="text-xl sm:text-2xl font-serif font-black text-slate-900 dark:text-white">
-                  Límites de Reserva, Acompañantes y Trazabilidad
-                </h2>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mt-4">
-                  <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                    <div className="text-lg mb-1">🎯</div>
-                    <strong className="text-xs font-bold text-slate-800 dark:text-slate-200 block">1 Reserva Activa</strong>
-                    <p className="text-[11px] text-slate-500 mt-0.5">Cada estudiante puede mantener solo un cupo agendado simultáneo para evitar acaparamientos.</p>
-                  </div>
-
-                  <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                    <div className="text-lg mb-1">👥</div>
-                    <strong className="text-xs font-bold text-slate-800 dark:text-slate-200 block">Registro de Acompañantes</strong>
-                    <p className="text-[11px] text-slate-500 mt-0.5">En reservas grupales es obligatorio indicar RUT y nombre de los integrantes por seguridad institucional.</p>
-                  </div>
-
-                  <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                    <div className="text-lg mb-1">🪪</div>
-                    <strong className="text-xs font-bold text-slate-800 dark:text-slate-200 block">Validación TUI</strong>
-                    <p className="text-[11px] text-slate-500 mt-0.5">La credencial universitaria (física o desde la App UCT) es indispensable para validar el ingreso.</p>
-                  </div>
-                </div>
-              </article>
-            )}
-
-            <div className="rg-scenario-hub">
-              <div className="flex items-center gap-2">
-                <span className="text-xl">💡</span>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white font-serif">
-                  Casos de Aplicación Rápida
-                </h3>
-              </div>
-
-              <div className="rg-scenario-grid">
-                <div className="rg-scenario-item">
-                  <div className="rg-scenario-q">
-                    <span>✦</span> ¿Qué ocurre si llego a las 10:16 a un bloque de las 10:00?
-                  </div>
-                  <p className="rg-scenario-a">
-                    El sistema libera el cubículo a las 10:15 en punto. A las 10:16 la sala ya fue reasignada y se te computa 1 inasistencia.
-                  </p>
-                </div>
-
-                <div className="rg-scenario-item">
-                  <div className="rg-scenario-q">
-                    <span>✦</span> ¿Puedo cederle mi cubículo a un amigo?
-                  </div>
-                  <p className="rg-scenario-a">
-                    No. Las reservas son personales e intransferibles. Debe validarse presencialmente la identidad del titular.
-                  </p>
-                </div>
-
-                <div className="rg-scenario-item">
-                  <div className="rg-scenario-q">
-                    <span>✦</span> ¿Cómo se cuentan los 3 días de suspensión?
-                  </div>
-                  <p className="rg-scenario-a">
-                    Corren de forma continua (72 horas) desde la segunda inasistencia. Al término del plazo, el acceso se reanuda automáticamente.
-                  </p>
-                </div>
-
-                <div className="rg-scenario-item">
-                  <div className="rg-scenario-q">
-                    <span>✦</span> ¿Puedo cancelar desde el celular?
-                  </div>
-                  <p className="rg-scenario-a">
-                    Sí, desde la sección "Mis Reservas" o solicitándolo directamente al Chatbot antes de que inicie la hora reservada.
-                  </p>
                 </div>
               </div>
-            </div>
+            </section>
+          )}
 
-            <div className="rg-footer-banner">
-              <div>
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-sky-200 text-xs font-bold uppercase tracking-wider mb-2">
-                  <IconShield className="w-3.5 h-3.5 text-[#FFC20E]" />
-                  Espacios Compartidos de Excelencia
+          {mostrarSeccion("convivencia", [
+            "convivencia", "comida", "alimentos", "agua", "silencio", "ruido", "mobiliario", "sillas", "pizarras", "aforo", "limpieza"
+          ]) && (
+            <section className="rg-section-card">
+              <div className="rg-section-header">
+                <div>
+                  <span className="rg-section-badge bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300">
+                    Sección 02 • Cuidado del Entorno
+                  </span>
+                  <h2 className="text-xl font-black text-slate-900 dark:text-white mt-2">
+                    Normas de Convivencia, Higiene y Uso de Equipamiento
+                  </h2>
                 </div>
-                <h3 className="text-xl font-serif font-black text-white">¿Listo para estudiar en tu cubículo?</h3>
-                <p className="text-xs text-sky-100 max-w-xl mt-1 leading-relaxed">
-                  Selecciona tu sede, revisa la disponibilidad horaria en tiempo real y asegura tu espacio cumpliendo con el protocolo institucional.
+                <p className="text-xs font-semibold text-slate-400">
+                  Espacios compartidos de concentración académica
                 </p>
               </div>
 
-              <div className="flex flex-wrap items-center gap-3 shrink-0">
-                <Link to="/reservar" className="rg-btn-cta rg-btn-cta--gold text-xs">
-                  <IconCalendar className="w-4 h-4" />
-                  Ir al Formulario
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => window.dispatchEvent(new CustomEvent("open-chat"))}
-                  className="rg-btn-cta rg-btn-cta--glass text-xs"
-                >
-                  <IconChat className="w-4 h-4" />
-                  Hablar con Asistente
-                </button>
+              <div className="rg-convivencia-grid">
+                <div className="rg-conv-panel rg-conv-panel--do">
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                      <IconCheck className="w-4 h-4" />
+                    </span>
+                    <div>
+                      <h3 className="text-sm font-black text-emerald-950 dark:text-emerald-300">
+                        Conductas Permitidas
+                      </h3>
+                      <p className="text-[11px] text-emerald-700 dark:text-emerald-400/80">
+                        Prácticas que favorecen el estudio colaborativo
+                      </p>
+                    </div>
+                  </div>
+
+                  <ul className="rg-check-list">
+                    <li>
+                      <IconCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <span>Ingresar botellas de agua o termos personales con tapa hermética antiderrame.</span>
+                    </li>
+                    <li>
+                      <IconCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <span>Mantener conversación y debate académico en un volumen moderado dentro del cubículo.</span>
+                    </li>
+                    <li>
+                      <IconCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <span>Utilizar pizarras, pantallas y enchufes dejando la sala limpia y ordenada al retirarse.</span>
+                    </li>
+                    <li>
+                      <IconCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <span>Reportar cualquier desperfecto técnico o de mobiliario desde el portal o en mesón.</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="rg-conv-panel rg-conv-panel--dont">
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-7 h-7 rounded-lg bg-rose-600 text-white flex items-center justify-center shrink-0">
+                      <IconCross className="w-4 h-4" />
+                    </span>
+                    <div>
+                      <h3 className="text-sm font-black text-rose-950 dark:text-rose-300">
+                        Acciones No Permitidas
+                      </h3>
+                      <p className="text-[11px] text-rose-700 dark:text-rose-400/80">
+                        Restricciones para preservar las instalaciones
+                      </p>
+                    </div>
+                  </div>
+
+                  <ul className="rg-check-list">
+                    <li>
+                      <IconCross className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                      <span>Consumir alimentos preparados, comidas calientes o snacks que generen olores o residuos.</span>
+                    </li>
+                    <li>
+                      <IconCross className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                      <span>Retirar o trasladar sillas y mesas desde otros cubículos o áreas comunes de lectura.</span>
+                    </li>
+                    <li>
+                      <IconCross className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                      <span>Exceder la capacidad máxima de personas establecida para cada sala de estudio.</span>
+                    </li>
+                    <li>
+                      <IconCross className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                      <span>Dejar objetos de valor sin supervisión o abandonar el cubículo por más de 20 minutos.</span>
+                    </li>
+                  </ul>
+                </div>
               </div>
+            </section>
+          )}
+
+          {mostrarSeccion("horarios", [
+            "horarios", "sedes", "san francisco", "juan pablo", "sabado", "abierto", "cerrado", "campus", "ubicacion"
+          ]) && (
+            <section className="rg-section-card">
+              <div className="rg-section-header">
+                <div>
+                  <span className="rg-section-badge bg-indigo-100 text-indigo-900 dark:bg-indigo-950 dark:text-indigo-300">
+                    Sección 03 • Sedes y Atención
+                  </span>
+                  <h2 className="text-xl font-black text-slate-900 dark:text-white mt-2">
+                    Horarios de Funcionamiento por Campus
+                  </h2>
+                </div>
+                <p className="text-xs font-semibold text-slate-400">
+                  Estado de apertura en tiempo real
+                </p>
+              </div>
+
+              <div className="rg-sedes-grid">
+                {sedes.map((sede) => {
+                  const abierto = sede.checkOpen();
+                  return (
+                    <div key={sede.id} className="rg-sede-card">
+                      <div>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-[#004D7A] text-white flex items-center justify-center shrink-0">
+                              <IconBuilding className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <h3 className="text-base font-black text-slate-900 dark:text-white">
+                                {sede.nombre}
+                              </h3>
+                              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                                {sede.campus} • {sede.ubicacion}
+                              </p>
+                            </div>
+                          </div>
+
+                          <span className={`rg-live-pill shrink-0 ${abierto ? "rg-live-pill--open" : "rg-live-pill--closed"}`}>
+                            <span className="rg-live-dot" />
+                            {abierto ? "Abierto Ahora" : "Cerrado"}
+                          </span>
+                        </div>
+
+                        <div className="mt-4 space-y-2">
+                          {sede.horarios.map((h, i) => (
+                            <div
+                              key={i}
+                              className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 text-xs"
+                            >
+                              <span className="font-bold text-slate-600 dark:text-slate-300">{h.dias}</span>
+                              <span className="font-extrabold text-[#00629B] dark:text-[#38BDF8]">{h.horas}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="pt-3 border-t border-slate-200/70 dark:border-slate-800 flex flex-wrap gap-2">
+                        {sede.servicios.map((srv, idx) => (
+                          <span
+                            key={idx}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800/80 text-[11px] font-semibold text-slate-600 dark:text-slate-300"
+                          >
+                            <IconCheck className="w-3 h-3 text-emerald-500 shrink-0" />
+                            {srv}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          {mostrarSeccion("faq", [
+            "preguntas", "dudas", "frecuentes", "retraso", "cancelar", "amigo", "transferir", "mismo día", "mismo dia"
+          ]) && (
+            <section className="rg-section-card">
+              <div className="rg-section-header">
+                <div>
+                  <span className="rg-section-badge bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-300">
+                    Sección 04 • Resolución Rápida
+                  </span>
+                  <h2 className="text-xl font-black text-slate-900 dark:text-white mt-2">
+                    Preguntas Frecuentes sobre el Reglamento
+                  </h2>
+                </div>
+                <p className="text-xs font-semibold text-slate-400">
+                  Casos habituales de uso diario
+                </p>
+              </div>
+
+              <div className="rg-faq-grid">
+                {preguntasFrecuentes.map((item, idx) => (
+                  <div key={idx} className="rg-faq-card">
+                    <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                      {item.q}
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                      {item.a}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <div className="rg-footer-banner">
+            <div>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-sky-200 text-[11px] font-bold uppercase tracking-wider mb-2">
+                <IconShield className="w-3.5 h-3.5 text-[#FFC20E]" />
+                Sistema de Gestión de Espacios UCT
+              </span>
+              <h3 className="text-xl font-black text-white">
+                ¿Todo claro para agendar tu próximo bloque de estudio?
+              </h3>
+              <p className="text-xs text-sky-100/90 max-w-xl mt-1 leading-relaxed">
+                Elige tu campus, selecciona un cubículo disponible en tiempo real o resuelve cualquier consulta adicional con el asistente virtual.
+              </p>
             </div>
-          </section>
+
+            <div className="flex flex-wrap items-center gap-3 shrink-0">
+              <Link to="/reservar" className="rg-btn-cta rg-btn-cta--gold">
+                <IconCalendar className="w-4 h-4" />
+                Ir a Reservar Cubículo
+              </Link>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent("open-chat"))}
+                className="rg-btn-cta rg-btn-cta--glass"
+              >
+                <IconChat className="w-4 h-4" />
+                Hablar con el Asistente
+              </button>
+            </div>
+          </div>
         </div>
       </main>
     </div>

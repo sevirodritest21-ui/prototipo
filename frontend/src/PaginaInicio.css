@@ -167,14 +167,6 @@ html.dark .pi-root {
   font-size: 0.7rem;
 }
 
-.pi-eyebrow-dot::after {
-  content: "";
-  position: absolute;
-  inset: -4px;
-  border-radius: inherit;
-  border: 2px solid var(--pi-gold);
-  animation: pi-ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
-}
 
 @keyframes pi-ping {
   0% { transform: scale(0.8); opacity: 0.9; }
@@ -210,12 +202,8 @@ html.dark .pi-root {
 }
 
 .pi-title-line > .pi-gradient-text {
-  background: linear-gradient(100deg, var(--pi-gold) 0%, #fff3c4 25%, var(--pi-sky) 50%, var(--pi-gold) 75%, #fff3c4 100%);
-  background-size: 250% auto;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: pi-line-up 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) 0.24s forwards, pi-shine-text 6s linear infinite;
+  color: var(--pi-gold);
+  animation: pi-line-up 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) 0.24s forwards;
 }
 
 @keyframes pi-shine-text {

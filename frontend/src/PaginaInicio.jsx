@@ -1,9 +1,58 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
 import { useCmsAnunciosQuery, useCmsTarjetasQuery } from "./services/queries";
 import logoChatbot from "./assets/logoredondo.png";
 import "./PaginaInicio.css";
+
+const IconChatSvg = ({ className = "w-5 h-5" }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+    <path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" />
+  </svg>
+);
+
+const IconPinSvg = ({ className = "w-5 h-5" }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+    <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 1116 0z" />
+    <circle cx="12" cy="10" r="3" />
+  </svg>
+);
+
+const IconDoorSvg = ({ className = "w-5 h-5" }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+    <rect x="4" y="3" width="16" height="18" rx="2" />
+    <path d="M15 12h.01" />
+  </svg>
+);
+
+const IconCheckSvg = ({ className = "w-5 h-5" }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+    <path d="M20 6L9 17l-5-5" />
+  </svg>
+);
+
+const IconBookSvg = ({ className = "w-6 h-6" }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+    <path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
+    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
+  </svg>
+);
+
+const IconUsersSvg = ({ className = "w-6 h-6" }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+    <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+    <circle cx="9" cy="7" r="4" />
+    <path d="M23 21v-2a4 4 0 00-3-3.87" />
+    <path d="M16 3.13a4 4 0 010 7.75" />
+  </svg>
+);
+
+const renderCardSvg = (icono, idx) => {
+  const val = String(icono || "").toLowerCase();
+  if (val.includes("chat") || val.includes("\u{1F916}") || idx === 1) return <IconChatSvg className="w-6 h-6" />;
+  if (val.includes("user") || val.includes("\u{1F465}") || idx === 2) return <IconUsersSvg className="w-6 h-6" />;
+  return <IconBookSvg className="w-6 h-6" />;
+};
 
 const tutorialSteps = [
   {
@@ -11,45 +60,45 @@ const tutorialSteps = [
     titulo: "Toca el Asistente IA",
     desc: "Presiona el botón flotante del chatbot para agendar o consultar.",
     tipo: "chatbot",
-    icono: "🤖"
+    icono: <IconChatSvg className="w-6 h-6" />
   },
   {
     paso: 2,
     titulo: "Elige Fecha y Campus",
     desc: "Selecciona tu sede, fecha y horario de estudio.",
-    icono: "📍"
+    icono: <IconPinSvg className="w-6 h-6" />
   },
   {
     paso: 3,
     titulo: "Selecciona Cubículo",
     desc: "Revisa capacidad, pantallas y disponibilidad.",
-    icono: "🚪"
+    icono: <IconDoorSvg className="w-6 h-6" />
   },
   {
     paso: 4,
     titulo: "Confirma tu Espacio",
     desc: "Agrega compañeros y asegura tu reserva al instante.",
-    icono: "✅"
+    icono: <IconCheckSvg className="w-6 h-6" />
   }
 ];
 
 const tarjetasDefault = [
   {
-    icono: "📚",
+    icono: "book",
     titulo: "Reserva de Cubículos",
     descripcion: "Selecciona la sede, fecha y bloque horario que necesitas para tu jornada de estudio individual o en equipo.",
     link_texto: "Ir al Formulario",
     link_url: "/reservar"
   },
   {
-    icono: "🤖",
+    icono: "chat",
     titulo: "Asistente Virtual",
     descripcion: "Interactúa en lenguaje natural para realizar o cancelar reservas sin llenar formularios extensos.",
     link_texto: "Probar Chatbot",
     link_url: "open-chat"
   },
   {
-    icono: "👥",
+    icono: "users",
     titulo: "Trabajo Colaborativo",
     descripcion: "Registra a tus compañeros acompañantes al momento de realizar la reserva de tu espacio.",
     link_texto: "Hasta 10 espacios por bloque",
@@ -66,15 +115,6 @@ const slideDefault = {
   color_fondo: "#00A3E0"
 };
 
-const marqueeItems = [
-  "Reserva en tiempo real",
-  "Asistente IA 24/7",
-  "Cubículos individuales y grupales",
-  "Biblioteca UCT",
-  "Sin filas ni papeleo",
-  "Estudia en equipo"
-];
-
 const abrirChat = () => window.dispatchEvent(new CustomEvent("open-chat"));
 
 const limpiarFlecha = (texto) => String(texto || "").trimEnd().replace(/→$/, "").trimEnd();
@@ -86,32 +126,11 @@ export default function PaginaInicio() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [tutorialStep, setTutorialStep] = useState(0);
   const rootRef = useRef(null);
-  const tiltRef = useRef(null);
-  const rafTiltRef = useRef(null);
 
   const slides = anuncios.length > 0 ? anuncios : [slideDefault];
   const listaTarjetas = tarjetas.length > 0 ? tarjetas : tarjetasDefault;
   const slide = slides[currentSlide] || slides[0];
   const paso = tutorialSteps[tutorialStep];
-
-  const particles = useMemo(
-    () =>
-      Array.from({ length: 8 }, (_, i) => ({
-        left: `${(i * 12 + 8) % 100}%`,
-        bottom: `${(i * 7 + 4) % 36}%`,
-        size: 3 + (i % 3),
-        duration: 12 + (i % 5) * 2,
-        delay: (i * 1.2) % 8,
-        gold: i % 2 === 0
-      })),
-    []
-  );
-
-  useEffect(() => {
-    return () => {
-      if (rafTiltRef.current) cancelAnimationFrame(rafTiltRef.current);
-    };
-  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -126,10 +145,6 @@ export default function PaginaInicio() {
       setCurrentSlide((prev) => (prev + 1) % slides.length);
     }, 6000);
     return () => clearInterval(timer);
-  }, [slides.length, currentSlide]);
-
-  useEffect(() => {
-    if (currentSlide >= slides.length) setCurrentSlide(0);
   }, [slides.length, currentSlide]);
 
   useEffect(() => {
@@ -155,27 +170,6 @@ export default function PaginaInicio() {
     return () => observer.disconnect();
   }, [listaTarjetas.length]);
 
-  const handleTilt = useCallback((e) => {
-    const el = tiltRef.current;
-    if (!el || e.pointerType === "touch") return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width - 0.5;
-    const y = (e.clientY - rect.top) / rect.height - 0.5;
-    if (rafTiltRef.current) cancelAnimationFrame(rafTiltRef.current);
-    rafTiltRef.current = requestAnimationFrame(() => {
-      el.style.setProperty("--ry", `${x * 10}deg`);
-      el.style.setProperty("--rx", `${-y * 8}deg`);
-    });
-  }, []);
-
-  const resetTilt = useCallback(() => {
-    const el = tiltRef.current;
-    if (!el) return;
-    if (rafTiltRef.current) cancelAnimationFrame(rafTiltRef.current);
-    el.style.setProperty("--ry", "0deg");
-    el.style.setProperty("--rx", "0deg");
-  }, []);
-
   const handleSpotlight = useCallback((e) => {
     const rect = e.currentTarget.getBoundingClientRect();
     e.currentTarget.style.setProperty("--mx", `${e.clientX - rect.left}px`);
@@ -193,26 +187,11 @@ export default function PaginaInicio() {
         <div className="pi-blob pi-blob--sky" aria-hidden="true" />
         <div className="pi-blob pi-blob--ocean" aria-hidden="true" />
         <div className="pi-blob pi-blob--gold" aria-hidden="true" />
-        {particles.map((p, i) => (
-          <span
-            key={i}
-            aria-hidden="true"
-            className={`pi-particle ${p.gold ? "pi-particle--gold" : ""}`}
-            style={{
-              left: p.left,
-              bottom: p.bottom,
-              width: p.size,
-              height: p.size,
-              animationDuration: `${p.duration}s`,
-              animationDelay: `${p.delay}s`
-            }}
-          />
-        ))}
 
         <div className="pi-container pi-hero-grid">
           <div>
             <div className="pi-eyebrow pi-fade-up">
-              <span className="pi-eyebrow-dot">★</span>
+              <span className="pi-eyebrow-dot" />
               Biblioteca UCT — Portal de Reservas
             </div>
 
@@ -245,7 +224,7 @@ export default function PaginaInicio() {
                 <span className="pi-btn-arrow">→</span>
               </Link>
               <button id="pi-btn-chat" type="button" onClick={abrirChat} className="pi-btn pi-btn--glass">
-                <span>🤖</span> Hablar con el Asistente IA
+                <IconChatSvg className="w-4 h-4" /> Hablar con el Asistente IA
               </button>
             </div>
 
@@ -275,22 +254,8 @@ export default function PaginaInicio() {
           <div
             className="pi-stage pi-fade-up"
             style={{ animationDelay: "0.35s" }}
-            onPointerMove={handleTilt}
-            onPointerLeave={resetTilt}
           >
-            <div ref={tiltRef} className="pi-tilt">
-              <div className="pi-orbit" aria-hidden="true"><span className="pi-orbit-dot" /></div>
-              <div className="pi-orbit pi-orbit--inner" aria-hidden="true"><span className="pi-orbit-dot" /></div>
-
-              <svg className="pi-star" viewBox="0 0 100 100" aria-hidden="true">
-                <path
-                  d="M50 4 L62.5 32 L94 34.5 L70 55 L77.5 86 L50 70 L22.5 86 L30 55 L6 34.5 L37.5 32 Z"
-                  fill="#FFC20E"
-                  stroke="#E5AC00"
-                  strokeWidth="2.5"
-                  strokeLinejoin="round"
-                />
-              </svg>
+            <div className="pi-tilt">
 
               <div className="pi-chip pi-chip--a">
                 <span className="pi-chip-icon"><span className="pi-live" /></span>
@@ -370,13 +335,6 @@ export default function PaginaInicio() {
                 </div>
               </div>
 
-              <div className="pi-chip pi-chip--b">
-                <span className="pi-chip-icon">✅</span>
-                <div>
-                  Reserva confirmada
-                  <small>Tu cubículo te espera</small>
-                </div>
-              </div>
 
               <div className="pi-phone">
                 <div className="pi-phone-notch" />
@@ -441,20 +399,10 @@ export default function PaginaInicio() {
         </svg>
       </section>
 
-      <div className="pi-marquee" aria-hidden="true">
-        <div className="pi-marquee-track">
-          {[...marqueeItems, ...marqueeItems].map((item, idx) => (
-            <span key={idx} className="pi-marquee-item">
-              {item} <i>✦</i>
-            </span>
-          ))}
-        </div>
-      </div>
-
       <section className="pi-section" aria-labelledby="pi-steps-title">
         <div className="pi-container">
           <div className="pi-section-head pi-reveal">
-            <span className="pi-kicker">⚡ Así de simple</span>
+            <span className="pi-kicker">✦ Así de simple</span>
             <h2 id="pi-steps-title" className="pi-h2">
               Tu cubículo listo en <em>cuatro pasos</em>
             </h2>
@@ -501,7 +449,7 @@ export default function PaginaInicio() {
                 <div className="pi-card-inner">
                   <span className="pi-card-num" aria-hidden="true">{String(idx + 1).padStart(2, "0")}</span>
                   <div>
-                    <div className="pi-card-icon">{tj.icono || "📚"}</div>
+                    <div className="pi-card-icon">{renderCardSvg(tj.icono, idx)}</div>
                     <h3>{tj.titulo}</h3>
                     <p>{tj.descripcion}</p>
                   </div>
@@ -532,7 +480,7 @@ export default function PaginaInicio() {
             <div className="pi-cta-grid">
               <div>
                 <span className="pi-eyebrow" style={{ background: "rgba(255,255,255,0.12)" }}>
-                  <span className="pi-eyebrow-dot">🤖</span>
+                  <span className="pi-eyebrow-dot"><IconChatSvg className="w-3.5 h-3.5" /></span>
                   Asistente inteligente UCT
                 </span>
                 <h2 id="pi-cta-title" style={{ marginTop: "1.4rem" }}>
