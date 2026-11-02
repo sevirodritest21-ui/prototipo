@@ -36,3 +36,4 @@ sonar-project.properties
 *.docx
 .agents/skills/uct-ui-design/SKILL.md
 .agents/rules/uct-design-system.md
+*.bak
