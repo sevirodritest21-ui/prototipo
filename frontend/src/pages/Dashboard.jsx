@@ -170,6 +170,15 @@ export default function Dashboard() {
   const [reservasBloque, setReservasBloque] = useState([]);
   const [cargandoBloque, setCargandoBloque] = useState(false);
   const [busquedaModalBloque, setBusquedaModalBloque] = useState("");
+  const [horaGestionReservas, setHoraGestionReservas] = useState("todos");
+  const [cubiculoFiltroGestion, setCubiculoFiltroGestion] = useState("todos");
+  const [paginaGestionReservas, setPaginaGestionReservas] = useState(1);
+  const [filasPorPaginaGestion, setFilasPorPaginaGestion] = useState(10);
+  const [ordenGestion, setOrdenGestion] = useState({ campo: "hora", dir: "asc" });
+  const [seleccionadosGestion, setSeleccionadosGestion] = useState([]);
+  const [reservasGestionLista, setReservasGestionLista] = useState([]);
+  const [cargandoGestionReservas, setCargandoGestionReservas] = useState(false);
+  const [busquedaGestionReservas, setBusquedaGestionReservas] = useState("");
   const [eliminandoReservaId, setEliminandoReservaId] = useState(null);
   const [confirmModal, setConfirmModal] = useState({ open: false, titulo: "", mensaje: "", onConfirm: null });
   const [toastNotificacion, setToastNotificacion] = useState({ tipo: "", texto: "" });
@@ -494,6 +503,7 @@ export default function Dashboard() {
   const [ordenCarrerasMetricas, setOrdenCarrerasMetricas] = useState("total");
 
   const [historial, setHistorial] = useState([]);
+  const [reservasRecientes, setReservasRecientes] = useState([]);
   const [cargandoHistorial, setCargandoHistorial] = useState(false);
   const [busquedaHistorial, setBusquedaHistorial] = useState("");
   const [mostrarHistorial, setMostrarHistorial] = useState(true);
@@ -646,6 +656,16 @@ export default function Dashboard() {
       thursday: "Jueves", friday: "Viernes", saturday: "Sábado", sunday: "Domingo"
     };
     return map[String(d).trim().toLowerCase()] || d;
+  };
+
+  const fetchReservasRecientes = async () => {
+    try {
+      const data = await apiGet("/api/dashboard/historial?limit=25&offset=0");
+      const registros = Array.isArray(data) ? data : (data?.registros || []);
+      setReservasRecientes(registros);
+    } catch {
+      setReservasRecientes([]);
+    }
   };
 
   const fetchHistorial = async (pagina = paginaHistorial, limite = limiteHistorial, estadoFiltro = filtroEstadoHistorial) => {
@@ -815,10 +835,58 @@ export default function Dashboard() {
         `/api/dashboard/resumen?campus_id=${campusSeleccionado}&fecha=${fechaSeleccionada}`
       );
       setResumen(data);
+      fetchReservasRecientes();
+      if (data?.bloques?.length > 0) {
+        setHoraGestionReservas((prev) => {
+          if (!prev || prev === "todos") return "todos";
+          if (data.bloques.some((b) => b.hora === prev)) return prev;
+          return "todos";
+        });
+      }
     } catch (err) {
       setError(err.message || "Error al cargar datos del dashboard.");
     } finally {
       setLoadingData(false);
+    }
+  };
+
+  const fetchReservasGestion = async (horaTarget = horaGestionReservas, bloquesRef = resumen?.bloques) => {
+    if (!campusSeleccionado || !fechaSeleccionada || !horaTarget) return;
+    setCargandoGestionReservas(true);
+    try {
+      if (horaTarget === "todos") {
+        const bloquesConOcupacion = (bloquesRef || []).filter((b) => b.ocupados > 0);
+        if (bloquesConOcupacion.length === 0) {
+          setReservasGestionLista([]);
+        } else {
+          const respuestas = await Promise.all(
+            bloquesConOcupacion.map(async (b) => {
+              const res = await apiGet(
+                `/api/dashboard/reservas-bloque?campus_id=${campusSeleccionado}&fecha=${fechaSeleccionada}&hora=${b.hora}`
+              );
+              return (res?.reservas || []).map((item) => ({
+                ...item,
+                rango: b.rango || b.hora
+              }));
+            })
+          );
+          setReservasGestionLista(respuestas.flat());
+        }
+      } else {
+        const data = await apiGet(
+          `/api/dashboard/reservas-bloque?campus_id=${campusSeleccionado}&fecha=${fechaSeleccionada}&hora=${horaTarget}`
+        );
+        const bObj = (bloquesRef || []).find((b) => b.hora === horaTarget);
+        const items = (data?.reservas || []).map((item) => ({
+          ...item,
+          rango: bObj?.rango || horaTarget
+        }));
+        setReservasGestionLista(items);
+      }
+    } catch {
+      setReservasGestionLista([]);
+    } finally {
+      setCargandoGestionReservas(false);
     }
   };
 
@@ -869,14 +937,24 @@ export default function Dashboard() {
       fetchIncidencias,
       fetchSolicitudesTalleres,
       fetchHistorial,
+      fetchReservasRecientes,
       fetchCubiculos,
       fetchResumen,
+      fetchReservasGestion,
       fetchPrediccion,
       fetchMetricas,
       paginaHistorial,
       limiteHistorial,
     };
   });
+
+  useEffect(() => {
+    if (activeTab !== "reservas" || !campusSeleccionado || !fechaSeleccionada || !horaGestionReservas) return;
+    const t = setTimeout(() => {
+      handlersRef.current.fetchReservasGestion?.(horaGestionReservas, resumen?.bloques);
+    }, 0);
+    return () => clearTimeout(t);
+  }, [activeTab, campusSeleccionado, fechaSeleccionada, horaGestionReservas, resumen]);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -896,13 +974,28 @@ export default function Dashboard() {
       handlersRef.current.fetchIncidencias?.();
       handlersRef.current.fetchSolicitudesTalleres?.();
       handlersRef.current.fetchHistorial?.(1, 10);
+      handlersRef.current.fetchReservasRecientes?.();
     }, 0);
-    return () => clearTimeout(t);
+    const onRefreshEvent = () => {
+      handlersRef.current.fetchResumen?.();
+      handlersRef.current.fetchReservasRecientes?.();
+      if (handlersRef.current) {
+        handlersRef.current.fetchHistorial?.(handlersRef.current.paginaHistorial, handlersRef.current.limiteHistorial);
+      }
+    };
+    window.addEventListener("reservaActualizada", onRefreshEvent);
+    window.addEventListener("focus", onRefreshEvent);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("reservaActualizada", onRefreshEvent);
+      window.removeEventListener("focus", onRefreshEvent);
+    };
   }, []);
 
   useEffect(() => {
     const t = setTimeout(() => {
       const h = handlersRef.current;
+      if (activeTab === "monitoreo") h.fetchReservasRecientes?.();
       if (activeTab === "cms") h.fetchCMS?.();
       if (activeTab === "bloqueos") h.fetchDiasBloqueados?.();
       if (activeTab === "incidencias") h.fetchIncidencias?.();
@@ -1232,6 +1325,7 @@ export default function Dashboard() {
 
       const reservasActualizadas = reservasBloque.filter((r) => r.id !== reservaId && String(r.id) !== String(reservaId));
       setReservasBloque(reservasActualizadas);
+      setReservasGestionLista((prev) => prev.filter((r) => r.id !== reservaId && String(r.id) !== String(reservaId)));
 
       await fetchResumen();
       if (activeTab === "historial") {
@@ -1801,6 +1895,16 @@ export default function Dashboard() {
           ),
         },
         {
+          id: "reservas",
+          label: "Gestión de Reservas",
+          badge: resumen?.total_reservas_dia || 0,
+          svg: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25z" />
+            </svg>
+          ),
+        },
+        {
           id: "calendario",
           label: "Calendario y Bloqueos",
           svg: (
@@ -2069,13 +2173,14 @@ export default function Dashboard() {
             <div>
               <h1 className="text-lg sm:text-xl font-black text-[#0F172A] tracking-tight uppercase leading-tight">
                 {activeTab === "monitoreo" ? "Actividad y Monitoreo" :
-                  activeTab === "incidencias" ? "Incidencias de Cubículos" :
-                    activeTab === "talleres" ? "Talleres Solicitados" :
-                      activeTab === "metricas" ? (tipoMetricas === "talleres" ? "Métricas · Talleres" : tipoMetricas === "prediccion" ? "Métricas · Pronóstico" : tipoMetricas === "reservas" ? "Métricas · Reservas" : "Métricas y Análisis") :
-                        activeTab === "calendario" ? "Calendario y Bloqueos" :
-                          activeTab === "sedes" ? "Sedes y Cubículos" :
-                            activeTab === "cms" ? "Portal de Inicio" :
-                              activeTab === "faqs" ? "Preguntas Frecuentes" : "Historial de Registros"}
+                  activeTab === "reservas" ? "Gestión de Reservas" :
+                    activeTab === "incidencias" ? "Incidencias de Cubículos" :
+                      activeTab === "talleres" ? "Talleres Solicitados" :
+                        activeTab === "metricas" ? (tipoMetricas === "talleres" ? "Métricas · Talleres" : tipoMetricas === "prediccion" ? "Métricas · Pronóstico" : tipoMetricas === "reservas" ? "Métricas · Reservas" : "Métricas y Análisis") :
+                          activeTab === "calendario" ? "Calendario y Bloqueos" :
+                            activeTab === "sedes" ? "Sedes y Cubículos" :
+                              activeTab === "cms" ? "Portal de Inicio" :
+                                activeTab === "faqs" ? "Preguntas Frecuentes" : "Historial de Registros"}
               </h1>
               <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-500 font-semibold">
                 <span className="inline-flex items-center gap-1.5 text-emerald-700 font-bold">
@@ -2181,7 +2286,7 @@ export default function Dashboard() {
           </div>
         </header>
 
-        <main className="p-5 sm:p-8 max-w-7xl w-full mx-auto space-y-6 flex-1">
+        <main className={`${activeTab === "reservas" ? "p-3 sm:p-5 max-w-none flex flex-col" : "p-5 sm:p-8 max-w-7xl space-y-6"} w-full mx-auto flex-1`}>
 
           {/* Mensaje de Operación */}
           {campusMsg.texto && (
@@ -3511,72 +3616,83 @@ export default function Dashboard() {
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50">
-                              {(historial && historial.length > 0 ? (
-                                historial
+                              {(() => {
+                                const baseLista = (reservasRecientes && reservasRecientes.length > 0) ? reservasRecientes : (historial || []);
+                                const filtradas = baseLista
                                   .filter((h) => {
                                     if (!busquedaOrdenes) return true;
                                     const t = busquedaOrdenes.toLowerCase();
                                     return (
                                       (h.nombre && h.nombre.toLowerCase().includes(t)) ||
                                       (h.rut && h.rut.toLowerCase().includes(t)) ||
+                                      (h.campus_nombre && h.campus_nombre.toLowerCase().includes(t)) ||
                                       (h.cubiculo_codigo && h.cubiculo_codigo.toLowerCase().includes(t)) ||
                                       String(h.reserva_id || h.id || "").includes(t)
                                     );
                                   })
-                                  .slice(0, 5)
-                              ) : (
-                                [
-                                  { id: 1, nombre: "Daniel Fuentes", reserva_id: 1293078, fecha: "Hoy · 08:30 hrs", estado: "completada" },
-                                  { id: 2, nombre: "Tomas Navarro", reserva_id: 1293079, fecha: "Hoy · 10:00 hrs", estado: "activa" },
-                                  { id: 3, nombre: "Valeria Gomez", reserva_id: 1293080, fecha: "Hoy · 11:30 hrs", estado: "liberada" },
-                                  { id: 4, nombre: "Diego Silva", reserva_id: 1293081, fecha: "Hoy · 13:00 hrs", estado: "en_curso" },
-                                  { id: 5, nombre: "Marcos Soto", reserva_id: 1293082, fecha: "Hoy · 14:30 hrs", estado: "inasistencia" }
-                                ]
-                              )).map((h, i) => {
-                                const est = (h.estado || "").toLowerCase();
-                                let dotColor = "bg-slate-400";
-                                let labelStatus = "Finalizada";
+                                  .slice(0, 5);
 
-                                if (est === "activa" || est === "confirmada") {
-                                  dotColor = "bg-[#00A3E0]";
-                                  labelStatus = "Confirmada";
-                                } else if (est === "en_curso" || est === "progress") {
-                                  dotColor = "bg-[#FFC20E]";
-                                  labelStatus = "En curso";
-                                } else if (est === "completada" || est === "completed" || est === "expirada") {
-                                  dotColor = "bg-emerald-500";
-                                  labelStatus = "Completada";
-                                } else if (est === "liberada") {
-                                  dotColor = "bg-amber-400";
-                                  labelStatus = "Liberada";
-                                } else if (est === "cancelada") {
-                                  dotColor = "bg-rose-500";
-                                  labelStatus = "Cancelada";
-                                } else if (est === "inasistencia") {
-                                  dotColor = "bg-rose-600";
-                                  labelStatus = "Inasistencia";
+                                if (filtradas.length === 0) {
+                                  return (
+                                    <tr>
+                                      <td colSpan={4} className="py-6 text-center text-slate-400 text-xs">
+                                        No se encontraron reservas recientes.
+                                      </td>
+                                    </tr>
+                                  );
                                 }
 
-                                return (
-                                  <tr key={h.id || i} className="hover:bg-slate-50/60 transition-colors">
-                                    <td className="py-2.5 font-bold text-slate-800">
-                                      {h.nombre}
-                                    </td>
-                                    <td className="py-2.5 font-mono text-slate-500 text-[11px]">
-                                      #{h.reserva_id || h.id}
-                                    </td>
-                                    <td className="py-2.5 text-slate-500 text-[11px]">
-                                      {h.fecha}{h.hora ? ` · ${h.hora} hrs` : ""}
-                                    </td>
-                                    <td className="py-2.5">
-                                      <span className="inline-flex items-center gap-1.5 text-[11px] text-slate-600 font-medium">
-                                        <span className={`w-2 h-2 rounded-full ${dotColor}`} />
-                                        {labelStatus}
-                                      </span>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
+                                return filtradas.map((h, i) => {
+                                  const est = (h.estado || "").toLowerCase();
+                                  let dotColor = "bg-slate-400";
+                                  let labelStatus = "Finalizada";
+
+                                  if (est === "activa" || est === "confirmada") {
+                                    dotColor = "bg-[#00A3E0]";
+                                    labelStatus = "Confirmada";
+                                  } else if (est === "en_curso" || est === "progress") {
+                                    dotColor = "bg-[#FFC20E]";
+                                    labelStatus = "En curso";
+                                  } else if (est === "completada" || est === "completed" || est === "expirada") {
+                                    dotColor = "bg-emerald-500";
+                                    labelStatus = "Completada";
+                                  } else if (est === "liberada") {
+                                    dotColor = "bg-amber-400";
+                                    labelStatus = "Liberada";
+                                  } else if (est === "cancelada") {
+                                    dotColor = "bg-rose-500";
+                                    labelStatus = "Cancelada";
+                                  } else if (est === "inasistencia") {
+                                    dotColor = "bg-rose-600";
+                                    labelStatus = "Inasistencia";
+                                  }
+
+                                  const horaCorta = h.hora ? String(h.hora).slice(0, 5) : "";
+
+                                  return (
+                                    <tr key={`${h.reserva_id || h.id}-${i}`} className="hover:bg-slate-50/60 transition-colors">
+                                      <td className="py-2.5">
+                                        <div className="font-bold text-slate-800 leading-tight">{h.nombre}</div>
+                                        {h.campus_nombre && (
+                                          <div className="text-[10px] font-medium text-slate-400 mt-0.5">Campus {h.campus_nombre}</div>
+                                        )}
+                                      </td>
+                                      <td className="py-2.5 font-mono text-slate-500 text-[11px]">
+                                        #{h.reserva_id || h.id}
+                                      </td>
+                                      <td className="py-2.5 text-slate-500 text-[11px]">
+                                        {h.fecha}{horaCorta ? ` · ${horaCorta} hrs` : ""}
+                                      </td>
+                                      <td className="py-2.5">
+                                        <span className="inline-flex items-center gap-1.5 text-[11px] text-slate-600 font-medium">
+                                          <span className={`w-2 h-2 rounded-full ${dotColor}`} />
+                                          {labelStatus}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  );
+                                });
+                              })()}
                             </tbody>
                           </table>
                         </div>
@@ -3866,6 +3982,588 @@ export default function Dashboard() {
               )}
             </>
           )}
+
+          {(activeTab === "reservas") && (() => {
+            const fechaCorta = new Date(fechaSeleccionada + "T12:00:00").toLocaleDateString("es-CL", {
+              day: "numeric",
+              month: "short",
+              year: "numeric"
+            });
+            const bloquesDia = resumen?.bloques || [];
+
+            const codigosCubiculosDisponibles = Array.from(
+              new Set([
+                ...(cubiculosCampus || []).map((c) => c.codigo).filter(Boolean),
+                ...reservasGestionLista.map((r) => r.cubiculo_codigo).filter(Boolean)
+              ])
+            ).sort();
+
+            const reservasGestionFiltradas = reservasGestionLista.filter((r) => {
+              if (cubiculoFiltroGestion !== "todos" && r.cubiculo_codigo !== cubiculoFiltroGestion) {
+                return false;
+              }
+              const q = (busquedaGestionReservas || busquedaGlobal || "").trim().toLowerCase();
+              if (!q) return true;
+              const matchTitular = (r.nombre && r.nombre.toLowerCase().includes(q)) ||
+                (r.rut && r.rut.toLowerCase().includes(q)) ||
+                (r.cubiculo_codigo && r.cubiculo_codigo.toLowerCase().includes(q)) ||
+                String(r.id || "").toLowerCase().includes(q);
+              const matchAcompanante = Array.isArray(r.acompanantes) && r.acompanantes.some(
+                (ac) => (ac.nombre && ac.nombre.toLowerCase().includes(q)) || (ac.rut && ac.rut.toLowerCase().includes(q))
+              );
+              return matchTitular || matchAcompanante;
+            });
+
+            const reservasOrdenadas = [...reservasGestionFiltradas].sort((a, b) => {
+              const dir = ordenGestion.dir === "asc" ? 1 : -1;
+              const c = ordenGestion.campo;
+              if (c === "nombre") return String(a.nombre || "").localeCompare(String(b.nombre || "")) * dir;
+              if (c === "rut") return String(a.rut || "").localeCompare(String(b.rut || "")) * dir;
+              if (c === "cubiculo") return String(a.cubiculo_codigo || "").localeCompare(String(b.cubiculo_codigo || "")) * dir;
+              if (c === "modalidad") return ((a.acompanantes?.length || 0) - (b.acompanantes?.length || 0)) * dir;
+              if (c === "fecha") return String(a.fecha || "").localeCompare(String(b.fecha || "")) * dir;
+              return String(a.hora || "").localeCompare(String(b.hora || "")) * dir;
+            });
+
+            const totalFilas = reservasOrdenadas.length;
+            const totalPaginas = Math.max(1, Math.ceil(totalFilas / filasPorPaginaGestion));
+            const paginaSegura = Math.min(paginaGestionReservas, totalPaginas);
+            const indiceInicio = (paginaSegura - 1) * filasPorPaginaGestion;
+            const filasPagina = reservasOrdenadas.slice(indiceInicio, indiceInicio + filasPorPaginaGestion);
+
+            const handleToggleOrden = (campo) => {
+              setOrdenGestion((prev) => ({
+                campo,
+                dir: prev.campo === campo && prev.dir === "asc" ? "desc" : "asc"
+              }));
+            };
+
+            const todosSeleccionados = filasPagina.length > 0 && filasPagina.every((r) => seleccionadosGestion.includes(String(r.id)));
+
+            const handleToggleSeleccionTodos = () => {
+              if (todosSeleccionados) {
+                const idsPagina = filasPagina.map((r) => String(r.id));
+                setSeleccionadosGestion((prev) => prev.filter((id) => !idsPagina.includes(id)));
+              } else {
+                const nuevosIds = Array.from(new Set([...seleccionadosGestion, ...filasPagina.map((r) => String(r.id))]));
+                setSeleccionadosGestion(nuevosIds);
+              }
+            };
+
+            const handleToggleFila = (id) => {
+              const strId = String(id);
+              setSeleccionadosGestion((prev) =>
+                prev.includes(strId) ? prev.filter((x) => x !== strId) : [...prev, strId]
+              );
+            };
+
+            const handleExportarGestionExcel = () => {
+              if (reservasOrdenadas.length === 0) {
+                setToastNotificacion({ tipo: "error", texto: "No hay reservas activas en la tabla para exportar." });
+                return;
+              }
+              const dataExport = reservasOrdenadas.map((r, i) => ({
+                "N°": i + 1,
+                "Folio": `#${r.id}`,
+                "Estudiante Titular": r.nombre,
+                "RUT": r.rut,
+                "Cubículo": r.cubiculo_codigo || "N/A",
+                "Sede": campusSeleccionadoObj?.nombre || "Sede UCT",
+                "Fecha": r.fecha || fechaSeleccionada,
+                "Horario": r.rango || r.hora,
+                "Modalidad": (r.acompanantes?.length || 0) > 0 ? `Grupal (${r.acompanantes.length + 1})` : "Individual",
+                "Acompañantes": (r.acompanantes || []).map((ac) => `${ac.nombre} (${ac.rut || "-"})`).join(", ") || "Sin acompañantes",
+                "Estado": "Activa"
+              }));
+              const wb = XLSX.utils.book_new();
+              const ws = XLSX.utils.json_to_sheet(dataExport);
+              ws["!cols"] = [
+                { wch: 5 }, { wch: 10 }, { wch: 28 }, { wch: 15 }, { wch: 12 },
+                { wch: 24 }, { wch: 14 }, { wch: 18 }, { wch: 16 }, { wch: 42 }, { wch: 12 }
+              ];
+              XLSX.utils.book_append_sheet(wb, ws, "Reservas Activas");
+              XLSX.writeFile(wb, `Reservas_Activas_${campusSeleccionadoObj?.nombre || "UCT"}_${fechaSeleccionada}.xlsx`);
+              setToastNotificacion({ tipo: "exito", texto: "Listado de reservas exportado a Excel correctamente." });
+            };
+
+            const avatarPalette = [
+              "from-[#002D4C] to-[#00629B]",
+              "from-[#00629B] to-[#00A3E0]",
+              "from-[#004D7A] to-[#0082B8]",
+              "from-sky-600 to-cyan-500",
+              "from-indigo-900 to-[#00629B]"
+            ];
+
+            return (
+              <div className="flex-1 flex flex-col min-h-[calc(100vh-118px)] animate-fadeIn">
+                <div className="flex-1 flex flex-col justify-between bg-white rounded-3xl border border-[#00629B]/20 shadow-[0_18px_48px_-14px_rgba(0,45,76,0.12)] overflow-hidden">
+                  <div className="flex-1 flex flex-col">
+                    <div className="p-5 sm:px-7 sm:py-5 flex flex-col xl:flex-row xl:items-center justify-between gap-4 bg-gradient-to-r from-white via-sky-50/35 to-white border-b border-slate-200/80">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <div className="relative w-full sm:w-72">
+                          <input
+                            type="text"
+                            placeholder="Buscar estudiante, RUT o folio..."
+                            value={busquedaGestionReservas}
+                            onChange={(e) => {
+                              setBusquedaGestionReservas(e.target.value);
+                              setPaginaGestionReservas(1);
+                            }}
+                            className="w-full pl-10 pr-8 py-2.5 rounded-full border border-[#00629B]/30 bg-white text-xs font-semibold text-[#0F172A] placeholder:text-slate-400 focus:border-[#00629B] focus:ring-3 focus:ring-[#00A3E0]/20 outline-none shadow-2xs transition-all"
+                          />
+                          <svg className="w-4 h-4 text-[#00629B] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                          </svg>
+                          {busquedaGestionReservas && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setBusquedaGestionReservas("");
+                                setPaginaGestionReservas(1);
+                              }}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#002D4C] text-xs font-bold cursor-pointer"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="relative inline-flex items-center">
+                          <span className="absolute left-3.5 text-[#00629B] pointer-events-none flex items-center">
+                            <UiIcon name="building" className="w-3.5 h-3.5" />
+                          </span>
+                          <select
+                            value={campusSeleccionado || ""}
+                            onChange={(e) => {
+                              setCampusSeleccionado(Number(e.target.value));
+                              setCubiculoFiltroGestion("todos");
+                              setPaginaGestionReservas(1);
+                            }}
+                            className="appearance-none pl-9 pr-9 py-2.5 rounded-full border border-[#00629B]/30 bg-white hover:border-[#00629B] hover:bg-sky-50/40 text-xs font-bold text-[#002D4C] focus:border-[#00629B] focus:ring-3 focus:ring-[#00A3E0]/20 outline-none shadow-2xs transition-all cursor-pointer"
+                          >
+                            {campus.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                Campus: {c.nombre}
+                              </option>
+                            ))}
+                          </select>
+                          <svg className="w-3.5 h-3.5 text-[#00629B] absolute right-3.5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.4">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
+
+                        <div className="relative inline-flex items-center">
+                          <span className="absolute left-3.5 text-[#00629B] pointer-events-none flex items-center">
+                            <UiIcon name="clock" className="w-3.5 h-3.5" />
+                          </span>
+                          <select
+                            value={horaGestionReservas}
+                            onChange={(e) => {
+                              setHoraGestionReservas(e.target.value);
+                              setPaginaGestionReservas(1);
+                            }}
+                            className="appearance-none pl-9 pr-9 py-2.5 rounded-full border border-[#00629B]/30 bg-white hover:border-[#00629B] hover:bg-sky-50/40 text-xs font-bold text-[#002D4C] focus:border-[#00629B] focus:ring-3 focus:ring-[#00A3E0]/20 outline-none shadow-2xs transition-all cursor-pointer"
+                          >
+                            <option value="todos">
+                              Horario: Todos ({resumen?.total_reservas_dia || 0})
+                            </option>
+                            {bloquesDia.map((b) => (
+                              <option key={b.hora} value={b.hora}>
+                                {b.rango || b.hora} ({b.ocupados}/{cubiculosActuales})
+                              </option>
+                            ))}
+                          </select>
+                          <svg className="w-3.5 h-3.5 text-[#00629B] absolute right-3.5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.4">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
+
+                        <div className="relative inline-flex items-center">
+                          <span className="absolute left-3.5 text-[#00629B] pointer-events-none flex items-center">
+                            <UiIcon name="building" className="w-3.5 h-3.5" />
+                          </span>
+                          <select
+                            value={cubiculoFiltroGestion}
+                            onChange={(e) => {
+                              setCubiculoFiltroGestion(e.target.value);
+                              setPaginaGestionReservas(1);
+                            }}
+                            className="appearance-none pl-9 pr-9 py-2.5 rounded-full border border-[#00629B]/30 bg-white hover:border-[#00629B] hover:bg-sky-50/40 text-xs font-bold text-[#002D4C] focus:border-[#00629B] focus:ring-3 focus:ring-[#00A3E0]/20 outline-none shadow-2xs transition-all cursor-pointer"
+                          >
+                            <option value="todos">Cubículo: Todos</option>
+                            {codigosCubiculosDisponibles.map((cod) => (
+                              <option key={cod} value={cod}>
+                                Cubículo {cod}
+                              </option>
+                            ))}
+                          </select>
+                          <svg className="w-3.5 h-3.5 text-[#00629B] absolute right-3.5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.4">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
+
+                        <div className="relative inline-flex items-center">
+                          <span className="absolute left-3.5 text-[#00629B] pointer-events-none flex items-center">
+                            <UiIcon name="calendar" className="w-3.5 h-3.5" />
+                          </span>
+                          <input
+                            type="date"
+                            value={fechaSeleccionada}
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                setFechaSeleccionada(e.target.value);
+                                setPaginaGestionReservas(1);
+                              }
+                            }}
+                            className="pl-9 pr-4 py-2 rounded-full border border-[#00629B]/30 bg-white hover:border-[#00629B] hover:bg-sky-50/40 text-xs font-bold text-[#002D4C] focus:border-[#00629B] focus:ring-3 focus:ring-[#00A3E0]/20 outline-none shadow-2xs transition-all cursor-pointer"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2.5 self-end xl:self-auto">
+                        <button
+                          type="button"
+                          onClick={handleExportarGestionExcel}
+                          className="px-4 py-2.5 rounded-full border border-[#00629B]/35 bg-white hover:bg-sky-50 text-[#004D7A] text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-2 shadow-2xs"
+                        >
+                          <svg className="w-3.5 h-3.5 text-[#00629B]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5-5m0 0l5 5m-5-5v12" />
+                          </svg>
+                          <span>Exportar</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => fetchReservasGestion(horaGestionReservas, resumen?.bloques)}
+                          className="px-5 py-2.5 rounded-full bg-gradient-to-r from-[#002D4C] via-[#004D7A] to-[#00629B] hover:from-[#004D7A] hover:to-[#0082B8] text-white text-xs font-extrabold transition-all cursor-pointer inline-flex items-center gap-2 shadow-[0_8px_20px_-6px_rgba(0,98,155,0.65)]"
+                        >
+                          <span className="text-[#FFC20E] text-sm leading-none">↻</span>
+                          <span>Actualizar</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex-1 overflow-x-auto flex flex-col">
+                      <table className="w-full text-left border-collapse flex-1">
+                        <thead>
+                          <tr className="bg-gradient-to-r from-[#002D4C] via-[#004D7A] to-[#00629B] text-white text-xs font-bold tracking-wide select-none border-b-2 border-[#FFC20E]">
+                            <th className="py-4 pl-6 pr-2 w-12">
+                              <input
+                                type="checkbox"
+                                checked={todosSeleccionados}
+                                onChange={handleToggleSeleccionTodos}
+                                className="w-4 h-4 rounded border-white/40 accent-[#FFC20E] cursor-pointer"
+                              />
+                            </th>
+                            <th
+                              onClick={() => handleToggleOrden("nombre")}
+                              className="py-4 px-4 cursor-pointer hover:text-[#FFC20E] transition-colors"
+                            >
+                              <div className="inline-flex items-center gap-1.5">
+                                <span>Estudiante</span>
+                                <span className="text-[11px] text-[#FFC20E]">⇅</span>
+                              </div>
+                            </th>
+                            <th
+                              onClick={() => handleToggleOrden("rut")}
+                              className="py-4 px-4 cursor-pointer hover:text-[#FFC20E] transition-colors"
+                            >
+                              <div className="inline-flex items-center gap-1.5">
+                                <span>RUT</span>
+                                <span className="text-[11px] text-[#FFC20E]">⇅</span>
+                              </div>
+                            </th>
+                            <th
+                              onClick={() => handleToggleOrden("cubiculo")}
+                              className="py-4 px-4 cursor-pointer hover:text-[#FFC20E] transition-colors"
+                            >
+                              <div className="inline-flex items-center gap-1.5">
+                                <span>Cubículo</span>
+                                <span className="text-[11px] text-[#FFC20E]">⇅</span>
+                              </div>
+                            </th>
+                            <th className="py-4 px-4">
+                              <div className="inline-flex items-center gap-1.5">
+                                <span>Estado</span>
+                                <span className="text-[11px] text-[#FFC20E]">⇅</span>
+                              </div>
+                            </th>
+                            <th
+                              onClick={() => handleToggleOrden("modalidad")}
+                              className="py-4 px-4 cursor-pointer hover:text-[#FFC20E] transition-colors"
+                            >
+                              <div className="inline-flex items-center gap-1.5">
+                                <span>Acompañantes</span>
+                                <span className="text-[11px] text-[#FFC20E]">⇅</span>
+                              </div>
+                            </th>
+                            <th
+                              onClick={() => handleToggleOrden("fecha")}
+                              className="py-4 px-4 cursor-pointer hover:text-[#FFC20E] transition-colors"
+                            >
+                              <div className="inline-flex items-center gap-1.5">
+                                <span>Fecha Reserva</span>
+                                <span className="text-[11px] text-[#FFC20E]">⇅</span>
+                              </div>
+                            </th>
+                            <th
+                              onClick={() => handleToggleOrden("hora")}
+                              className="py-4 px-4 cursor-pointer hover:text-[#FFC20E] transition-colors"
+                            >
+                              <div className="inline-flex items-center gap-1.5">
+                                <span>Horario</span>
+                                <span className="text-[11px] text-[#FFC20E]">⇅</span>
+                              </div>
+                            </th>
+                            <th className="py-4 pl-4 pr-6 text-right">
+                              Acciones
+                            </th>
+                          </tr>
+                        </thead>
+
+                        <tbody className="divide-y divide-slate-100 text-xs sm:text-[13px]">
+                          {cargandoGestionReservas ? (
+                            Array.from({ length: 10 }).map((_, idx) => (
+                              <tr key={idx} className="animate-pulse odd:bg-white even:bg-sky-50/25 h-16">
+                                <td className="py-4 pl-6 pr-2"><div className="w-4 h-4 bg-slate-200 rounded" /></td>
+                                <td className="py-4 px-4"><div className="h-4 w-44 bg-slate-200 rounded" /></td>
+                                <td className="py-4 px-4"><div className="h-4 w-28 bg-slate-100 rounded" /></td>
+                                <td className="py-4 px-4"><div className="h-5 w-20 bg-slate-200 rounded-lg" /></td>
+                                <td className="py-4 px-4"><div className="h-6 w-20 bg-slate-200 rounded-full" /></td>
+                                <td className="py-4 px-4"><div className="h-4 w-36 bg-slate-100 rounded" /></td>
+                                <td className="py-4 px-4"><div className="h-4 w-28 bg-slate-100 rounded" /></td>
+                                <td className="py-4 px-4"><div className="h-4 w-28 bg-slate-200 rounded" /></td>
+                                <td className="py-4 pl-4 pr-6 text-right"><div className="h-6 w-16 bg-slate-200 rounded ml-auto" /></td>
+                              </tr>
+                            ))
+                          ) : filasPagina.length === 0 ? (
+                            <tr>
+                              <td colSpan={9} className="py-36 px-6 text-center text-slate-500 bg-gradient-to-b from-white to-sky-50/25">
+                                <div className="max-w-md mx-auto space-y-3">
+                                  <div className="w-14 h-14 rounded-2xl bg-sky-50 border border-sky-200/70 text-[#00629B] flex items-center justify-center mx-auto shadow-2xs">
+                                    <UiIcon name="calendar" className="w-7 h-7" />
+                                  </div>
+                                  <p className="text-base font-black text-[#002D4C]">
+                                    No hay reservas activas para los filtros seleccionados
+                                  </p>
+                                  <p className="text-xs text-slate-500 leading-relaxed">
+                                    Selecciona otro bloque horario en el menú desplegable, cambia de campus o elige otra fecha en el calendario.
+                                  </p>
+                                </div>
+                              </td>
+                            </tr>
+                          ) : (
+                            <>
+                              {filasPagina.map((res, idx) => {
+                                const iniciales = (res.nombre || "AL")
+                                  .split(" ")
+                                  .filter(Boolean)
+                                  .slice(0, 2)
+                                  .map((p) => p[0]?.toUpperCase())
+                                  .join("");
+                                const avatarGrad = avatarPalette[(indiceInicio + idx) % avatarPalette.length];
+                                const numAc = res.acompanantes?.length || 0;
+                                const isChecked = seleccionadosGestion.includes(String(res.id));
+
+                                return (
+                                  <tr
+                                    key={`${res.id}-${res.hora || idx}`}
+                                    className={`h-16 transition-colors ${
+                                      isChecked
+                                        ? "bg-sky-100/60"
+                                        : "odd:bg-white even:bg-[#F4F8FB] hover:bg-sky-50/70"
+                                    }`}
+                                  >
+                                    <td className="py-3.5 pl-6 pr-2">
+                                      <input
+                                        type="checkbox"
+                                        checked={isChecked}
+                                        onChange={() => handleToggleFila(res.id)}
+                                        className="w-4 h-4 rounded border-slate-300 accent-[#00629B] cursor-pointer"
+                                      />
+                                    </td>
+
+                                    <td className="py-3.5 px-4">
+                                      <div className="flex items-center gap-3">
+                                        <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${avatarGrad} text-white font-black text-xs flex items-center justify-center shrink-0 shadow-xs ring-2 ring-white`}>
+                                          {iniciales}
+                                        </div>
+                                        <div>
+                                          <span className="font-bold text-[#0F172A] whitespace-nowrap block">
+                                            {res.nombre}
+                                          </span>
+                                          <span className="text-[11px] font-semibold text-[#00629B]">
+                                            Folio #{res.id}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </td>
+
+                                    <td className="py-3.5 px-4 text-slate-700 font-mono font-semibold whitespace-nowrap">
+                                      {res.rut}
+                                    </td>
+
+                                    <td className="py-3.5 px-4 whitespace-nowrap">
+                                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#002D4C] text-white font-extrabold text-xs shadow-2xs">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-[#FFC20E]" />
+                                        <span>{res.cubiculo_codigo || `CB-${idx + 1}`}</span>
+                                      </span>
+                                    </td>
+
+                                    <td className="py-3.5 px-4 whitespace-nowrap">
+                                      <span className="inline-flex items-center gap-1.5 justify-center px-3 py-1 rounded-full text-[11px] font-extrabold bg-[#00629B] text-white shadow-2xs">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-[#FFC20E]" />
+                                        <span>Activa</span>
+                                      </span>
+                                    </td>
+
+                                    <td className="py-3.5 px-4 text-slate-600">
+                                      {numAc > 0 ? (
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-50 border border-sky-200/80 text-[#004D7A] font-semibold text-xs">
+                                          <span>{numAc} {numAc === 1 ? "acompañante" : "acompañantes"}</span>
+                                          <span className="text-slate-400">·</span>
+                                          <span className="truncate max-w-[180px]">{res.acompanantes.map((a) => a.nombre.split(" ")[0]).join(", ")}</span>
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 font-semibold text-xs">
+                                          Individual
+                                        </span>
+                                      )}
+                                    </td>
+
+                                    <td className="py-3.5 px-4 text-slate-600 font-medium whitespace-nowrap capitalize">
+                                      {fechaCorta}
+                                    </td>
+
+                                    <td className="py-3.5 px-4 font-bold text-[#002D4C] whitespace-nowrap">
+                                      {res.rango || res.hora} hrs
+                                    </td>
+
+                                    <td className="py-3.5 pl-4 pr-6 text-right whitespace-nowrap">
+                                      <div className="inline-flex items-center justify-end gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={handleAbrirPuertaManualCamara}
+                                          title="Abrir puerta del cubículo"
+                                          className="p-2 rounded-xl text-[#00629B] hover:text-white hover:bg-[#00629B] border border-sky-200/80 bg-sky-50/60 transition-all cursor-pointer"
+                                        >
+                                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
+                                          </svg>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleLiberarCubiculo(res.id, res.rut, res.nombre)}
+                                          disabled={eliminandoReservaId === res.id}
+                                          title="Liberar / Cancelar reserva"
+                                          className="p-2 rounded-xl text-rose-600 hover:text-white hover:bg-rose-600 border border-rose-200 bg-rose-50/60 transition-all cursor-pointer disabled:opacity-40"
+                                        >
+                                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                                          </svg>
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                              {Array.from({ length: Math.max(0, Math.min(filasPorPaginaGestion, 9) - filasPagina.length) }).map((_, emptyIdx) => (
+                                <tr key={`empty-${emptyIdx}`} className="h-16 odd:bg-white even:bg-[#F4F8FB]/50">
+                                  <td colSpan={9} />
+                                </tr>
+                              ))}
+                            </>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div className="px-6 py-4 bg-gradient-to-r from-slate-50 via-white to-slate-50 border-t border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-600">
+                    <div className="flex items-center gap-2.5">
+                      <span className="font-bold text-[#002D4C]">Filas por página</span>
+                      <div className="relative inline-flex items-center">
+                        <select
+                          value={filasPorPaginaGestion}
+                          onChange={(e) => {
+                            setFilasPorPaginaGestion(Number(e.target.value));
+                            setPaginaGestionReservas(1);
+                          }}
+                          className="appearance-none pl-3.5 pr-8 py-1.5 rounded-full border border-[#00629B]/30 bg-white text-xs font-bold text-[#002D4C] outline-none cursor-pointer"
+                        >
+                          <option value={5}>5</option>
+                          <option value={10}>10</option>
+                          <option value={20}>20</option>
+                          <option value={50}>50</option>
+                        </select>
+                        <svg className="w-3 h-3 text-[#00629B] absolute right-2.5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.4">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                      <span className="text-slate-500 font-medium">
+                        de <strong className="text-[#002D4C] font-extrabold">{totalFilas}</strong> {totalFilas === 1 ? "reserva activa" : "reservas activas"}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                      <button
+                        type="button"
+                        onClick={() => setPaginaGestionReservas(1)}
+                        disabled={paginaSegura <= 1}
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-[#004D7A] hover:bg-sky-50 disabled:opacity-35 cursor-pointer font-bold"
+                      >
+                        «
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPaginaGestionReservas((p) => Math.max(1, p - 1))}
+                        disabled={paginaSegura <= 1}
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-[#004D7A] hover:bg-sky-50 disabled:opacity-35 cursor-pointer font-bold"
+                      >
+                        ‹
+                      </button>
+
+                      {Array.from({ length: totalPaginas }).slice(0, 5).map((_, i) => {
+                        const numPag = i + 1;
+                        const activa = numPag === paginaSegura;
+                        return (
+                          <button
+                            key={numPag}
+                            type="button"
+                            onClick={() => setPaginaGestionReservas(numPag)}
+                            className={`w-8 h-8 rounded-full text-xs font-extrabold flex items-center justify-center transition-all cursor-pointer ${
+                              activa
+                                ? "bg-gradient-to-br from-[#002D4C] to-[#00629B] text-white shadow-sm ring-2 ring-[#FFC20E]"
+                                : "text-[#004D7A] hover:bg-sky-50"
+                            }`}
+                          >
+                            {numPag}
+                          </button>
+                        );
+                      })}
+
+                      <button
+                        type="button"
+                        onClick={() => setPaginaGestionReservas((p) => Math.min(totalPaginas, p + 1))}
+                        disabled={paginaSegura >= totalPaginas}
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-[#004D7A] hover:bg-sky-50 disabled:opacity-35 cursor-pointer font-bold"
+                      >
+                        ›
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPaginaGestionReservas(totalPaginas)}
+                        disabled={paginaSegura >= totalPaginas}
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-[#004D7A] hover:bg-sky-50 disabled:opacity-35 cursor-pointer font-bold"
+                      >
+                        »
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {(activeTab === "metricas") && (
             <>

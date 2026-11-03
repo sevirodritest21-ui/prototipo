@@ -396,9 +396,9 @@ export default function MisReservas() {
   const abrirChat = () => window.dispatchEvent(new CustomEvent("open-chat"));
 
   const reservasActivas = reservas.filter((r) => r.activa);
-  const reservasPasadas = reservas.filter((r) => !r.activa);
+  const reservasPasadas = reservas.filter((r) => !r.activa).slice(0, 25);
   const inicial = String(user?.nombre || user?.correo || "E").trim().charAt(0).toUpperCase();
-  const totalHistorialCount = paginacionHistorial.total_items || reservasPasadas.length;
+  const totalHistorialCount = Math.min(paginacionHistorial.total_items || reservasPasadas.length, 25);
 
   return (
     <div className="mr-root min-h-screen pt-16 pb-24">
@@ -876,7 +876,7 @@ export default function MisReservas() {
                   <div className="mr-pagination">
                     <p className="mr-pagination-info">
                       Mostrando <strong>{reservasPasadas.length}</strong> de{" "}
-                      <strong>{paginacionHistorial.total_items}</strong> registros
+                      <strong>{Math.min(paginacionHistorial.total_items, 25)}</strong> registros
                     </p>
                     <div className="flex items-center gap-1.5">
                       <button

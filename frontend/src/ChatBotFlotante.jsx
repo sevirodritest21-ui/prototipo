@@ -897,58 +897,20 @@ export default function ChatbotFlotante() {
                       </div>
                     )}
 
-                    {(() => {
-                      const esUltimo = index === mensajes.length - 1;
-                      if (!esUltimo || !msg.esBot || msg.texto === 'Escribiendo...') return null;
 
-                      if (detectarPreguntaEliminar(msg.texto) && (!cardData || cardData.tipo !== 'cancelada')) {
-                        return (
-                          <div className="flex items-center gap-2 mt-2 pt-1 animate-fadeIn">
-                            <button
-                              type="button"
-                              onClick={() => enviarMensajeTexto("Sí, deseo cancelar la reserva")}
-                              disabled={cargandoBot}
-                              className="py-2 px-4 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white rounded-xl font-bold text-xs shadow-md transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
-                            >
-                              <span>🗑️</span>
-                              <span>Sí</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => enviarMensajeTexto("No, no deseo cancelarla")}
-                              disabled={cargandoBot}
-                              className="py-2 px-4 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-xl font-semibold text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50"
-                            >
-                              No
-                            </button>
-                          </div>
-                        );
-                      }
-                      return null;
-                    })()}
-
-                    {cardData && (cardData.tipo === 'confirmada' || cardData.tipo === 'cancelada') && (
-                      <div className={`max-w-[90%] mt-2 rounded-2xl border p-3.5 shadow-lg shadow-sky-950/5 text-xs space-y-2.5 backdrop-blur-lg ${cardData.tipo === 'cancelada'
-                        ? 'border-rose-200/90 bg-rose-50/40 dark:bg-rose-950/40 dark:border-rose-900/70'
-                        : 'border-sky-200/80 bg-white/90 dark:bg-slate-800/95 dark:border-slate-700'
-                        }`}>
+                    {cardData && cardData.tipo === 'cancelada' && (
+                      <div className="max-w-[90%] mt-2 rounded-2xl border p-3.5 shadow-lg shadow-sky-950/5 text-xs space-y-2.5 backdrop-blur-lg border-rose-200/90 bg-rose-50/40 dark:bg-rose-950/40 dark:border-rose-900/70">
                         <div className="flex items-center justify-between border-b pb-2 border-slate-100 dark:border-slate-700/60">
-                          <span className={`font-bold flex items-center gap-1.5 ${cardData.tipo === 'confirmada'
-                            ? 'text-emerald-700 dark:text-emerald-400'
-                            : 'text-rose-600 dark:text-rose-400'
-                            }`}>
-                            <span>{cardData.tipo === 'confirmada' ? '✅' : '🗑️'}</span>
-                            <span>{cardData.tipo === 'confirmada' ? 'Reserva Confirmada' : 'Reserva Cancelada'}</span>
+                          <span className="font-bold flex items-center gap-1.5 text-rose-600 dark:text-rose-400">
+                            <span>🗑️</span>
+                            <span>Reserva Cancelada</span>
                           </span>
-                          <span className={`text-[10px] uppercase font-black px-2 py-0.5 rounded-full border ${cardData.tipo === 'cancelada'
-                            ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/70 dark:text-rose-300 dark:border-rose-800'
-                            : 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/70 dark:text-emerald-300 dark:border-emerald-800'
-                            }`}>
-                            {cardData.tipo === 'cancelada' ? 'Liberada' : 'Confirmada'}
+                          <span className="text-[10px] uppercase font-black px-2 py-0.5 rounded-full border bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/70 dark:text-rose-300 dark:border-rose-800">
+                            Liberada
                           </span>
                         </div>
 
-                        {cardData.tipo === 'cancelada' && !tieneDetalles ? (
+                        {!tieneDetalles ? (
                           <div className="rounded-xl border border-rose-100 bg-white/80 dark:bg-slate-900/80 dark:border-rose-900/50 p-3 text-[11px] text-slate-700 dark:text-slate-200 space-y-1.5 shadow-xs">
                             <p className="font-bold text-rose-700 dark:text-rose-400 flex items-center gap-1.5">
                               <span>✓</span> Cubículo liberado en el sistema
@@ -958,65 +920,45 @@ export default function ChatbotFlotante() {
                             </p>
                           </div>
                         ) : (
-                          <div className={`grid grid-cols-2 gap-2 text-[11px] p-2.5 rounded-xl border ${cardData.tipo === 'cancelada'
-                            ? 'bg-white/80 border-rose-100 dark:bg-slate-900/80 dark:border-rose-900/50'
-                            : 'bg-slate-50/80 border-slate-100 dark:bg-slate-900/80 dark:border-slate-700/70'
-                            }`}>
+                          <div className="grid grid-cols-2 gap-2 text-[11px] p-2.5 rounded-xl border bg-white/80 border-rose-100 dark:bg-slate-900/80 dark:border-rose-900/50">
                             <div>
                               <p className="text-slate-400 dark:text-slate-400 font-medium">Sede / Campus:</p>
-                              <p className="font-bold text-slate-800 dark:text-slate-100">{cardData.campus || (cardData.tipo === 'cancelada' ? "Liberada" : "Sede seleccionada")}</p>
+                              <p className="font-bold text-slate-800 dark:text-slate-100">{cardData.campus || "Liberada"}</p>
                             </div>
                             <div>
                               <p className="text-slate-400 dark:text-slate-400 font-medium">Cubículo:</p>
-                              <p className="font-bold text-slate-800 dark:text-slate-100">{cardData.cubiculo || (cardData.tipo === 'cancelada' ? "Liberado" : "Asignado")}</p>
+                              <p className="font-bold text-slate-800 dark:text-slate-100">{cardData.cubiculo || "Liberado"}</p>
                             </div>
                             <div>
                               <p className="text-slate-400 dark:text-slate-400 font-medium">Fecha:</p>
-                              <p className="font-bold text-slate-800 dark:text-slate-100">{cardData.fecha || (cardData.tipo === 'cancelada' ? "Cancelada" : "Fecha solicitada")}</p>
+                              <p className="font-bold text-slate-800 dark:text-slate-100">{cardData.fecha || "Cancelada"}</p>
                             </div>
                             <div>
                               <p className="text-slate-400 dark:text-slate-400 font-medium">Horario:</p>
-                              <p className="font-bold text-slate-800 dark:text-slate-100">{cardData.hora || (cardData.tipo === 'cancelada' ? "Cancelado" : "Bloque agendado")}</p>
+                              <p className="font-bold text-slate-800 dark:text-slate-100">{cardData.hora || "Cancelado"}</p>
                             </div>
                           </div>
                         )}
 
-                        {cardData.tipo === 'confirmada' && (
-                          <div className="pt-1 flex justify-end">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setIsChatOpen(false);
-                                navigate('/mis-reservas');
-                              }}
-                              className="w-full py-2 px-3 bg-[#00629B] hover:bg-[#004B75] text-white rounded-xl font-bold text-xs transition-all shadow-sm cursor-pointer flex items-center justify-center gap-1.5"
-                            >
-                              <span>📋</span> Ver en Mis Reservas
-                            </button>
-                          </div>
-                        )}
-
-                        {cardData.tipo === 'cancelada' && (
-                          <div className="pt-1 flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => enviarMensajeTexto("Quiero agendar un cubículo")}
-                              className="flex-1 py-2 px-3 bg-[#00629B] hover:bg-[#004B75] text-white rounded-xl font-bold text-xs transition-all shadow-sm cursor-pointer flex items-center justify-center gap-1.5"
-                            >
-                              <span>📅</span> Agendar nueva reserva
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setIsChatOpen(false);
-                                navigate('/mis-reservas');
-                              }}
-                              className="py-2 px-3 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700 rounded-xl font-semibold text-xs transition-all cursor-pointer"
-                            >
-                              Mis reservas
-                            </button>
-                          </div>
-                        )}
+                        <div className="pt-1 flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => enviarMensajeTexto("Quiero agendar un cubículo")}
+                            className="flex-1 py-2 px-3 bg-[#00629B] hover:bg-[#004B75] text-white rounded-xl font-bold text-xs transition-all shadow-sm cursor-pointer flex items-center justify-center gap-1.5"
+                          >
+                            <span>📅</span> Agendar nueva reserva
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsChatOpen(false);
+                              navigate('/mis-reservas');
+                            }}
+                            className="py-2 px-3 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700 rounded-xl font-semibold text-xs transition-all cursor-pointer"
+                          >
+                            Mis reservas
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>

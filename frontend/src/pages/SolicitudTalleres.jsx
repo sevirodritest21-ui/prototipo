@@ -160,6 +160,9 @@ export default function SolicitudTalleres() {
   const isNoRegular = Boolean(user && user?.rol !== "admin" && user?.es_regular === false);
   const [solicitudes, setSolicitudes] = useState([]);
   const [cargando, setCargando] = useState(true);
+  const [filtroEstado, setFiltroEstado] = useState("pendientes");
+  const [paginaActiva, setPaginaActiva] = useState(1);
+  const porPagina = 3;
   const [paginaHistorial, setPaginaHistorial] = useState(1);
   const porPaginaHistorial = 5;
   const [modalNuevoOpen, setModalNuevoOpen] = useState(false);
@@ -320,12 +323,33 @@ export default function SolicitudTalleres() {
     }
   };
 
-  const solicitudesActivas = solicitudes.filter(
-    (s) => s.estado === "pendiente" || s.estado === "aprobado"
+  const solicitudesPendientes = solicitudes.filter(
+    (s) => s.estado === "pendiente"
+  );
+  const solicitudesAprobadas = solicitudes.filter(
+    (s) => s.estado === "aprobado"
   );
   const solicitudesHistorial = solicitudes.filter(
     (s) => s.estado === "realizado" || s.estado === "rechazado"
   );
+
+  const listaFiltrada =
+    filtroEstado === "pendientes" ? solicitudesPendientes : solicitudesAprobadas;
+
+  const totalPaginasActivas = Math.max(
+    1,
+    Math.ceil(listaFiltrada.length / porPagina)
+  );
+  const paginaActivaSegura = Math.min(paginaActiva, totalPaginasActivas);
+  const solicitudesPaginadas = listaFiltrada.slice(
+    (paginaActivaSegura - 1) * porPagina,
+    paginaActivaSegura * porPagina
+  );
+
+  const cambiarFiltro = (nuevoFiltro) => {
+    setFiltroEstado(nuevoFiltro);
+    setPaginaActiva(1);
+  };
 
   const totalPaginasHistorial = Math.max(
     1,
@@ -412,9 +436,21 @@ export default function SolicitudTalleres() {
                 </div>
 
                 <div className="st-profile-stats">
-                  <div className="st-stat-box">
-                    <strong>{solicitudesActivas.length}</strong>
-                    <span>{solicitudesActivas.length === 1 ? "Solicitud Activa" : "Solicitudes Activas"}</span>
+                  <div
+                    className="st-stat-box transition-all cursor-pointer hover:scale-105 active:scale-95"
+                    onClick={() => cambiarFiltro("pendientes")}
+                    title="Ver solicitudes sin aprobar"
+                  >
+                    <strong>{solicitudesPendientes.length}</strong>
+                    <span>Sin Aprobar</span>
+                  </div>
+                  <div
+                    className="st-stat-box transition-all cursor-pointer hover:scale-105 active:scale-95"
+                    onClick={() => cambiarFiltro("aprobadas")}
+                    title="Ver solicitudes aprobadas"
+                  >
+                    <strong>{solicitudesAprobadas.length}</strong>
+                    <span>{solicitudesAprobadas.length === 1 ? "Aprobada" : "Aprobadas"}</span>
                   </div>
                   <div className="st-stat-box">
                     <strong>{solicitudesHistorial.length}</strong>
@@ -459,9 +495,8 @@ export default function SolicitudTalleres() {
 
         {toast.texto && (
           <div
-            className={`st-alert st-fade-up ${
-              toast.tipo === "exito" ? "st-alert--success" : "st-alert--danger"
-            }`}
+            className={`st-alert st-fade-up ${toast.tipo === "exito" ? "st-alert--success" : "st-alert--danger"
+              }`}
           >
             <div className="st-alert-icon">
               {toast.tipo === "exito" ? <IconCheck className="w-6 h-6" /> : <IconAlert className="w-6 h-6" />}
@@ -508,37 +543,99 @@ export default function SolicitudTalleres() {
             <section aria-labelledby="st-active-heading">
               <div className="st-section-bar">
                 <div>
-                  <span className="st-kicker">⚡ En curso y confirmadas</span>
+                  <span className="st-kicker">
+                    {filtroEstado === "pendientes"
+                      ? "⚡ Solicitudes en revisión"
+                      : "✓ Sesiones confirmadas"}
+                  </span>
                   <h2 id="st-active-heading" className="st-h2">
-                    Solicitudes <em>Activas</em>{" "}
-                    <span className="st-count-pill">{solicitudesActivas.length}</span>
+                    {filtroEstado === "pendientes" ? (
+                      <>
+                        Solicitudes <em>Sin Aprobar</em>{" "}
+                        <span className="st-count-pill">{solicitudesPendientes.length}</span>
+                      </>
+                    ) : (
+                      <>
+                        Talleres <em>Aprobados</em>{" "}
+                        <span className="st-count-pill">{solicitudesAprobadas.length}</span>
+                      </>
+                    )}
                   </h2>
+                </div>
+
+                <div className="st-tabs" role="tablist" aria-label="Filtro de solicitudes">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={filtroEstado === "pendientes"}
+                    onClick={() => cambiarFiltro("pendientes")}
+                    className={`st-tab-btn ${filtroEstado === "pendientes" ? "is-active" : ""}`}
+                  >
+                    <span>Sin Aprobar / Actuales</span>
+                    <span className="st-tab-badge st-tab-badge--pending">
+                      {solicitudesPendientes.length}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={filtroEstado === "aprobadas"}
+                    onClick={() => cambiarFiltro("aprobadas")}
+                    className={`st-tab-btn ${filtroEstado === "aprobadas" ? "is-active" : ""}`}
+                  >
+                    <span>Aprobadas</span>
+                    <span className="st-tab-badge st-tab-badge--approved">
+                      {solicitudesAprobadas.length}
+                    </span>
+                  </button>
                 </div>
               </div>
 
-              {solicitudesActivas.length === 0 ? (
+              {listaFiltrada.length === 0 ? (
                 <div className="st-empty-inline">
                   <div className="flex items-center gap-3.5">
                     <span className="st-empty-inline-icon">
-                      <IconAcademic className="w-5 h-5" />
+                      {filtroEstado === "pendientes" ? (
+                        <IconClock className="w-5 h-5 text-amber-500" />
+                      ) : (
+                        <IconCheck className="w-5 h-5 text-emerald-500" />
+                      )}
                     </span>
                     <div>
-                      <h4>No tienes solicitudes de taller activas en este momento</h4>
-                      <p>Elige un tema del catálogo inferior o solicita una sesión grupal en segundos.</p>
+                      <h4>
+                        {filtroEstado === "pendientes"
+                          ? "No tienes solicitudes de taller sin aprobar o en revisión"
+                          : "No tienes solicitudes de taller aprobadas en este momento"}
+                      </h4>
+                      <p>
+                        {filtroEstado === "pendientes"
+                          ? "Elige un tema del catálogo inferior o solicita una sesión grupal en segundos."
+                          : "Las solicitudes confirmadas por biblioteca aparecerán aquí con su información de pase."}
+                      </p>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => abrirModalNuevaSolicitud()}
-                    disabled={isNoRegular}
-                    className={`st-btn st-btn--gold ${isNoRegular ? "opacity-60 cursor-not-allowed" : ""}`}
-                  >
-                    <IconPlus className="w-4 h-4" /> Solicitar ahora
-                  </button>
+                  {filtroEstado === "pendientes" ? (
+                    <button
+                      type="button"
+                      onClick={() => abrirModalNuevaSolicitud()}
+                      disabled={isNoRegular}
+                      className={`st-btn st-btn--gold ${isNoRegular ? "opacity-60 cursor-not-allowed" : ""}`}
+                    >
+                      <IconPlus className="w-4 h-4" /> Solicitar ahora
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => cambiarFiltro("pendientes")}
+                      className="st-btn st-btn--glass"
+                    >
+                      Ver solicitudes sin aprobar ({solicitudesPendientes.length})
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-6">
-                  {solicitudesActivas.map((sol) => {
+                  {solicitudesPaginadas.map((sol) => {
                     const esAprobada = sol.estado === "aprobado";
                     return (
                       <article
@@ -562,11 +659,10 @@ export default function SolicitudTalleres() {
 
                             <div className="flex flex-wrap items-center gap-2">
                               <span
-                                className={`st-status-badge ${
-                                  esAprobada
+                                className={`st-status-badge ${esAprobada
                                     ? "st-status-badge--active"
                                     : "st-status-badge--pending"
-                                }`}
+                                  }`}
                               >
                                 <span className="st-status-dot" />
                                 {esAprobada ? "Taller Aprobado" : "En Revisión"}
@@ -591,7 +687,7 @@ export default function SolicitudTalleres() {
                                   </span>
                                   <div>
                                     <span className="st-taller-pill">
-                                      {sol.modalidad === "Virtual" ? "Virtual (Teams)" : "Presencial"}
+                                      {sol.modalidad === "Virtual" ? "Virtual" : "Presencial"}
                                     </span>
                                   </div>
                                 </div>
@@ -639,8 +735,8 @@ export default function SolicitudTalleres() {
                                     {sol.observaciones
                                       ? sol.observaciones
                                       : esAprobada
-                                      ? "Tu taller fue aprobado por el equipo de biblioteca."
-                                      : "En espera de asignación de bibliotecólogo y confirmación horaria."}
+                                        ? "Tu taller fue aprobado por el equipo de biblioteca."
+                                        : "En espera de asignación de bibliotecólogo y confirmación horaria."}
                                   </p>
                                 </div>
                               </div>
@@ -685,7 +781,43 @@ export default function SolicitudTalleres() {
                   })}
                 </div>
               )}
-            </section>
+
+              {totalPaginasActivas > 1 && (
+                <div className="st-pagination">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Mostrando <strong>{solicitudesPaginadas.length}</strong> de{" "}
+                    <strong>{listaFiltrada.length}</strong> solicitudes
+                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setPaginaActiva((p) => Math.max(1, p - 1))}
+                      disabled={paginaActivaSegura <= 1}
+                      className="st-page-btn"
+                    >
+                      ← Anterior
+                    </button>
+                    {Array.from({ length: totalPaginasActivas }, (_, i) => i + 1).map((num) => (
+                      <button
+                        key={num}
+                        type="button"
+                        onClick={() => setPaginaActiva(num)}
+                        className={`st-page-btn ${paginaActivaSegura === num ? "is-active" : ""}`}
+                      >
+                        {num}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setPaginaActiva((p) => Math.min(totalPaginasActivas, p + 1))}
+                      disabled={paginaActivaSegura >= totalPaginasActivas}
+                      className="st-page-btn"
+                    >
+                      Siguiente →
+                    </button>
+                  </div>
+                </div>
+              )}            </section>
 
             <section aria-labelledby="st-catalog-heading">
               <div className="st-section-bar">
@@ -725,9 +857,8 @@ export default function SolicitudTalleres() {
                           type="button"
                           onClick={() => abrirModalNuevaSolicitud(nombreTaller)}
                           disabled={isNoRegular}
-                          className={`px-3.5 py-2 rounded-xl bg-[#00629B] hover:bg-[#004D7A] text-white text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 ${
-                            isNoRegular ? "opacity-50 cursor-not-allowed" : ""
-                          }`}
+                          className={`px-3.5 py-2 rounded-xl bg-[#00629B] hover:bg-[#004D7A] text-white text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 ${isNoRegular ? "opacity-50 cursor-not-allowed" : ""
+                            }`}
                         >
                           <IconPlus className="w-3.5 h-3.5" />
                           Solicitar
@@ -765,9 +896,8 @@ export default function SolicitudTalleres() {
                       <div key={sol.id} className="st-history-item">
                         <div className="flex items-center gap-4">
                           <div
-                            className={`st-history-code ${
-                              esRechazado ? "is-danger" : "is-done"
-                            }`}
+                            className={`st-history-code ${esRechazado ? "is-danger" : "is-done"
+                              }`}
                           >
                             #{sol.id}
                           </div>
@@ -776,11 +906,10 @@ export default function SolicitudTalleres() {
                             <div className="flex flex-wrap items-center gap-2">
                               <h4>{sol.taller}</h4>
                               <span
-                                className={`st-history-status ${
-                                  esRechazado
+                                className={`st-history-status ${esRechazado
                                     ? "st-history-status--danger"
                                     : "st-history-status--done"
-                                }`}
+                                  }`}
                               >
                                 {esRechazado ? "No aprobada" : "Taller Realizado"}
                               </span>
@@ -973,8 +1102,8 @@ export default function SolicitudTalleres() {
                   {isNoRegular
                     ? "Estudiante no regular"
                     : enviandoSolicitud
-                    ? "Enviando..."
-                    : "Enviar solicitud →"}
+                      ? "Enviando..."
+                      : "Enviar solicitud →"}
                 </button>
               </div>
             </form>
