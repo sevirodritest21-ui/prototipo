@@ -56,6 +56,39 @@ const calcularEsBloquePasado = (fechaStr, horaStr) => {
   return minBloque <= minActual;
 };
 
+const enmascararRut = (rut) => {
+  if (!rut) return "";
+  const s = String(rut).trim();
+  if (s.includes("*")) return s;
+  if (s.includes("-")) {
+    const [cuerpo, dv] = s.split("-");
+    const cuerpoLimpio = cuerpo.replace(/\./g, "");
+    if (cuerpoLimpio.length <= 3) return s;
+    const ultimosTres = cuerpoLimpio.slice(-3);
+    const dvUpper = dv ? dv.toUpperCase() : "";
+    if (cuerpo.includes(".")) {
+      if (cuerpoLimpio.length === 8) {
+        return `**.***.${ultimosTres}-${dvUpper}`;
+      } else if (cuerpoLimpio.length === 7) {
+        return `*.***.${ultimosTres}-${dvUpper}`;
+      }
+      const maskedLen = cuerpoLimpio.length - 3;
+      return `${"*".repeat(maskedLen)}.${ultimosTres}-${dvUpper}`;
+    }
+    const maskedLen = cuerpoLimpio.length - 3;
+    return `${"*".repeat(maskedLen)}${ultimosTres}-${dvUpper}`;
+  }
+  const limpio = s.replace(/\./g, "");
+  if (limpio.length >= 5) {
+    const cuerpo = limpio.slice(0, -1);
+    const dv = limpio.slice(-1).toUpperCase();
+    const ultimosTres = cuerpo.slice(-3);
+    const maskedLen = cuerpo.length - 3;
+    return `${"*".repeat(maskedLen)}${ultimosTres}-${dv}`;
+  }
+  return s;
+};
+
 export default function FormularioReserva() {
   const { user } = useAuth();
   const isAdmin = user?.rol === "admin";
@@ -834,7 +867,7 @@ export default function FormularioReserva() {
                       name="rut"
                       required
                       disabled={isAdmin || isEstudiante}
-                      value={formData.rut}
+                      value={isEstudiante ? enmascararRut(formData.rut) : formData.rut}
                       onChange={handleChange}
                       placeholder="12.345.678-9"
                       className="fr-input fr-input--with-icon tabular-nums"
@@ -1468,7 +1501,7 @@ export default function FormularioReserva() {
               <div className="fr-live-ticket-foot">
                 <IconCheck className="w-4 h-4 text-emerald-500 shrink-0" />
                 <span>
-                  Sesión verificada: <strong>{user.rut}</strong>
+                  Sesión verificada: <strong>{enmascararRut(user.rut)}</strong>
                 </span>
               </div>
             )}
@@ -1536,7 +1569,7 @@ export default function FormularioReserva() {
                     <IconLock className="w-3.5 h-3.5 text-[#00A3E0]" /> RUT
                   </span>
                   <strong className="tabular-nums">
-                    {isEstudiante ? user?.rut || "N/A" : formData.rut || "N/A"}
+                    {enmascararRut(isEstudiante ? user?.rut || "N/A" : formData.rut || "N/A")}
                   </strong>
                 </div>
               </div>
@@ -1745,7 +1778,7 @@ export default function FormularioReserva() {
                   </span>
                   <div className="text-right">
                     <strong className="block">{formData.nombre}</strong>
-                    <small className="opacity-65 tabular-nums">RUT: {formData.rut}</small>
+                    <small className="opacity-65 tabular-nums">RUT: {enmascararRut(formData.rut)}</small>
                   </div>
                 </div>
 

@@ -24,7 +24,7 @@ class Record(dict):
         return super().__getitem__(item)
 
 def _adapt_returning(sql: str) -> str:
-    m_ins = re.search(r'INSERT\s+INTO\s+([^\s\(]+)\s*(\([^\)]+\))\s*VALUES\s*(\([^\)]+\))\s*RETURNING\s+(.*)', sql, re.IGNORECASE | re.DOTALL)
+    m_ins = re.search(r'INSERT\s+INTO\s+([^\s\(]+)\s*(\([\s\S]*?\))\s*VALUES\s*([\s\S]*?)\s*RETURNING\s+([\s\S]*)', sql, re.IGNORECASE)
     if m_ins:
         tbl = m_ins.group(1).strip()
         cols = m_ins.group(2).strip()

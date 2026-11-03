@@ -165,10 +165,12 @@ async def notificar_creacion_n8n(detalle: dict):
             "nombre": detalle.get("nombre", "Estudiante"),
             "email": email_encontrado or "",
             "rut": rut_item,
+            "carrera": detalle.get("carrera") or "General",
             "fecha": str(detalle.get("fecha", "")),
             "hora": str(detalle.get("hora", "")),
             "campus": detalle.get("campus") or "Campus UCT",
-            "cubiculo_codigo": detalle.get("cubiculo_codigo") or "N/A"
+            "cubiculo_codigo": detalle.get("cubiculo_codigo") or "N/A",
+            "acompanantes": detalle.get("acompanantes") or []
         }
         payload_bytes, headers = generar_headers_webhook_n8n(payload)
         await httpx_client.post(webhook_url, content=payload_bytes, headers=headers, timeout=5.0)
@@ -205,6 +207,7 @@ async def notificar_edicion_n8n(detalle: dict):
             "nombre": detalle.get("nombre", "Estudiante"),
             "email": email_encontrado or "",
             "rut": rut_item,
+            "carrera": detalle.get("carrera") or "General",
             "fecha": str(detalle.get("fecha", "")),
             "hora": str(detalle.get("hora", "")),
             "campus": detalle.get("campus") or "Campus UCT",
@@ -394,6 +397,22 @@ async def startup():
             UPDATE historial_reservas
             SET estado = 'completada'
             WHERE estado = 'expirada'
+        """)
+        await conn.execute("""
+            UPDATE reservas
+            SET created_at = CASE
+                WHEN fecha >= CAST(GETDATE() AS DATE) THEN GETDATE()
+                ELSE CAST(fecha AS DATETIME2)
+            END
+            WHERE created_at IS NULL
+        """)
+        await conn.execute("""
+            UPDATE historial_reservas
+            SET fecha_registro = CASE
+                WHEN fecha >= CAST(GETDATE() AS DATE) THEN GETDATE()
+                ELSE CAST(fecha AS DATETIME2)
+            END
+            WHERE fecha_registro IS NULL
         """)
         await conn.execute("DELETE FROM sesiones WHERE updated_at < DATEADD(day, -7, GETDATE())")
         await conn.execute("DELETE FROM rate_limits WHERE created_at < DATEADD(day, -1, GETDATE())")
@@ -3301,8 +3320,8 @@ async def crear_reserva(
 
                 row = await conn.fetchrow(
                     """
-                    INSERT INTO reservas (nombre, rut, fecha, hora, campus_id, session_id, cubiculo_id, carrera)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                    INSERT INTO reservas (nombre, rut, fecha, hora, campus_id, session_id, cubiculo_id, carrera, created_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, GETDATE())
                     RETURNING id, nombre, rut, fecha, hora, campus_id, session_id, carrera
                     """,
                     nombre_final or "Usuario Chatbot", rut_limpio, fecha_parsed, hora_parsed,
@@ -3312,8 +3331,8 @@ async def crear_reserva(
 
                 await conn.execute(
                     """
-                    INSERT INTO historial_reservas (reserva_id, nombre, rut, campus_id, fecha, hora, estado, carrera)
-                    VALUES ($1, $2, $3, $4, $5, $6, 'activa', $7)
+                    INSERT INTO historial_reservas (reserva_id, nombre, rut, campus_id, fecha, hora, estado, carrera, fecha_registro)
+                    VALUES ($1, $2, $3, $4, $5, $6, 'activa', $7, GETDATE())
                     """,
                     reserva_id_creada, nombre_final or "Usuario Chatbot", rut_limpio, target_campus_id, fecha_parsed, hora_parsed.strftime("%H:%M"), carr_detectada
                 )
@@ -3362,6 +3381,7 @@ async def crear_reserva(
             "campus": target_campus_nombre,
             "cubiculo_codigo": cubiculo_codigo_asignado,
             "sessionId": row["session_id"],
+            "carrera": carr_detectada,
             "acompanantes": acompanantes_guardados
         }
         background_tasks.add_task(notificar_creacion_n8n, res_data)
@@ -4034,14 +4054,14 @@ async def eliminar_reserva(data: EsquemaEliminar, request: Request, background_t
 
             async with conn.transaction():
                 for res in filas_canceladas:
-                    res_upd = await conn.execute("UPDATE historial_reservas SET estado = 'liberada' WHERE reserva_id = $1", res["id"])
+                    res_upd = await conn.execute("UPDATE historial_reservas SET estado = 'liberada', fecha_registro = GETDATE() WHERE reserva_id = $1", res["id"])
                     if res_upd == "UPDATE 0":
                         await conn.execute(
                             """
-                            INSERT INTO historial_reservas (reserva_id, nombre, rut, campus_id, fecha, hora, estado)
-                            VALUES ($1, $2, $3, $4, $5, $6, 'liberada')
+                            INSERT INTO historial_reservas (reserva_id, nombre, rut, campus_id, fecha, hora, estado, fecha_registro)
+                            VALUES ($1, $2, $3, $4, $5, $6, 'liberada', GETDATE())
                             """,
-                            res["id"], res["nombre"], res["rut"], res.get("campus_id"), res["fecha"], str(res["hora"])
+                            res["id"], res["nombre"], res["rut"], res.get("campus_id"), res["fecha"], str(res["hora"])[:5]
                         )
                 await conn.execute("DELETE FROM reserva_acompanantes WHERE reserva_id IN ($1)", ids_a_borrar)
                 await conn.execute("DELETE FROM reservas WHERE id IN ($1)", ids_a_borrar)
@@ -4132,14 +4152,14 @@ async def eliminar_reserva_por_id(
         nuevo_estado = "cancelada" if es_admin else "liberada"
 
         async with conn.transaction():
-            res_upd = await conn.execute("UPDATE historial_reservas SET estado = $1 WHERE reserva_id = $2", nuevo_estado, reserva_id)
+            res_upd = await conn.execute("UPDATE historial_reservas SET estado = $1, fecha_registro = GETDATE() WHERE reserva_id = $2", nuevo_estado, reserva_id)
             if res_upd == "UPDATE 0":
                 await conn.execute(
                     """
-                    INSERT INTO historial_reservas (reserva_id, nombre, rut, campus_id, fecha, hora, estado)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    INSERT INTO historial_reservas (reserva_id, nombre, rut, campus_id, fecha, hora, estado, fecha_registro)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, GETDATE())
                     """,
-                    res_detalle["id"], res_detalle["nombre"], res_detalle["rut"], res_detalle["campus_id"], res_detalle["fecha"], str(res_detalle["hora"]), nuevo_estado
+                    res_detalle["id"], res_detalle["nombre"], res_detalle["rut"], res_detalle["campus_id"], res_detalle["fecha"], str(res_detalle["hora"])[:5], nuevo_estado
                 )
             await conn.execute("DELETE FROM reserva_acompanantes WHERE reserva_id = $1", reserva_id)
             await conn.execute("DELETE FROM reservas WHERE id = $1", reserva_id)
@@ -4172,13 +4192,14 @@ async def obtener_historial_reservas(
         cte_base = """
         WITH base_historial AS (
             SELECT 
-                r.id, r.id AS reserva_id, r.nombre, r.rut, r.fecha::text, r.hora::text,
+                r.id, r.id AS reserva_id, r.nombre, r.rut, r.fecha::text, CONVERT(VARCHAR(5), r.hora, 108) AS hora,
                 COALESCE(r.carrera, 'Otras Carreras / General') AS carrera,
                 CASE 
                     WHEN (r.fecha < CURRENT_DATE) OR (r.fecha = CURRENT_DATE AND r.hora < CURRENT_TIME) THEN 'completada'
                     ELSE 'activa'
                 END AS estado,
-                NOW()::text AS fecha_registro,
+                COALESCE(r.created_at, CAST(r.fecha AS DATETIME2)) AS sort_ts,
+                COALESCE(r.created_at, CAST(r.fecha AS DATETIME2))::text AS fecha_registro,
                 c.nombre AS campus_nombre
             FROM reservas r
             LEFT JOIN campus c ON r.campus_id = c.id
@@ -4188,7 +4209,7 @@ async def obtener_historial_reservas(
             UNION ALL
 
             SELECT 
-                h.id, h.reserva_id, h.nombre, h.rut, h.fecha::text, h.hora::text,
+                h.id, h.reserva_id, h.nombre, h.rut, h.fecha::text, LEFT(h.hora::text, 5) AS hora,
                 COALESCE(h.carrera, 'Otras Carreras / General') AS carrera,
                 CASE 
                     WHEN h.estado = 'cancelada' THEN 'cancelada'
@@ -4199,7 +4220,8 @@ async def obtener_historial_reservas(
                     WHEN h.estado = 'expirada' THEN 'completada'
                     ELSE h.estado
                 END AS estado,
-                h.fecha_registro::text AS fecha_registro,
+                COALESCE(h.fecha_registro, CAST(h.fecha AS DATETIME2)) AS sort_ts,
+                COALESCE(h.fecha_registro, CAST(h.fecha AS DATETIME2))::text AS fecha_registro,
                 c.nombre AS campus_nombre
             FROM historial_reservas h
             LEFT JOIN campus c ON h.campus_id = c.id
@@ -4227,7 +4249,7 @@ async def obtener_historial_reservas(
                 id, reserva_id, nombre, rut, fecha, hora, carrera, estado, fecha_registro, campus_nombre
             FROM base_historial
             WHERE ($3::text IS NULL OR $3::text = '' OR LOWER(estado) = LOWER($3))
-            ORDER BY fecha_registro DESC
+            ORDER BY sort_ts DESC, COALESCE(reserva_id, 0) DESC, id DESC
             LIMIT $4 OFFSET $5
             """,
             campus_id, busqueda, estado_filtro, lim, off
@@ -4442,7 +4464,7 @@ async def procesar_edicion_reserva(
                 UPDATE reservas
                 SET fecha = $1, hora = $2, campus_id = $3, cubiculo_id = $4
                 WHERE id = $5
-                RETURNING id, nombre, rut, fecha, hora, campus_id, session_id
+                RETURNING id, nombre, rut, fecha, hora, campus_id, session_id, carrera
                 """,
                 nueva_fecha, nueva_hora, nuevo_campus_id, nuevo_cubiculo_id, reserva_id
             )
@@ -4450,7 +4472,7 @@ async def procesar_edicion_reserva(
             await conn.execute(
                 """
                 UPDATE historial_reservas
-                SET fecha = $1, hora = $2, campus_id = $3
+                SET fecha = $1, hora = $2, campus_id = $3, fecha_registro = GETDATE()
                 WHERE reserva_id = $4 AND estado = 'activa'
                 """,
                 nueva_fecha, nueva_hora.strftime("%H:%M"), nuevo_campus_id, reserva_id
@@ -4491,6 +4513,7 @@ async def procesar_edicion_reserva(
         "campus": nuevo_campus_nombre,
         "cubiculo_codigo": nuevo_cubiculo_codigo,
         "sessionId": row_upd["session_id"],
+        "carrera": row_upd.get("carrera") or "General",
         "acompanantes": acompanantes_guardados
     }
 
@@ -4618,6 +4641,7 @@ async def consultar_reservas(data: EsquemaConsulta, request: Request, credential
             pagina = max(1, data.pagina_historial or 1)
             limite = max(1, min(data.limite_historial or 5, 50))
             offset = (pagina - 1) * limite
+            MAX_HISTORIAL = 25
 
             total_historial_row = await conn.fetchrow(
                 """
@@ -4632,7 +4656,8 @@ async def consultar_reservas(data: EsquemaConsulta, request: Request, credential
                 """,
                 rut_limpio
             )
-            total_historial = int(total_historial_row["total"]) if total_historial_row else 0
+            total_historial_real = int(total_historial_row["total"]) if total_historial_row else 0
+            total_historial = min(total_historial_real, MAX_HISTORIAL)
             total_paginas = max(1, (total_historial + limite - 1) // limite) if total_historial > 0 else 1
 
             if not respuesta and total_historial == 0:
@@ -4649,24 +4674,28 @@ async def consultar_reservas(data: EsquemaConsulta, request: Request, credential
                     }
                 }
 
-            historial_pasadas = await conn.fetch(
-                """
-                SELECT h.id, h.reserva_id, h.nombre, h.rut, h.fecha, h.hora, c.nombre AS campus_nombre, h.campus_id, h.estado
-                FROM historial_reservas h
-                LEFT JOIN campus c ON h.campus_id = c.id
-                WHERE REPLACE(REPLACE(REPLACE(UPPER(h.rut), '.', ''), '-', ''), ' ', '') = $1
-                  AND NOT EXISTS (
-                      SELECT 1 FROM reservas r 
-                      WHERE r.id = h.reserva_id 
-                        AND (r.fecha > CURRENT_DATE OR (r.fecha = CURRENT_DATE AND (r.hora + interval '1 hour') > CURRENT_TIME))
-                  )
-                ORDER BY h.fecha_registro DESC
-                LIMIT $2 OFFSET $3
-                """,
-                rut_limpio,
-                limite,
-                offset
-            )
+            if offset >= MAX_HISTORIAL:
+                historial_pasadas = []
+            else:
+                limite_efectivo = min(limite, MAX_HISTORIAL - offset)
+                historial_pasadas = await conn.fetch(
+                    """
+                    SELECT h.id, h.reserva_id, h.nombre, h.rut, h.fecha, h.hora, c.nombre AS campus_nombre, h.campus_id, h.estado
+                    FROM historial_reservas h
+                    LEFT JOIN campus c ON h.campus_id = c.id
+                    WHERE REPLACE(REPLACE(REPLACE(UPPER(h.rut), '.', ''), '-', ''), ' ', '') = $1
+                      AND NOT EXISTS (
+                          SELECT 1 FROM reservas r 
+                          WHERE r.id = h.reserva_id 
+                            AND (r.fecha > CURRENT_DATE OR (r.fecha = CURRENT_DATE AND (r.hora + interval '1 hour') > CURRENT_TIME))
+                      )
+                    ORDER BY h.fecha_registro DESC, h.id DESC
+                    LIMIT $2 OFFSET $3
+                    """,
+                    rut_limpio,
+                    limite_efectivo,
+                    offset
+                )
             for h in historial_pasadas:
                 h_fecha = h["fecha"]
                 h_hora_str = str(h["hora"])
