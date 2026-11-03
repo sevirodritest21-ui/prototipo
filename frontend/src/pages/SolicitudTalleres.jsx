@@ -326,15 +326,12 @@ export default function SolicitudTalleres() {
   const solicitudesPendientes = solicitudes.filter(
     (s) => s.estado === "pendiente"
   );
-  const solicitudesAprobadas = solicitudes.filter(
-    (s) => s.estado === "aprobado"
-  );
-  const solicitudesHistorial = solicitudes.filter(
-    (s) => s.estado === "realizado" || s.estado === "rechazado"
+  const solicitudesResueltas = solicitudes.filter(
+    (s) => s.estado !== "pendiente"
   );
 
   const listaFiltrada =
-    filtroEstado === "pendientes" ? solicitudesPendientes : solicitudesAprobadas;
+    filtroEstado === "pendientes" ? solicitudesPendientes : solicitudesResueltas;
 
   const totalPaginasActivas = Math.max(
     1,
@@ -350,15 +347,6 @@ export default function SolicitudTalleres() {
     setFiltroEstado(nuevoFiltro);
     setPaginaActiva(1);
   };
-
-  const totalPaginasHistorial = Math.max(
-    1,
-    Math.ceil(solicitudesHistorial.length / porPaginaHistorial)
-  );
-  const historialPaginado = solicitudesHistorial.slice(
-    (paginaHistorial - 1) * porPaginaHistorial,
-    paginaHistorial * porPaginaHistorial
-  );
 
   const inicial = String(user?.nombre || user?.email || "E").trim().charAt(0).toUpperCase();
 
@@ -439,22 +427,22 @@ export default function SolicitudTalleres() {
                   <div
                     className="st-stat-box transition-all cursor-pointer hover:scale-105 active:scale-95"
                     onClick={() => cambiarFiltro("pendientes")}
-                    title="Ver solicitudes sin aprobar"
+                    title="Ver solicitudes pendientes de aprobación"
                   >
                     <strong>{solicitudesPendientes.length}</strong>
-                    <span>Sin Aprobar</span>
+                    <span>Pendientes</span>
                   </div>
                   <div
                     className="st-stat-box transition-all cursor-pointer hover:scale-105 active:scale-95"
-                    onClick={() => cambiarFiltro("aprobadas")}
-                    title="Ver solicitudes aprobadas"
+                    onClick={() => cambiarFiltro("resueltas")}
+                    title="Ver solicitudes resueltas (aprobadas o rechazadas)"
                   >
-                    <strong>{solicitudesAprobadas.length}</strong>
-                    <span>{solicitudesAprobadas.length === 1 ? "Aprobada" : "Aprobadas"}</span>
+                    <strong>{solicitudesResueltas.length}</strong>
+                    <span>Resueltas</span>
                   </div>
-                  <div className="st-stat-box">
-                    <strong>{solicitudesHistorial.length}</strong>
-                    <span>En Historial</span>
+                  <div className="st-stat-box" title="Total de solicitudes de talleres registradas">
+                    <strong>{solicitudes.length}</strong>
+                    <span>Total Solicitudes</span>
                   </div>
                   <div className="st-stat-box" title={user?.carrera || "Estudiante UCT"}>
                     <strong
@@ -546,18 +534,18 @@ export default function SolicitudTalleres() {
                   <span className="st-kicker">
                     {filtroEstado === "pendientes"
                       ? "⚡ Solicitudes en revisión"
-                      : "✓ Sesiones confirmadas"}
+                      : "✓ Solicitudes resueltas"}
                   </span>
                   <h2 id="st-active-heading" className="st-h2">
                     {filtroEstado === "pendientes" ? (
                       <>
-                        Solicitudes <em>Sin Aprobar</em>{" "}
+                        Solicitudes <em>Pendientes</em>{" "}
                         <span className="st-count-pill">{solicitudesPendientes.length}</span>
                       </>
                     ) : (
                       <>
-                        Talleres <em>Aprobados</em>{" "}
-                        <span className="st-count-pill">{solicitudesAprobadas.length}</span>
+                        Talleres <em>Resueltos</em>{" "}
+                        <span className="st-count-pill">{solicitudesResueltas.length}</span>
                       </>
                     )}
                   </h2>
@@ -571,7 +559,7 @@ export default function SolicitudTalleres() {
                     onClick={() => cambiarFiltro("pendientes")}
                     className={`st-tab-btn ${filtroEstado === "pendientes" ? "is-active" : ""}`}
                   >
-                    <span>Sin Aprobar / Actuales</span>
+                    <span>Pendientes de Aprobación</span>
                     <span className="st-tab-badge st-tab-badge--pending">
                       {solicitudesPendientes.length}
                     </span>
@@ -579,13 +567,13 @@ export default function SolicitudTalleres() {
                   <button
                     type="button"
                     role="tab"
-                    aria-selected={filtroEstado === "aprobadas"}
-                    onClick={() => cambiarFiltro("aprobadas")}
-                    className={`st-tab-btn ${filtroEstado === "aprobadas" ? "is-active" : ""}`}
+                    aria-selected={filtroEstado === "resueltas"}
+                    onClick={() => cambiarFiltro("resueltas")}
+                    className={`st-tab-btn ${filtroEstado === "resueltas" ? "is-active" : ""}`}
                   >
-                    <span>Aprobadas</span>
+                    <span>Resueltas (Aprobadas / Rechazadas)</span>
                     <span className="st-tab-badge st-tab-badge--approved">
-                      {solicitudesAprobadas.length}
+                      {solicitudesResueltas.length}
                     </span>
                   </button>
                 </div>
@@ -604,13 +592,13 @@ export default function SolicitudTalleres() {
                     <div>
                       <h4>
                         {filtroEstado === "pendientes"
-                          ? "No tienes solicitudes de taller sin aprobar o en revisión"
-                          : "No tienes solicitudes de taller aprobadas en este momento"}
+                          ? "No tienes solicitudes pendientes de aprobación en este momento"
+                          : "No tienes solicitudes resueltas (aprobadas o rechazadas) en este momento"}
                       </h4>
                       <p>
                         {filtroEstado === "pendientes"
                           ? "Elige un tema del catálogo inferior o solicita una sesión grupal en segundos."
-                          : "Las solicitudes confirmadas por biblioteca aparecerán aquí con su información de pase."}
+                          : "Las solicitudes gestionadas por el equipo de biblioteca aparecerán aquí con su resolución."}
                       </p>
                     </div>
                   </div>
@@ -629,7 +617,7 @@ export default function SolicitudTalleres() {
                       onClick={() => cambiarFiltro("pendientes")}
                       className="st-btn st-btn--glass"
                     >
-                      Ver solicitudes sin aprobar ({solicitudesPendientes.length})
+                      Ver solicitudes pendientes ({solicitudesPendientes.length})
                     </button>
                   )}
                 </div>
@@ -637,6 +625,36 @@ export default function SolicitudTalleres() {
                 <div className="space-y-6">
                   {solicitudesPaginadas.map((sol) => {
                     const esAprobada = sol.estado === "aprobado";
+                    const esRechazada = sol.estado === "rechazado";
+                    const esRealizada = sol.estado === "realizado";
+                    const esPendiente = sol.estado === "pendiente";
+
+                    let badgeClass = "st-status-badge--pending";
+                    let badgeTexto = "En Revisión";
+                    let folioTag = "Pendiente";
+                    let mensajeDetalle = "En espera de asignación de bibliotecólogo y confirmación horaria.";
+
+                    if (esAprobada) {
+                      badgeClass = "st-status-badge--active";
+                      badgeTexto = "Taller Aprobado";
+                      folioTag = "Confirmado";
+                      mensajeDetalle = "Tu taller fue aprobado por el equipo de biblioteca.";
+                    } else if (esRechazada) {
+                      badgeClass = "st-status-badge--danger";
+                      badgeTexto = "No Aprobado";
+                      folioTag = "Rechazado";
+                      mensajeDetalle = sol.observaciones || "La solicitud no pudo ser aprobada por el equipo de biblioteca.";
+                    } else if (esRealizada) {
+                      badgeClass = "st-status-badge--active";
+                      badgeTexto = "Taller Realizado";
+                      folioTag = "Realizado";
+                      mensajeDetalle = sol.observaciones || "Sesión de taller completada con éxito.";
+                    }
+
+                    if (sol.observaciones && !esRechazada && !esRealizada) {
+                      mensajeDetalle = sol.observaciones;
+                    }
+
                     return (
                       <article
                         key={sol.id}
@@ -658,14 +676,9 @@ export default function SolicitudTalleres() {
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2">
-                              <span
-                                className={`st-status-badge ${esAprobada
-                                    ? "st-status-badge--active"
-                                    : "st-status-badge--pending"
-                                  }`}
-                              >
+                              <span className={`st-status-badge ${badgeClass}`}>
                                 <span className="st-status-dot" />
-                                {esAprobada ? "Taller Aprobado" : "En Revisión"}
+                                {badgeTexto}
                               </span>
                               <span className="st-ticket-id">#TAL-{sol.id}</span>
                             </div>
@@ -727,16 +740,12 @@ export default function SolicitudTalleres() {
                                 <div className="st-person-box">
                                   <span className="st-person-label">
                                     <IconCheck className="w-3.5 h-3.5 text-[#00A3E0]" />{" "}
-                                    {esAprobada
-                                      ? "Confirmación de Biblioteca"
-                                      : "Observaciones / Detalles"}
+                                    {esPendiente
+                                      ? "Observaciones / Detalles"
+                                      : "Resolución de Biblioteca"}
                                   </span>
                                   <p className="st-person-empty">
-                                    {sol.observaciones
-                                      ? sol.observaciones
-                                      : esAprobada
-                                        ? "Tu taller fue aprobado por el equipo de biblioteca."
-                                        : "En espera de asignación de bibliotecólogo y confirmación horaria."}
+                                    {mensajeDetalle}
                                   </p>
                                 </div>
                               </div>
@@ -746,7 +755,7 @@ export default function SolicitudTalleres() {
                               <div className="st-stub-badge">
                                 <span>Folio Asignado</span>
                                 <strong>#TAL-{sol.id}</strong>
-                                <small>{esAprobada ? "Confirmado" : "Pendiente"}</small>
+                                <small>{folioTag}</small>
                               </div>
 
                               <div className="st-stub-actions">
@@ -757,7 +766,7 @@ export default function SolicitudTalleres() {
                                 >
                                   <IconChat className="w-4 h-4" /> Consultar al Asistente
                                 </button>
-                                {sol.estado === "pendiente" && (
+                                {esPendiente && (
                                   <button
                                     type="button"
                                     onClick={() =>
@@ -869,112 +878,6 @@ export default function SolicitudTalleres() {
                 })}
               </div>
             </section>
-
-            {solicitudesHistorial.length > 0 && (
-              <section aria-labelledby="st-history-heading">
-                <div className="st-section-bar">
-                  <div>
-                    <span className="st-kicker">✦ Registro académico</span>
-                    <h2 id="st-history-heading" className="st-h2">
-                      Historial de <em>Talleres</em>{" "}
-                      <span className="st-count-pill">{solicitudesHistorial.length}</span>
-                    </h2>
-                  </div>
-
-                  {totalPaginasHistorial > 1 && (
-                    <span className="text-xs text-slate-500">
-                      Página <strong>{paginaHistorial}</strong> de{" "}
-                      <strong>{totalPaginasHistorial}</strong>
-                    </span>
-                  )}
-                </div>
-
-                <div className="space-y-3">
-                  {historialPaginado.map((sol) => {
-                    const esRechazado = sol.estado === "rechazado";
-                    return (
-                      <div key={sol.id} className="st-history-item">
-                        <div className="flex items-center gap-4">
-                          <div
-                            className={`st-history-code ${esRechazado ? "is-danger" : "is-done"
-                              }`}
-                          >
-                            #{sol.id}
-                          </div>
-
-                          <div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <h4>{sol.taller}</h4>
-                              <span
-                                className={`st-history-status ${esRechazado
-                                    ? "st-history-status--danger"
-                                    : "st-history-status--done"
-                                  }`}
-                              >
-                                {esRechazado ? "No aprobada" : "Taller Realizado"}
-                              </span>
-                            </div>
-
-                            <div className="st-history-meta">
-                              <span>
-                                <IconCalendar className="w-3.5 h-3.5 text-[#00A3E0] inline mr-1" />
-                                {formatearFecha(sol.created_at)}
-                              </span>
-                              <span className="opacity-40">•</span>
-                              <span>
-                                <IconUsers className="w-3.5 h-3.5 text-[#00A3E0] inline mr-1" />
-                                {sol.participantes || "4"} participantes ({sol.modalidad})
-                              </span>
-                              {sol.observaciones && (
-                                <>
-                                  <span className="opacity-40">•</span>
-                                  <span className="text-slate-500 dark:text-slate-400">
-                                    {sol.observaciones}
-                                  </span>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div>
-                          <span className="st-history-id">#TAL-{sol.id}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {totalPaginasHistorial > 1 && (
-                  <div className="st-pagination">
-                    <p className="text-xs text-slate-500">
-                      Mostrando <strong>{historialPaginado.length}</strong> de{" "}
-                      <strong>{solicitudesHistorial.length}</strong> registros
-                    </p>
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setPaginaHistorial((p) => Math.max(1, p - 1))}
-                        disabled={paginaHistorial <= 1}
-                        className="st-page-btn"
-                      >
-                        ← Anterior
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setPaginaHistorial((p) => Math.min(totalPaginasHistorial, p + 1))
-                        }
-                        disabled={paginaHistorial >= totalPaginasHistorial}
-                        className="st-page-btn"
-                      >
-                        Siguiente →
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </section>
-            )}
           </div>
         )}
       </main>
