@@ -2413,19 +2413,21 @@ async def obtener_prediccion_aforo(
     campus_id: int = Query(1),
     dias: int = Query(7),
     reentrenar: bool = Query(False),
+    modelo: str = Query("random_forest"),
     current_user: dict = Depends(get_current_user)
 ):
     try:
         from backend.ml_occupancy import predecir_aforo_semanal
     except ImportError:
         from ml_occupancy import predecir_aforo_semanal
-    return predecir_aforo_semanal(campus_id=campus_id, dias=dias, forzar_reentrenamiento=reentrenar)
+    return predecir_aforo_semanal(campus_id=campus_id, dias=dias, forzar_reentrenamiento=reentrenar, algoritmo=modelo)
 
 
 @app.post("/api/metricas/prediccion/reentrenar")
 async def forzar_autoentrenamiento_ml(
     campus_id: int = Query(1),
     dias: int = Query(7),
+    modelo: str = Query("random_forest"),
     current_user: dict = Depends(get_current_user)
 ):
     if current_user.get("rol") != "admin":
@@ -2434,7 +2436,7 @@ async def forzar_autoentrenamiento_ml(
         from backend.ml_occupancy import predecir_aforo_semanal
     except ImportError:
         from ml_occupancy import predecir_aforo_semanal
-    return predecir_aforo_semanal(campus_id=campus_id, dias=dias, forzar_reentrenamiento=True)
+    return predecir_aforo_semanal(campus_id=campus_id, dias=dias, forzar_reentrenamiento=True, algoritmo=modelo)
 
 @app.get("/api/dashboard/metricas")
 async def obtener_metricas_dashboard(
