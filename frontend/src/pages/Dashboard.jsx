@@ -310,7 +310,7 @@ export default function Dashboard() {
     setCargandoIncidencias(true);
     try {
       const data = await apiGet("/api/admin/incidencias");
-      const lista = data || [];
+      const lista = Array.isArray(data) ? data : (data?.incidencias || []);
       setIncidencias(lista);
 
       const vencidas = lista.filter((inc) => {
@@ -995,7 +995,11 @@ export default function Dashboard() {
   useEffect(() => {
     const t = setTimeout(() => {
       const h = handlersRef.current;
-      if (activeTab === "monitoreo") h.fetchReservasRecientes?.();
+      if (activeTab === "monitoreo") {
+        h.fetchReservasRecientes?.();
+        h.fetchIncidencias?.();
+        h.fetchResumen?.();
+      }
       if (activeTab === "cms") h.fetchCMS?.();
       if (activeTab === "bloqueos") h.fetchDiasBloqueados?.();
       if (activeTab === "incidencias") h.fetchIncidencias?.();
@@ -1995,6 +1999,11 @@ export default function Dashboard() {
   const handleSelectTab = (tabId) => {
     setActiveTab(tabId);
     setSidebarMobileOpen(false);
+    if (tabId === "monitoreo") {
+      fetchReservasRecientes();
+      fetchIncidencias();
+      fetchResumen();
+    }
     if (tabId === "cms" || tabId === "faqs") fetchCMS();
     if (tabId === "calendario") fetchDiasBloqueados();
     if (tabId === "talleres") fetchSolicitudesTalleres();
@@ -3761,91 +3770,189 @@ export default function Dashboard() {
                     <div className="lg:col-span-5">
                       <div className={`${CARD} p-5 h-full flex flex-col justify-between`}>
                         <div>
-                          <div className="border-b border-slate-100 pb-3 mb-4">
-                            <h3 className="text-sm font-bold text-slate-800 tracking-tight">
-                              Novedades e Incidencias
-                            </h3>
+                          <div className="border-b border-slate-100 pb-3 mb-4 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <h3 className="text-sm font-bold text-slate-800 tracking-tight">
+                                Novedades e Incidencias
+                              </h3>
+                              {(() => {
+                                const activas = incidencias.filter((i) => (i.estado || "").toLowerCase() !== "resuelta");
+                                return activas.length > 0 ? (
+                                  <span className="min-w-5 h-5 px-1.5 flex items-center justify-center rounded-full text-[10px] font-black bg-[#EA3829] text-white shadow-2xs animate-pulse">
+                                    {activas.length}
+                                  </span>
+                                ) : null;
+                              })()}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleSelectTab("incidencias")}
+                              className="text-[11px] font-semibold text-[#00629B] hover:text-[#004D7A] hover:underline cursor-pointer flex items-center gap-1"
+                            >
+                              <span>Ver todas</span>
+                              <span>➔</span>
+                            </button>
                           </div>
 
-                          <div className="space-y-5">
-                            {incidencias.filter((i) => i.estado === "pendiente").length > 0 ? (
-                              incidencias
-                                .filter((i) => i.estado === "pendiente")
-                                .slice(0, 2)
-                                .map((inc, idx) => (
-                                  <div key={inc.id || idx} className="space-y-2 pb-4 border-b border-slate-100 last:border-b-0 last:pb-0">
-                                    <div className="flex items-center gap-3">
-                                      <div
-                                        className="w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-bold shadow-xs shrink-0"
-                                        style={{ backgroundColor: idx % 2 === 0 ? "#00A3E0" : "#FFC20E", color: idx % 2 === 0 ? "#ffffff" : "#002D4C" }}
-                                      >
-                                        {inc.estudiante_nombre ? inc.estudiante_nombre.slice(0, 2).toUpperCase() : "AL"}
-                                      </div>
-                                      <div className="min-w-0 flex-1">
-                                        <div className="text-xs font-bold text-slate-800 truncate">
-                                          {inc.estudiante_nombre || "Estudiante"}{" "}
-                                          <span className="font-semibold text-[#00629B] cursor-pointer hover:underline">
-                                            en {inc.cubiculo_codigo || "Cubículo"}
-                                          </span>
-                                        </div>
-                                        <div className="text-[10px] text-slate-400">
-                                          {inc.created_at ? String(inc.created_at).split(" ")[0] : "Reciente"}
-                                        </div>
-                                      </div>
-                                    </div>
-
-                                    <p className="text-[11px] text-slate-600 line-clamp-2 leading-relaxed pl-12">
-                                      {inc.descripcion || "Reporte de incidencia registrado para supervisión técnica en biblioteca."}
-                                    </p>
-
-                                    <div className="pl-12 pt-1">
-                                      <button
-                                        onClick={() => handleSelectTab("incidencias")}
-                                        className="px-3.5 py-1 rounded-full bg-[#00629B] hover:bg-[#004D7A] text-white text-[10px] font-bold shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
-                                      >
-                                        <span>Revisar</span>
-                                        <span>➔</span>
-                                      </button>
-                                    </div>
-                                  </div>
-                                ))
-                            ) : (
-                              <div className="space-y-4">
-                                <div className="space-y-2 pb-4 border-b border-slate-100">
-                                  <div className="flex items-center gap-3">
-                                    <div className="w-9 h-9 rounded-full bg-[#00629B] flex items-center justify-center text-white text-[11px] font-bold shadow-xs shrink-0">
-                                      SB
-                                    </div>
-                                    <div className="min-w-0 flex-1">
-                                      <div className="text-xs font-bold text-slate-800 truncate">
-                                        Supervisión de Sede{" "}
-                                        <span className="font-semibold text-[#00629B] cursor-pointer hover:underline">
-                                          en Cubículos de Biblioteca
-                                        </span>
-                                      </div>
-                                      <div className="text-[10px] text-slate-400">
-                                        Actualizado hoy
-                                      </div>
-                                    </div>
-                                  </div>
-                                  <p className="text-[11px] text-slate-600 line-clamp-2 leading-relaxed pl-12">
-                                    Cubículos operativos y con aforo asignado de acuerdo a los turnos horarios del día.
-                                  </p>
-                                  <div className="pl-12 pt-1">
-                                    <button
-                                      onClick={() => handleSelectTab("incidencias")}
-                                      className="px-3.5 py-1 rounded-full bg-[#00629B] hover:bg-[#004D7A] text-white text-[10px] font-bold shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
-                                    >
-                                      <span>Revisar</span>
-                                      <span>➔</span>
-                                    </button>
-                                  </div>
-                                </div>
-
-
+                          <div className="space-y-4">
+                            {cargandoIncidencias ? (
+                              <div className="p-8 text-center text-slate-400 text-xs flex items-center justify-center gap-2">
+                                <span className="animate-spin text-base"><UiIcon name="clock" className="w-4 h-4" /></span>
+                                <span>Cargando incidencias...</span>
                               </div>
-                            )}
+                            ) : (() => {
+                              const activas = incidencias.filter((i) => (i.estado || "").toLowerCase() !== "resuelta");
+                              if (activas.length > 0) {
+                                return (
+                                  <div className="space-y-4 max-h-[440px] overflow-y-auto pr-1">
+                                    {activas.slice(0, 4).map((inc, idx) => {
+                                      const est = (inc.estado || "").toLowerCase();
+                                      const esPendiente = est === "pendiente";
+                                      return (
+                                        <div key={inc.id || idx} className="space-y-2 pb-4 border-b border-slate-100 last:border-b-0 last:pb-0">
+                                          <div className="flex items-start gap-3">
+                                            <div
+                                              className="w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-bold shadow-xs shrink-0 mt-0.5"
+                                              style={{ backgroundColor: esPendiente ? "#EA3829" : "#00A3E0", color: "#ffffff" }}
+                                            >
+                                              {inc.estudiante_nombre ? inc.estudiante_nombre.slice(0, 2).toUpperCase() : "IN"}
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                              <div className="flex items-center justify-between gap-2">
+                                                <div className="text-xs font-bold text-slate-800 truncate">
+                                                  {inc.estudiante_nombre || "Estudiante"}
+                                                </div>
+                                                <span
+                                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold shrink-0 ${
+                                                    esPendiente
+                                                      ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                                      : "bg-sky-50 text-sky-700 border border-sky-200"
+                                                  }`}
+                                                >
+                                                  <span className={`w-1.5 h-1.5 rounded-full ${esPendiente ? "bg-amber-500 animate-pulse" : "bg-sky-500"}`}></span>
+                                                  {esPendiente ? "Pendiente" : "En revisión"}
+                                                </span>
+                                              </div>
+                                              <div className="text-[10px] text-slate-500 flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                                <span className="font-semibold text-[#00629B]">
+                                                  Cubículo {inc.cubiculo_codigo || "N/A"}
+                                                </span>
+                                                {inc.campus_nombre && (
+                                                  <>
+                                                    <span>•</span>
+                                                    <span className="truncate">{inc.campus_nombre}</span>
+                                                  </>
+                                                )}
+                                                {inc.categoria && (
+                                                  <>
+                                                    <span>•</span>
+                                                    <span className="capitalize">{inc.categoria}</span>
+                                                  </>
+                                                )}
+                                              </div>
+                                              <div className="text-[10px] text-slate-400 mt-0.5">
+                                                {inc.created_at ? String(inc.created_at).split(" ")[0] : "Reciente"}
+                                              </div>
+                                            </div>
+                                          </div>
+
+                                          <p className="text-[11px] text-slate-600 line-clamp-2 leading-relaxed pl-12">
+                                            {inc.descripcion || "Reporte de incidencia registrado para supervisión técnica en biblioteca."}
+                                          </p>
+
+                                          <div className="pl-12 pt-1 flex items-center gap-2 flex-wrap">
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setBusquedaIncidencia(inc.cubiculo_codigo || "");
+                                                handleSelectTab("incidencias");
+                                              }}
+                                              className="px-3 py-1 rounded-full bg-[#00629B] hover:bg-[#004D7A] text-white text-[10px] font-bold shadow-xs transition-all flex items-center gap-1 cursor-pointer"
+                                            >
+                                              <span>Revisar</span>
+                                              <span>➔</span>
+                                            </button>
+                                            {esPendiente && (
+                                              <button
+                                                type="button"
+                                                onClick={() => handleCambiarEstadoIncidencia(inc.id, "en_revision")}
+                                                className="px-3 py-1 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-semibold transition-all cursor-pointer"
+                                              >
+                                                En revisión
+                                              </button>
+                                            )}
+                                            <button
+                                              type="button"
+                                              onClick={() => handleCambiarEstadoIncidencia(inc.id, "resuelta")}
+                                              className="px-3 py-1 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[10px] font-semibold transition-all cursor-pointer"
+                                            >
+                                              Resolver
+                                            </button>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                );
+                              }
+
+                              const resueltasRecientes = incidencias.filter((i) => (i.estado || "").toLowerCase() === "resuelta").slice(0, 2);
+                              return (
+                                <div className="space-y-4">
+                                  <div className="p-4 text-center rounded-xl border border-dashed border-slate-200 bg-slate-50/70 flex flex-col items-center justify-center">
+                                    <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mb-1.5">
+                                      <UiIcon name="check" className="w-4 h-4" />
+                                    </div>
+                                    <p className="text-xs font-bold text-slate-700">Sin incidencias activas</p>
+                                    <p className="text-[11px] text-slate-500 mt-0.5">
+                                      Todos los cubículos y salas se encuentran funcionando con normalidad.
+                                    </p>
+                                  </div>
+
+                                  {resueltasRecientes.length > 0 && (
+                                    <div className="space-y-3 pt-1">
+                                      <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                                        Últimas resueltas
+                                      </div>
+                                      {resueltasRecientes.map((inc, idx) => (
+                                        <div key={inc.id || idx} className="space-y-1 pb-3 border-b border-slate-100 last:border-b-0 last:pb-0">
+                                          <div className="flex items-center justify-between gap-2">
+                                            <div className="text-xs font-bold text-slate-700 truncate">
+                                              Cubículo {inc.cubiculo_codigo || "N/A"}
+                                              <span className="text-[10px] font-normal text-slate-400 ml-1.5">
+                                                {inc.campus_nombre || ""}
+                                              </span>
+                                            </div>
+                                            <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                              Resuelta
+                                            </span>
+                                          </div>
+                                          <p className="text-[11px] text-slate-500 line-clamp-1">
+                                            {inc.descripcion}
+                                          </p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </div>
+                        </div>
+
+                        <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                          <span>
+                            Total: <strong className="text-slate-700">{incidencias.length}</strong> reportes
+                          </span>
+                          <button
+                            type="button"
+                            onClick={fetchIncidencias}
+                            disabled={cargandoIncidencias}
+                            className="text-[#00629B] font-semibold hover:underline cursor-pointer flex items-center gap-1 disabled:opacity-50"
+                          >
+                            <span className={cargandoIncidencias ? "animate-spin" : ""}>⟳</span>
+                            <span>Actualizar</span>
+                          </button>
                         </div>
                       </div>
                     </div>

@@ -1979,8 +1979,8 @@ async def listar_incidencias(
                 i.solucion,
                 i.created_at
             FROM incidencias_cubiculos i
-            JOIN cubiculos cb ON i.cubiculo_id = cb.id
-            JOIN campus c ON cb.campus_id = c.id
+            LEFT JOIN cubiculos cb ON i.cubiculo_id = cb.id
+            LEFT JOIN campus c ON cb.campus_id = c.id
         """
         params = []
         if estado and estado != "todos":
