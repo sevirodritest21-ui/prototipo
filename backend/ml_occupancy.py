@@ -6,7 +6,11 @@ from datetime import datetime, date, timedelta
 from dotenv import load_dotenv
 import joblib
 import holidays
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+try:
+    import xgboost as xgb
+except ImportError:
+    xgb = None
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 from sklearn.model_selection import train_test_split
 import pymssql
@@ -16,6 +20,13 @@ load_dotenv(_env_path if os.path.exists(_env_path) else "backend.env")
 load_dotenv()
 
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "modelo_ocupacion.joblib")
+MODEL_PATH_RF = os.path.join(os.path.dirname(__file__), "modelo_ocupacion_rf.joblib")
+MODEL_PATH_XGB = os.path.join(os.path.dirname(__file__), "modelo_ocupacion_xgboost.joblib")
+
+def _obtener_ruta_modelo(algoritmo: str = "random_forest") -> str:
+    if "xgb" in (algoritmo or "").lower():
+        return MODEL_PATH_XGB
+    return MODEL_PATH_RF
 
 BLOQUES_HORAS = [
     {"hora": "09:00", "hora_num": 9, "rango": "09:00 - 10:00"},
@@ -353,7 +364,7 @@ def sincronizar_y_evaluar_predicciones(model=None):
     return nuevos_evaluados
 
 
-def entrenar_modelo():
+def entrenar_modelo(algoritmo: str = "random_forest"):
     conn = _get_db_connection()
     cursor = conn.cursor(as_dict=True)
     _asegurar_tabla_predicciones(cursor, conn)
@@ -366,7 +377,7 @@ def entrenar_modelo():
     if len(filas) < 50:
         conn.close()
         poblar_datos_historicos_simulados(meses_atras=8)
-        return entrenar_modelo()
+        return entrenar_modelo(algoritmo=algoritmo)
 
     cursor.execute(
         """
@@ -459,12 +470,35 @@ def entrenar_modelo():
         X, y, weights, test_size=0.2, random_state=42
     )
 
-    model = RandomForestRegressor(
-        n_estimators=120,
-        max_depth=10,
-        min_samples_split=4,
-        random_state=42
-    )
+    es_xgboost = "xgb" in (algoritmo or "").lower()
+    if es_xgboost:
+        if xgb is not None:
+            model = xgb.XGBRegressor(
+                n_estimators=120,
+                max_depth=6,
+                learning_rate=0.08,
+                subsample=0.85,
+                random_state=42
+            )
+            algoritmo_nombre = "XGBoost Regressor (Extreme Gradient Boosting)"
+        else:
+            model = GradientBoostingRegressor(
+                n_estimators=120,
+                max_depth=6,
+                learning_rate=0.08,
+                subsample=0.85,
+                random_state=42
+            )
+            algoritmo_nombre = "XGBoost / Gradient Boosting Regressor"
+    else:
+        model = RandomForestRegressor(
+            n_estimators=120,
+            max_depth=10,
+            min_samples_split=4,
+            random_state=42
+        )
+        algoritmo_nombre = "Random Forest Regressor Auto-Calibrado"
+
     model.fit(X_train, y_train, sample_weight=w_train)
 
     sincronizar_y_evaluar_predicciones(model=model)
@@ -499,6 +533,7 @@ def entrenar_modelo():
     mae = round(float(mean_absolute_error(y_test, y_pred)), 2)
     rmse = round(float(math.sqrt(mean_squared_error(y_test, y_pred))), 2)
 
+    tipo_norm = "xgboost" if es_xgboost else "random_forest"
     modelo_bundle = {
         "model": model,
         "sesgo_residual": sesgo_residual,
@@ -510,21 +545,33 @@ def entrenar_modelo():
             "evaluados": len(evaluados_rows)
         },
         "trained_at": datetime.now().isoformat(),
-        "algorithm": "Random Forest Regressor Auto-Calibrado",
+        "algorithm": algoritmo_nombre,
+        "algoritmo_tipo": tipo_norm,
+        "recomendacion_volumen": (
+            "Recomendado para grandes volúmenes de datos (≥100.000 registros). Boosting secuencial de gradiente optimizado para velocidad y mínima latencia."
+            if es_xgboost
+            else "Recomendado para volúmenes moderados (<100.000 registros). Ensamble de árboles en paralelo (Bagging) con alta estabilidad y robustez frente a sobreajuste."
+        ),
         "features": [
             "campus_id", "hora_num", "dia_semana", "mes",
             "dia_mes", "es_fin_de_semana", "es_temporada_alta", "es_hora_pico"
         ]
     }
 
-    joblib.dump(modelo_bundle, MODEL_PATH)
+    ruta_guardar = _obtener_ruta_modelo(tipo_norm)
+    joblib.dump(modelo_bundle, ruta_guardar)
+    if not es_xgboost:
+        joblib.dump(modelo_bundle, MODEL_PATH)
     return modelo_bundle
 
 
-def cargar_o_entrenar_modelo(forzar: bool = False):
-    if not forzar and os.path.exists(MODEL_PATH):
+def cargar_o_entrenar_modelo(forzar: bool = False, algoritmo: str = "random_forest"):
+    tipo_norm = "xgboost" if "xgb" in (algoritmo or "").lower() else "random_forest"
+    target_path = _obtener_ruta_modelo(tipo_norm)
+
+    if not forzar and os.path.exists(target_path):
         try:
-            bundle = joblib.load(MODEL_PATH)
+            bundle = joblib.load(target_path)
             trained_at_str = bundle.get("trained_at")
             if trained_at_str:
                 trained_dt = datetime.fromisoformat(trained_at_str)
@@ -537,7 +584,14 @@ def cargar_o_entrenar_modelo(forzar: bool = False):
                 return bundle
         except Exception:
             pass
-    return entrenar_modelo()
+    elif not forzar and tipo_norm == "random_forest" and os.path.exists(MODEL_PATH):
+        try:
+            bundle = joblib.load(MODEL_PATH)
+            return bundle
+        except Exception:
+            pass
+
+    return entrenar_modelo(algoritmo=tipo_norm)
 
 
 def obtener_resumen_autoevaluacion(campus_id: int = 1) -> dict:
@@ -601,8 +655,8 @@ def obtener_resumen_autoevaluacion(campus_id: int = 1) -> dict:
     }
 
 
-def predecir_aforo_semanal(campus_id: int = 1, dias: int = 7, forzar_reentrenamiento: bool = False) -> dict:
-    bundle = cargar_o_entrenar_modelo(forzar=forzar_reentrenamiento)
+def predecir_aforo_semanal(campus_id: int = 1, dias: int = 7, forzar_reentrenamiento: bool = False, algoritmo: str = "random_forest") -> dict:
+    bundle = cargar_o_entrenar_modelo(forzar=forzar_reentrenamiento, algoritmo=algoritmo)
     model = bundle["model"]
     metrics = bundle["metrics"]
     sesgo_residual = bundle.get("sesgo_residual", {})
@@ -765,6 +819,8 @@ def predecir_aforo_semanal(campus_id: int = 1, dias: int = 7, forzar_reentrenami
         },
         "modelo_info": {
             "algoritmo": bundle.get("algorithm", "Random Forest Regressor Auto-Calibrado"),
+            "algoritmo_tipo": bundle.get("algoritmo_tipo", "random_forest"),
+            "recomendacion_volumen": bundle.get("recomendacion_volumen", ""),
             "r2_score": metrics.get("r2", 0.90),
             "mae": metrics.get("mae", 4.5),
             "muestras_entrenamiento": metrics.get("muestras", 1200),

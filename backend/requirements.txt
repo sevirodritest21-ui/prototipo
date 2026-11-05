@@ -11,3 +11,4 @@ holidays
 pymssql
 scikit-learn
 joblib
+xgboost
