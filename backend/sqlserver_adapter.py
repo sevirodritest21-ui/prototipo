@@ -17,11 +17,24 @@ class Record(dict):
     def __init__(self, d: dict, row_tuple: tuple = ()):
         super().__init__(d)
         self._tuple = row_tuple
+        self._lower_map = {k.lower(): k for k in d.keys() if isinstance(k, str)}
 
     def __getitem__(self, item):
         if isinstance(item, int):
             return self._tuple[item]
+        if item in self:
+            return super().__getitem__(item)
+        if isinstance(item, str):
+            lower_k = self._lower_map.get(item.lower())
+            if lower_k and lower_k in self:
+                return super().__getitem__(lower_k)
         return super().__getitem__(item)
+
+    def get(self, item, default=None):
+        try:
+            return self[item]
+        except KeyError:
+            return default
 
 def _adapt_returning(sql: str) -> str:
     m_ins = re.search(r'INSERT\s+INTO\s+([^\s\(]+)\s*(\([\s\S]*?\))\s*VALUES\s*([\s\S]*?)\s*RETURNING\s+([\s\S]*)', sql, re.IGNORECASE)
@@ -132,7 +145,8 @@ def translate_query(query: str, args: tuple):
     if matches:
         new_args = []
         for idx in matches:
-            val = args[int(idx) - 1]
+            idx_int = int(idx) - 1
+            val = args[idx_int] if idx_int < len(args) else None
             if isinstance(val, (list, tuple)):
                 val = list(val)
             new_args.append(val)
@@ -141,8 +155,8 @@ def translate_query(query: str, args: tuple):
         last_end = 0
         for m in param_pattern.finditer(q):
             parts.append(q[last_end:m.start()])
-            idx_num = int(m.group(1))
-            val = args[idx_num - 1]
+            idx_num = int(m.group(1)) - 1
+            val = args[idx_num] if idx_num < len(args) else None
             if isinstance(val, (list, tuple)):
                 placeholders = ", ".join(["%s"] * len(val))
                 parts.append(placeholders)
@@ -154,7 +168,8 @@ def translate_query(query: str, args: tuple):
 
         expanded_args = []
         for idx in matches:
-            val = args[int(idx) - 1]
+            idx_int = int(idx) - 1
+            val = args[idx_int] if idx_int < len(args) else None
             if isinstance(val, (list, tuple)):
                 expanded_args.extend(val)
             else:
@@ -187,6 +202,10 @@ class ConnectionWrapper:
         def _do():
             cur = self._execute_sync(query, args)
             rows = cur.fetchall()
+            try:
+                self._conn.commit()
+            except Exception:
+                pass
             if not rows or not cur.description:
                 return []
             col_names = [d[0] if d[0] else f"col_{i}" for i, d in enumerate(cur.description)]
@@ -201,6 +220,10 @@ class ConnectionWrapper:
         def _do():
             cur = self._execute_sync(query, args)
             r = cur.fetchone()
+            try:
+                self._conn.commit()
+            except Exception:
+                pass
             if not r or not cur.description:
                 return None
             col_names = [d[0] if d[0] else f"col_{i}" for i, d in enumerate(cur.description)]
@@ -212,6 +235,10 @@ class ConnectionWrapper:
         def _do():
             cur = self._execute_sync(query, args)
             r = cur.fetchone()
+            try:
+                self._conn.commit()
+            except Exception:
+                pass
             if not r:
                 return None
             return r[0]
@@ -251,21 +278,22 @@ class PoolWrapper:
         self._lock = asyncio.Lock()
 
     def _create_raw(self):
-        hosts_to_try = [self.host]
+        hosts_to_try = [self.host] if self.host else []
         for fallback in ["sqlserver", "botsbiblioteca-sqlserver-dev", "host.docker.internal", "localhost"]:
             if fallback and fallback not in hosts_to_try:
                 hosts_to_try.append(fallback)
 
-        last_exc = None
+        last_exc = RuntimeError("No se pudo conectar a SQL Server en ningun host candidato")
         for h in hosts_to_try:
+            port_val = int(self.port or 1433)
             conn_params = {
                 "server": h,
-                "port": self.port,
-                "user": self.user,
-                "password": self.password,
-                "database": self.db,
+                "port": port_val,
+                "user": self.user or "sa",
+                "password": self.password or "SqlAdmin2026!",
+                "database": self.db or "reservas_db",
                 "autocommit": False,
-                "login_timeout": 4,
+                "login_timeout": 3,
                 "timeout": 10
             }
             try:
@@ -274,19 +302,35 @@ class PoolWrapper:
                 return conn
             except Exception as e:
                 err_str = str(e)
-                if "Cannot open database" in err_str or "4060" in err_str:
+                if ("Cannot open database" in err_str or "4060" in err_str) and self.db:
+                    m_conn = None
                     try:
-                        m_conn = pymssql.connect(server=h, port=self.port, user=self.user, password=self.password, database="master", autocommit=True, login_timeout=4)
+                        m_conn = pymssql.connect(
+                            server=h,
+                            port=port_val,
+                            user=self.user or "sa",
+                            password=self.password or "SqlAdmin2026!",
+                            database="master",
+                            autocommit=True,
+                            login_timeout=3
+                        )
                         cur = m_conn.cursor()
                         cur.execute(f"IF DB_ID('{self.db}') IS NULL CREATE DATABASE [{self.db}];")
                         m_conn.close()
+                        m_conn = None
                         conn = pymssql.connect(**conn_params)
                         self.host = h
                         return conn
                     except Exception as inner_e:
                         last_exc = inner_e
-                        continue
-                last_exc = e
+                    finally:
+                        if m_conn:
+                            try:
+                                m_conn.close()
+                            except Exception:
+                                pass
+                else:
+                    last_exc = e
                 continue
         raise last_exc
 
@@ -317,32 +361,38 @@ class PoolWrapper:
                 while True:
                     try:
                         self.raw_conn, last_used = self.pool._pool.get_nowait()
+                        break
                     except asyncio.QueueEmpty:
+                        need_wait = False
                         async with self.pool._lock:
                             if self.pool._created < self.pool.max_size:
                                 self.raw_conn = await asyncio.to_thread(self.pool._create_raw)
                                 self.pool._created += 1
                                 last_used = time.time()
+                                break
                             else:
-                                self.raw_conn, last_used = await self.pool._pool.get()
+                                need_wait = True
+                        if need_wait:
+                            self.raw_conn, last_used = await self.pool._pool.get()
+                            break
 
-                    if time.time() - last_used > 45:
-                        def _ping(c):
-                            try:
-                                cur = c.cursor()
-                                cur.execute("SELECT 1")
-                                cur.fetchall()
-                                return True
-                            except Exception:
-                                return False
-                        alive = await asyncio.to_thread(_ping, self.raw_conn)
-                        if not alive:
-                            try:
-                                await asyncio.to_thread(self.raw_conn.close)
-                            except Exception:
-                                pass
-                            self.raw_conn = await asyncio.to_thread(self.pool._create_raw)
-                    break
+                if time.time() - last_used > 45:
+                    def _ping(c):
+                        try:
+                            cur = c.cursor()
+                            cur.execute("SELECT 1")
+                            cur.fetchall()
+                            c.commit()
+                            return True
+                        except Exception:
+                            return False
+                    alive = await asyncio.to_thread(_ping, self.raw_conn)
+                    if not alive:
+                        try:
+                            await asyncio.to_thread(self.raw_conn.close)
+                        except Exception:
+                            pass
+                        self.raw_conn = await asyncio.to_thread(self.pool._create_raw)
 
                 return ConnectionWrapper(self.raw_conn)
 
@@ -367,14 +417,14 @@ class PoolWrapper:
                             await self.pool._pool.put((new_conn, time.time()))
                         except Exception:
                             async with self.pool._lock:
-                                self.pool._created -= 1
+                                self.pool._created = max(0, self.pool._created - 1)
                     else:
                         try:
                             self.pool._pool.put_nowait((self.raw_conn, time.time()))
                         except asyncio.QueueFull:
                             await asyncio.to_thread(self.raw_conn.close)
                             async with self.pool._lock:
-                                self.pool._created -= 1
+                                self.pool._created = max(0, self.pool._created - 1)
 
         return _AcquireContext(self)
 
@@ -393,14 +443,14 @@ async def create_pool(*args, **kwargs) -> PoolWrapper:
         host = env_host
     else:
         host = "sqlserver" if is_docker else "localhost"
-    port = int(os.getenv("MSSQL_PORT", "1433"))
-    user = os.getenv("MSSQL_USER", "")
-    password = os.getenv("MSSQL_PASSWORD", "")
-    db = os.getenv("MSSQL_DB", "")
-    pool = PoolWrapper(host=host, port=port, user=user, password=password, db=db)
+    port = int(os.getenv("MSSQL_PORT") or "1433")
+    user = os.getenv("MSSQL_USER") or "sa"
+    password = os.getenv("MSSQL_PASSWORD") or "SqlAdmin2026!"
+    db = os.getenv("MSSQL_DB") or "reservas_db"
+    min_size = int(kwargs.get("min_size", 5))
+    max_size = int(kwargs.get("max_size", 20))
+    pool = PoolWrapper(host=host, port=port, user=user, password=password, db=db, min_size=min_size, max_size=max_size)
     await pool.init()
     return pool
 
 Pool = PoolWrapper
-
-
