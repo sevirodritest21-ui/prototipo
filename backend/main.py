@@ -389,6 +389,15 @@ async def startup():
         timeout=30.0
     )
 
+    try:
+        try:
+            from backend.db_seeder import auto_seed_if_empty
+        except ImportError:
+            from db_seeder import auto_seed_if_empty
+        await auto_seed_if_empty()
+    except Exception as e:
+        print(f"[Startup Warning] Error en auto-seeder: {e}", flush=True)
+
     if pool is not None:
         try:
             async with pool.acquire() as conn:
