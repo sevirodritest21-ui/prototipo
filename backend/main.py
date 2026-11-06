@@ -51,7 +51,12 @@ app.add_middleware(
 
 @app.get("/api/health")
 async def health_check():
-    return {"status": "ok"}
+    db_err = getattr(app.state, "db_error", None)
+    return {
+        "status": "ok",
+        "db_connected": db_err is None,
+        "db_error": db_err
+    }
 
 N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL")
 N8N_CANCELACION_WEBHOOK_URL = os.getenv("N8N_CANCELACION_WEBHOOK_URL")
@@ -367,165 +372,175 @@ FERIADOS_CHILE = FeriadosChileContainer()
 @app.on_event("startup")
 async def startup():
     global pool, httpx_client
-    pool = await asyncpg.create_pool(
-        DATABASE_URL,
-        min_size=5,
-        max_size=30,
-        max_queries=50000,
-        command_timeout=10.0
-    )
+    app.state.db_error = None
+    try:
+        pool = await asyncpg.create_pool(
+            DATABASE_URL,
+            min_size=5,
+            max_size=30,
+            max_queries=50000,
+            command_timeout=10.0
+        )
+    except Exception as e:
+        app.state.db_error = str(e)
+        print(f"[Startup Error] Error creando pool de base de datos: {e}", flush=True)
     httpx_client = httpx.AsyncClient(
         limits=httpx.Limits(max_keepalive_connections=20, max_connections=100),
         timeout=30.0
     )
 
-    async with pool.acquire() as conn:
-        await conn.execute("""
-            UPDATE historial_reservas
-            SET estado = 'cancelada'
-            WHERE estado = 'activa'
-              AND reserva_id IS NOT NULL
-              AND NOT EXISTS (SELECT 1 FROM reservas r WHERE r.id = historial_reservas.reserva_id)
-        """)
-        await conn.execute("""
-            UPDATE historial_reservas
-            SET estado = 'completada'
-            WHERE (fecha < CURRENT_DATE OR (fecha = CURRENT_DATE AND hora < CURRENT_TIME))
-              AND estado NOT IN ('cancelada', 'liberada', 'inasistencia', 'justificada')
-        """)
-        await conn.execute("""
-            UPDATE historial_reservas
-            SET estado = 'completada'
-            WHERE estado = 'expirada'
-        """)
-        await conn.execute("""
-            UPDATE reservas
-            SET created_at = CASE
-                WHEN fecha >= CAST(GETDATE() AS DATE) THEN GETDATE()
-                ELSE CAST(fecha AS DATETIME2)
-            END
-            WHERE created_at IS NULL
-        """)
-        await conn.execute("""
-            UPDATE historial_reservas
-            SET fecha_registro = CASE
-                WHEN fecha >= CAST(GETDATE() AS DATE) THEN GETDATE()
-                ELSE CAST(fecha AS DATETIME2)
-            END
-            WHERE fecha_registro IS NULL
-        """)
-        await conn.execute("DELETE FROM sesiones WHERE updated_at < DATEADD(day, -7, GETDATE())")
-        await conn.execute("DELETE FROM rate_limits WHERE created_at < DATEADD(day, -1, GETDATE())")
-        await conn.execute("""
-            IF OBJECT_ID('contacto_mensajes', 'U') IS NULL
-            CREATE TABLE contacto_mensajes (
-                id INT IDENTITY(1,1) PRIMARY KEY,
-                nombre NVARCHAR(150) NOT NULL,
-                email NVARCHAR(255) NOT NULL,
-                rut NVARCHAR(50),
-                asunto NVARCHAR(255) DEFAULT 'Consulta / Soporte',
-                mensaje NVARCHAR(MAX) NOT NULL,
-                estado NVARCHAR(50) DEFAULT 'pendiente',
-                created_at DATETIME2 DEFAULT GETDATE()
-            );
-        """)
-        await conn.execute("""
-            IF OBJECT_ID('solicitudes_talleres', 'U') IS NULL
-            CREATE TABLE solicitudes_talleres (
-                id INT IDENTITY(1,1) PRIMARY KEY,
-                taller NVARCHAR(255) NOT NULL,
-                nombre NVARCHAR(150) NOT NULL,
-                email NVARCHAR(255) NOT NULL,
-                rut NVARCHAR(50) NOT NULL,
-                carrera NVARCHAR(150) NOT NULL,
-                modalidad NVARCHAR(50) NOT NULL,
-                participantes NVARCHAR(50) NOT NULL,
-                estado NVARCHAR(50) DEFAULT 'pendiente',
-                observaciones NVARCHAR(MAX),
-                created_at DATETIME2 DEFAULT GETDATE()
-            );
-        """)
-        await conn.execute("""
-            IF COL_LENGTH('usuarios', 'carrera') IS NULL
-                ALTER TABLE usuarios ADD carrera NVARCHAR(150) NULL;
-            IF COL_LENGTH('estudiante', 'carrera') IS NULL
-                ALTER TABLE estudiante ADD carrera NVARCHAR(150) NULL;
-            IF COL_LENGTH('reservas', 'carrera') IS NULL
-                ALTER TABLE reservas ADD carrera NVARCHAR(150) NULL;
-            IF COL_LENGTH('historial_reservas', 'carrera') IS NULL
-                ALTER TABLE historial_reservas ADD carrera NVARCHAR(150) NULL;
-        """)
-        await conn.execute("""
-            UPDATE r
-            SET r.carrera = COALESCE(
-                NULLIF(TRIM(u.carrera), ''),
-                NULLIF(TRIM(e.carrera), ''),
-                NULLIF(TRIM(cp.carr_nombre), ''),
-                'Otras Carreras / General'
-            )
-            FROM reservas r
-            LEFT JOIN usuarios u ON REPLACE(REPLACE(REPLACE(UPPER(u.rut), '.', ''), '-', ''), ' ', '') = REPLACE(REPLACE(REPLACE(UPPER(r.rut), '.', ''), '-', ''), ' ', '')
-            LEFT JOIN estudiante e ON REPLACE(REPLACE(REPLACE(UPPER(r.rut), '.', ''), '-', ''), ' ', '') = CONCAT(e.estd_rut, e.estd_dv)
-            LEFT JOIN estudiante_carrera ec ON e.estd_rut = ec.estd_rut
-            LEFT JOIN carrera_programa cp ON ec.carr_codigo = cp.carr_codigo
-            WHERE r.carrera IS NULL;
-
-            UPDATE h
-            SET h.carrera = COALESCE(
-                NULLIF(TRIM(u.carrera), ''),
-                NULLIF(TRIM(e.carrera), ''),
-                NULLIF(TRIM(cp.carr_nombre), ''),
-                'Otras Carreras / General'
-            )
-            FROM historial_reservas h
-            LEFT JOIN usuarios u ON REPLACE(REPLACE(REPLACE(UPPER(u.rut), '.', ''), '-', ''), ' ', '') = REPLACE(REPLACE(REPLACE(UPPER(h.rut), '.', ''), '-', ''), ' ', '')
-            LEFT JOIN estudiante e ON REPLACE(REPLACE(REPLACE(UPPER(h.rut), '.', ''), '-', ''), ' ', '') = CONCAT(e.estd_rut, e.estd_dv)
-            LEFT JOIN estudiante_carrera ec ON e.estd_rut = ec.estd_rut
-            LEFT JOIN carrera_programa cp ON ec.carr_codigo = cp.carr_codigo
-            WHERE h.carrera IS NULL;
-        """)
-        await conn.execute("""
-            IF OBJECT_ID('estadisticas_reservas_carrera', 'U') IS NULL
-            CREATE TABLE estadisticas_reservas_carrera (
-                id INT IDENTITY(1,1) PRIMARY KEY,
-                reserva_id INT NULL,
-                carrera NVARCHAR(150) NOT NULL,
-                campus_id INT NULL,
-                fecha DATE NULL,
-                created_at DATETIME2 DEFAULT GETDATE()
-            );
-        """)
-        cnt_est = await conn.fetchval("SELECT COUNT(*) FROM estadisticas_reservas_carrera")
-        if not cnt_est or cnt_est == 0:
-            await conn.execute("""
-                WITH todas_reservas AS (
-                    SELECT id as reserva_id, rut, campus_id, fecha, created_at
-                    FROM reservas
-                    UNION ALL
-                    SELECT COALESCE(reserva_id, id) as reserva_id, rut, campus_id, fecha, fecha_registro as created_at
-                    FROM historial_reservas
-                    WHERE NOT EXISTS (SELECT 1 FROM reservas r2 WHERE r2.id = historial_reservas.reserva_id)
-                )
-                INSERT INTO estadisticas_reservas_carrera (reserva_id, carrera, campus_id, fecha, created_at)
-                SELECT 
-                    tr.reserva_id,
-                    COALESCE(
+    if pool is not None:
+        try:
+            async with pool.acquire() as conn:
+                await conn.execute("""
+                    UPDATE historial_reservas
+                    SET estado = 'cancelada'
+                    WHERE estado = 'activa'
+                      AND reserva_id IS NOT NULL
+                      AND NOT EXISTS (SELECT 1 FROM reservas r WHERE r.id = historial_reservas.reserva_id)
+                """)
+                await conn.execute("""
+                    UPDATE historial_reservas
+                    SET estado = 'completada'
+                    WHERE (fecha < CURRENT_DATE OR (fecha = CURRENT_DATE AND hora < CURRENT_TIME))
+                      AND estado NOT IN ('cancelada', 'liberada', 'inasistencia', 'justificada')
+                """)
+                await conn.execute("""
+                    UPDATE historial_reservas
+                    SET estado = 'completada'
+                    WHERE estado = 'expirada'
+                """)
+                await conn.execute("""
+                    UPDATE reservas
+                    SET created_at = CASE
+                        WHEN fecha >= CAST(GETDATE() AS DATE) THEN GETDATE()
+                        ELSE CAST(fecha AS DATETIME2)
+                    END
+                    WHERE created_at IS NULL
+                """)
+                await conn.execute("""
+                    UPDATE historial_reservas
+                    SET fecha_registro = CASE
+                        WHEN fecha >= CAST(GETDATE() AS DATE) THEN GETDATE()
+                        ELSE CAST(fecha AS DATETIME2)
+                    END
+                    WHERE fecha_registro IS NULL
+                """)
+                await conn.execute("DELETE FROM sesiones WHERE updated_at < DATEADD(day, -7, GETDATE())")
+                await conn.execute("DELETE FROM rate_limits WHERE created_at < DATEADD(day, -1, GETDATE())")
+                await conn.execute("""
+                    IF OBJECT_ID('contacto_mensajes', 'U') IS NULL
+                    CREATE TABLE contacto_mensajes (
+                        id INT IDENTITY(1,1) PRIMARY KEY,
+                        nombre NVARCHAR(150) NOT NULL,
+                        email NVARCHAR(255) NOT NULL,
+                        rut NVARCHAR(50),
+                        asunto NVARCHAR(255) DEFAULT 'Consulta / Soporte',
+                        mensaje NVARCHAR(MAX) NOT NULL,
+                        estado NVARCHAR(50) DEFAULT 'pendiente',
+                        created_at DATETIME2 DEFAULT GETDATE()
+                    );
+                """)
+                await conn.execute("""
+                    IF OBJECT_ID('solicitudes_talleres', 'U') IS NULL
+                    CREATE TABLE solicitudes_talleres (
+                        id INT IDENTITY(1,1) PRIMARY KEY,
+                        taller NVARCHAR(255) NOT NULL,
+                        nombre NVARCHAR(150) NOT NULL,
+                        email NVARCHAR(255) NOT NULL,
+                        rut NVARCHAR(50) NOT NULL,
+                        carrera NVARCHAR(150) NOT NULL,
+                        modalidad NVARCHAR(50) NOT NULL,
+                        participantes NVARCHAR(50) NOT NULL,
+                        estado NVARCHAR(50) DEFAULT 'pendiente',
+                        observaciones NVARCHAR(MAX),
+                        created_at DATETIME2 DEFAULT GETDATE()
+                    );
+                """)
+                await conn.execute("""
+                    IF COL_LENGTH('usuarios', 'carrera') IS NULL
+                        ALTER TABLE usuarios ADD carrera NVARCHAR(150) NULL;
+                    IF COL_LENGTH('estudiante', 'carrera') IS NULL
+                        ALTER TABLE estudiante ADD carrera NVARCHAR(150) NULL;
+                    IF COL_LENGTH('reservas', 'carrera') IS NULL
+                        ALTER TABLE reservas ADD carrera NVARCHAR(150) NULL;
+                    IF COL_LENGTH('historial_reservas', 'carrera') IS NULL
+                        ALTER TABLE historial_reservas ADD carrera NVARCHAR(150) NULL;
+                """)
+                await conn.execute("""
+                    UPDATE r
+                    SET r.carrera = COALESCE(
                         NULLIF(TRIM(u.carrera), ''),
                         NULLIF(TRIM(e.carrera), ''),
                         NULLIF(TRIM(cp.carr_nombre), ''),
                         'Otras Carreras / General'
-                    ) AS carrera,
-                    tr.campus_id,
-                    tr.fecha,
-                    COALESCE(tr.created_at, GETDATE())
-                FROM todas_reservas tr
-                LEFT JOIN usuarios u ON REPLACE(REPLACE(REPLACE(UPPER(u.rut), '.', ''), '-', ''), ' ', '') = REPLACE(REPLACE(REPLACE(UPPER(tr.rut), '.', ''), '-', ''), ' ', '')
-                LEFT JOIN estudiante e ON REPLACE(REPLACE(REPLACE(UPPER(tr.rut), '.', ''), '-', ''), ' ', '') = CONCAT(e.estd_rut, e.estd_dv)
-                LEFT JOIN estudiante_carrera ec ON e.estd_rut = ec.estd_rut
-                LEFT JOIN carrera_programa cp ON ec.carr_codigo = cp.carr_codigo
-            """)
+                    )
+                    FROM reservas r
+                    LEFT JOIN usuarios u ON REPLACE(REPLACE(REPLACE(UPPER(u.rut), '.', ''), '-', ''), ' ', '') = REPLACE(REPLACE(REPLACE(UPPER(r.rut), '.', ''), '-', ''), ' ', '')
+                    LEFT JOIN estudiante e ON REPLACE(REPLACE(REPLACE(UPPER(r.rut), '.', ''), '-', ''), ' ', '') = CONCAT(e.estd_rut, e.estd_dv)
+                    LEFT JOIN estudiante_carrera ec ON e.estd_rut = ec.estd_rut
+                    LEFT JOIN carrera_programa cp ON ec.carr_codigo = cp.carr_codigo
+                    WHERE r.carrera IS NULL;
+
+                    UPDATE h
+                    SET h.carrera = COALESCE(
+                        NULLIF(TRIM(u.carrera), ''),
+                        NULLIF(TRIM(e.carrera), ''),
+                        NULLIF(TRIM(cp.carr_nombre), ''),
+                        'Otras Carreras / General'
+                    )
+                    FROM historial_reservas h
+                    LEFT JOIN usuarios u ON REPLACE(REPLACE(REPLACE(UPPER(u.rut), '.', ''), '-', ''), ' ', '') = REPLACE(REPLACE(REPLACE(UPPER(h.rut), '.', ''), '-', ''), ' ', '')
+                    LEFT JOIN estudiante e ON REPLACE(REPLACE(REPLACE(UPPER(h.rut), '.', ''), '-', ''), ' ', '') = CONCAT(e.estd_rut, e.estd_dv)
+                    LEFT JOIN estudiante_carrera ec ON e.estd_rut = ec.estd_rut
+                    LEFT JOIN carrera_programa cp ON ec.carr_codigo = cp.carr_codigo
+                    WHERE h.carrera IS NULL;
+                """)
+                await conn.execute("""
+                    IF OBJECT_ID('estadisticas_reservas_carrera', 'U') IS NULL
+                    CREATE TABLE estadisticas_reservas_carrera (
+                        id INT IDENTITY(1,1) PRIMARY KEY,
+                        reserva_id INT NULL,
+                        carrera NVARCHAR(150) NOT NULL,
+                        campus_id INT NULL,
+                        fecha DATE NULL,
+                        created_at DATETIME2 DEFAULT GETDATE()
+                    );
+                """)
+                cnt_est = await conn.fetchval("SELECT COUNT(*) FROM estadisticas_reservas_carrera")
+                if not cnt_est or cnt_est == 0:
+                    await conn.execute("""
+                        WITH todas_reservas AS (
+                            SELECT id as reserva_id, rut, campus_id, fecha, created_at
+                            FROM reservas
+                            UNION ALL
+                            SELECT COALESCE(reserva_id, id) as reserva_id, rut, campus_id, fecha, fecha_registro as created_at
+                            FROM historial_reservas
+                            WHERE NOT EXISTS (SELECT 1 FROM reservas r2 WHERE r2.id = historial_reservas.reserva_id)
+                        )
+                        INSERT INTO estadisticas_reservas_carrera (reserva_id, carrera, campus_id, fecha, created_at)
+                        SELECT 
+                            tr.reserva_id,
+                            COALESCE(
+                                NULLIF(TRIM(u.carrera), ''),
+                                NULLIF(TRIM(e.carrera), ''),
+                                NULLIF(TRIM(cp.carr_nombre), ''),
+                                'Otras Carreras / General'
+                            ) AS carrera,
+                            tr.campus_id,
+                            tr.fecha,
+                            COALESCE(tr.created_at, GETDATE())
+                        FROM todas_reservas tr
+                        LEFT JOIN usuarios u ON REPLACE(REPLACE(REPLACE(UPPER(u.rut), '.', ''), '-', ''), ' ', '') = REPLACE(REPLACE(REPLACE(UPPER(tr.rut), '.', ''), '-', ''), ' ', '')
+                        LEFT JOIN estudiante e ON REPLACE(REPLACE(REPLACE(UPPER(tr.rut), '.', ''), '-', ''), ' ', '') = CONCAT(e.estd_rut, e.estd_dv)
+                        LEFT JOIN estudiante_carrera ec ON e.estd_rut = ec.estd_rut
+                        LEFT JOIN carrera_programa cp ON ec.carr_codigo = cp.carr_codigo
+                    """)
 
 
+
+        except Exception as e:
+            print(f"[Startup Warning] Error en SQL inicial: {e}", flush=True)
 
     global tarea_limpieza_bg, tarea_monitor_terminal_bg
     tarea_limpieza_bg = asyncio.create_task(tarea_limpieza_sesiones_periodica())

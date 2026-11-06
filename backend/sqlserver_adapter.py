@@ -251,15 +251,44 @@ class PoolWrapper:
         self._lock = asyncio.Lock()
 
     def _create_raw(self):
-        conn_params = {
-            "server": self.host,
-            "port": self.port,
-            "user": self.user,
-            "password": self.password,
-            "database": self.db,
-            "autocommit": False
-        }
-        return pymssql.connect(**conn_params)
+        hosts_to_try = [self.host]
+        for fallback in ["sqlserver", "botsbiblioteca-sqlserver-dev", "host.docker.internal", "localhost"]:
+            if fallback and fallback not in hosts_to_try:
+                hosts_to_try.append(fallback)
+
+        last_exc = None
+        for h in hosts_to_try:
+            conn_params = {
+                "server": h,
+                "port": self.port,
+                "user": self.user,
+                "password": self.password,
+                "database": self.db,
+                "autocommit": False,
+                "login_timeout": 4,
+                "timeout": 10
+            }
+            try:
+                conn = pymssql.connect(**conn_params)
+                self.host = h
+                return conn
+            except Exception as e:
+                err_str = str(e)
+                if "Cannot open database" in err_str or "4060" in err_str:
+                    try:
+                        m_conn = pymssql.connect(server=h, port=self.port, user=self.user, password=self.password, database="master", autocommit=True, login_timeout=4)
+                        cur = m_conn.cursor()
+                        cur.execute(f"IF DB_ID('{self.db}') IS NULL CREATE DATABASE [{self.db}];")
+                        m_conn.close()
+                        conn = pymssql.connect(**conn_params)
+                        self.host = h
+                        return conn
+                    except Exception as inner_e:
+                        last_exc = inner_e
+                        continue
+                last_exc = e
+                continue
+        raise last_exc
 
     async def init(self):
         for _ in range(15):
