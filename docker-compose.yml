@@ -11,14 +11,14 @@ services:
     environment:
       - TZ=America/Santiago
       - RUNNING_IN_DOCKER=1
-      - N8N_WEBHOOK_URL=http://n8n:5678/webhook/crear-reserva-chat
-      - N8N_CANCELACION_WEBHOOK_URL=http://n8n:5678/webhook/cancelar-reserva
-      - N8N_CREACION_WEBHOOK_URL=http://n8n:5678/webhook/confirmar-reserva
-      - N8N_EDICION_WEBHOOK_URL=http://n8n:5678/webhook/editar-reserva
-      - N8N_CONTACTO_WEBHOOK_URL=http://n8n:5678/webhook/contacto-soporte
-      - N8N_REGLAMENTO_WEBHOOK_URL=http://n8n:5678/webhook/consultar-reglamento
-      - N8N_TALLER_RESPUESTA_WEBHOOK_URL=http://n8n:5678/webhook/responder-taller
-      - MSSQL_HOST=sqlserver
+      - N8N_WEBHOOK_URL=http://uct-botsbiblioteca-dev-n8n-1:5678/webhook/crear-reserva-chat
+      - N8N_CANCELACION_WEBHOOK_URL=http://uct-botsbiblioteca-dev-n8n-1:5678/webhook/cancelar-reserva
+      - N8N_CREACION_WEBHOOK_URL=http://uct-botsbiblioteca-dev-n8n-1:5678/webhook/confirmar-reserva
+      - N8N_EDICION_WEBHOOK_URL=http://uct-botsbiblioteca-dev-n8n-1:5678/webhook/editar-reserva
+      - N8N_CONTACTO_WEBHOOK_URL=http://uct-botsbiblioteca-dev-n8n-1:5678/webhook/contacto-soporte
+      - N8N_REGLAMENTO_WEBHOOK_URL=http://uct-botsbiblioteca-dev-n8n-1:5678/webhook/consultar-reglamento
+      - N8N_TALLER_RESPUESTA_WEBHOOK_URL=http://uct-botsbiblioteca-dev-n8n-1:5678/webhook/responder-taller
+      - MSSQL_HOST=botsbiblioteca-sqlserver-dev
     env_file:
       - backend/backend.env
     depends_on:
@@ -34,7 +34,10 @@ services:
       start_period: 20s
     restart: unless-stopped
     networks:
-      - default
+      default:
+        aliases:
+          - uct-botsbiblioteca-dev-backend-1
+          - botsbiblioteca-backend
 
   frontend:
     build:
@@ -78,7 +81,10 @@ services:
       start_period: 20s
     restart: unless-stopped
     networks:
-      - default
+      default:
+        aliases:
+          - uct-botsbiblioteca-dev-n8n-1
+          - botsbiblioteca-n8n
 
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2019-latest
@@ -94,7 +100,9 @@ services:
       - sqlserver_data:/var/opt/mssql
     restart: unless-stopped
     networks:
-      - default
+      default:
+        aliases:
+          - botsbiblioteca-sqlserver-dev
 
 volumes:
   n8n_data:

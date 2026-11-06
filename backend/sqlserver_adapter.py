@@ -280,7 +280,7 @@ class PoolWrapper:
 
     def _create_raw(self):
         hosts_to_try = [self.host] if self.host else []
-        for fallback in ["sqlserver", "botsbiblioteca-sqlserver-dev", "host.docker.internal", "localhost"]:
+        for fallback in ["botsbiblioteca-sqlserver-dev", "sqlserver", "host.docker.internal", "localhost"]:
             if fallback and fallback not in hosts_to_try:
                 hosts_to_try.append(fallback)
 
@@ -469,7 +469,7 @@ async def create_pool(*args, **kwargs) -> PoolWrapper:
     if env_host and (not is_docker or env_host not in ('localhost', '127.0.0.1')):
         host = env_host
     else:
-        host = "sqlserver" if is_docker else "localhost"
+        host = "botsbiblioteca-sqlserver-dev" if is_docker else "localhost"
     port = int(os.getenv("MSSQL_PORT") or "1433")
     user = os.getenv("MSSQL_USER") or "sa"
     password = os.getenv("MSSQL_PASSWORD") or "SqlAdmin2026!"

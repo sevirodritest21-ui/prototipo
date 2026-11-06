@@ -38,7 +38,7 @@ def _run_seeder():
     hosts_to_try = []
     if env_host and (not is_docker or env_host not in ('localhost', '127.0.0.1')):
         hosts_to_try.append(env_host)
-    for fallback in ["sqlserver", "botsbiblioteca-sqlserver-dev", "host.docker.internal", "localhost"]:
+    for fallback in ["botsbiblioteca-sqlserver-dev", "sqlserver", "host.docker.internal", "localhost"]:
         if fallback not in hosts_to_try:
             hosts_to_try.append(fallback)
 
