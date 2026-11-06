@@ -46,7 +46,7 @@ DIAS_NOMBRES = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado",
 def _get_db_connection() -> Any:
     env_host = os.getenv("MSSQL_HOST")
     is_docker = os.path.exists("/.dockerenv") or bool(os.getenv("RUNNING_IN_DOCKER"))
-    server = env_host if env_host else ("sqlserver" if is_docker else "localhost")
+    server = env_host if (env_host and (not is_docker or env_host not in ('localhost', '127.0.0.1'))) else ("sqlserver" if is_docker else "localhost")
     user = os.getenv("MSSQL_USER", "")
     password = os.getenv("MSSQL_PASSWORD", "")
     database = os.getenv("MSSQL_DB") or os.getenv("MSSQL_DATABASE", "")

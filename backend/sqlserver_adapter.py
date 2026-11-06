@@ -262,7 +262,15 @@ class PoolWrapper:
         return pymssql.connect(**conn_params)
 
     async def init(self):
-        for _ in range(self.min_size):
+        for _ in range(15):
+            try:
+                conn = await asyncio.to_thread(self._create_raw)
+                await self._pool.put((conn, time.time()))
+                self._created += 1
+                break
+            except Exception:
+                await asyncio.sleep(2)
+        for _ in range(self.min_size - self._created):
             try:
                 conn = await asyncio.to_thread(self._create_raw)
                 await self._pool.put((conn, time.time()))
@@ -352,7 +360,7 @@ class PoolWrapper:
 async def create_pool(*args, **kwargs) -> PoolWrapper:
     env_host = os.getenv("MSSQL_HOST")
     is_docker = os.path.exists("/.dockerenv") or bool(os.getenv("RUNNING_IN_DOCKER"))
-    if env_host:
+    if env_host and (not is_docker or env_host not in ('localhost', '127.0.0.1')):
         host = env_host
     else:
         host = "sqlserver" if is_docker else "localhost"
