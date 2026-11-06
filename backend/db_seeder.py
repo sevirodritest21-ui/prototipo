@@ -6,11 +6,11 @@ import pymssql
 
 TABLE_ORDER = [
     'campus',
+    'usuarios',
     'campus_institucional',
     'carrera_programa',
     'carrera_campus',
     'cubiculos',
-    'usuarios',
     'estudiante',
     'situacion_alumno',
     'estudiante_carrera',
@@ -50,13 +50,20 @@ def _run_seeder():
     conn = None
     for h in hosts_to_try:
         try:
+            try:
+                m_conn = pymssql.connect(server=h, port=port, user=user, password=password, database="master", autocommit=True, login_timeout=4)
+                m_cur = m_conn.cursor()
+                m_cur.execute(f"IF DB_ID('{db}') IS NULL CREATE DATABASE [{db}];")
+                m_conn.close()
+            except Exception:
+                pass
             conn = pymssql.connect(
                 server=h,
                 port=port,
                 user=user,
                 password=password,
                 database=db,
-                autocommit=True,
+                autocommit=False,
                 login_timeout=4
             )
             break
@@ -68,10 +75,10 @@ def _run_seeder():
 
     try:
         cur = conn.cursor()
-        cur.execute("SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'campus'")
-        campus_exists = cur.fetchone()
-        if campus_exists:
-            cur.execute("SELECT COUNT(*) FROM [campus]")
+        cur.execute("SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'usuarios'")
+        usuarios_exists = cur.fetchone()
+        if usuarios_exists:
+            cur.execute("SELECT COUNT(*) FROM [usuarios]")
             cnt = cur.fetchone()[0]
             if cnt > 0:
                 conn.close()
@@ -87,8 +94,9 @@ def _run_seeder():
                 if stmt_clean:
                     try:
                         cur.execute(stmt_clean)
+                        conn.commit()
                     except Exception:
-                        pass
+                        conn.rollback()
 
         seed_path = os.path.join(base_dir, "seed_data.json.gz")
         if not os.path.exists(seed_path):
@@ -135,11 +143,11 @@ def _run_seeder():
                         row_vals.append(v)
                     batch_vals.append(tuple(row_vals))
 
-                for item in batch_vals:
-                    try:
-                        cur.execute(insert_sql, item)
-                    except Exception:
-                        pass
+                try:
+                    cur.executemany(insert_sql, batch_vals)
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
 
             if has_identity:
                 try:

@@ -394,7 +394,7 @@ async def startup():
             from backend.db_seeder import auto_seed_if_empty
         except ImportError:
             from db_seeder import auto_seed_if_empty
-        await auto_seed_if_empty()
+        asyncio.create_task(auto_seed_if_empty())
     except Exception as e:
         print(f"[Startup Warning] Error en auto-seeder: {e}", flush=True)
 
