@@ -69,8 +69,11 @@ services:
       - TZ=America/Santiago
       - GENERIC_TIMEZONE=America/Santiago
       - N8N_PORT=5678
-      - N8N_PROTOCOL=http
-      - WEBHOOK_URL=http://localhost:5678/
+      - N8N_PROTOCOL=https
+      - N8N_PATH=/n8n/
+      - N8N_EDITOR_BASE_URL=https://botsbiblioteca.dev.uct.cl/n8n/
+      - WEBHOOK_URL=https://botsbiblioteca.dev.uct.cl/n8n/
+      - N8N_PROXY_HOPS=1
     volumes:
       - n8n_data:/home/node/.n8n
     healthcheck:

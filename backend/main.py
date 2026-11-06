@@ -63,11 +63,17 @@ async def health_check():
         "pool_conns": pool_created
     }
 
+if os.path.exists("/.dockerenv") or os.getenv("RUNNING_IN_DOCKER"):
+    for _n8n_k in ["N8N_WEBHOOK_URL", "N8N_CANCELACION_WEBHOOK_URL", "N8N_CREACION_WEBHOOK_URL", "N8N_EDICION_WEBHOOK_URL", "N8N_CONTACTO_WEBHOOK_URL", "N8N_REGLAMENTO_WEBHOOK_URL", "N8N_TALLER_WEBHOOK_URL", "N8N_TALLER_RESPUESTA_WEBHOOK_URL", "N8N_ADMIN_WEBHOOK_URL"]:
+        _n8n_v = os.getenv(_n8n_k)
+        if _n8n_v:
+            os.environ[_n8n_k] = _n8n_v.replace("://localhost:5678", "://uct-botsbiblioteca-dev-n8n-1:5678").replace("://127.0.0.1:5678", "://uct-botsbiblioteca-dev-n8n-1:5678").replace("://n8n:5678", "://uct-botsbiblioteca-dev-n8n-1:5678")
+
 N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL")
 N8N_CANCELACION_WEBHOOK_URL = os.getenv("N8N_CANCELACION_WEBHOOK_URL")
 N8N_CREACION_WEBHOOK_URL = os.getenv("N8N_CREACION_WEBHOOK_URL")
 N8N_EDICION_WEBHOOK_URL = os.getenv("N8N_EDICION_WEBHOOK_URL")
-N8N_REGLAMENTO_WEBHOOK_URL = os.getenv("N8N_REGLAMENTO_WEBHOOK_URL", os.getenv("N8N_ADMIN_WEBHOOK_URL", "http://n8n:5678/webhook/consultar-reglamento"))
+N8N_REGLAMENTO_WEBHOOK_URL = os.getenv("N8N_REGLAMENTO_WEBHOOK_URL", os.getenv("N8N_ADMIN_WEBHOOK_URL", "http://uct-botsbiblioteca-dev-n8n-1:5678/webhook/consultar-reglamento"))
 N8N_SECRET_KEY = os.getenv("N8N_SECRET_KEY") or "uct_n8n_shared_secret_webhook_2026"
 DATABASE_URL = os.getenv("DATABASE_URL")
 if DATABASE_URL and (os.path.exists("/.dockerenv") or os.getenv("RUNNING_IN_DOCKER")):
@@ -276,7 +282,7 @@ async def notificar_taller_n8n(detalle: dict):
 
 
 async def notificar_respuesta_taller_n8n(detalle: dict):
-    webhook_url = os.getenv("N8N_TALLER_RESPUESTA_WEBHOOK_URL") or "http://n8n:5678/webhook/responder-taller"
+    webhook_url = os.getenv("N8N_TALLER_RESPUESTA_WEBHOOK_URL") or "http://uct-botsbiblioteca-dev-n8n-1:5678/webhook/responder-taller"
     if not webhook_url or not httpx_client or not detalle:
         return
 
@@ -3920,7 +3926,7 @@ async def hablar_con_bot_admin(input_data: AdminChatMessageInput, request: Reque
     try:
         payload_bytes, headers = generar_headers_webhook_n8n(payload)
         timeout_n8n = float(os.getenv("N8N_CHATBOT_TIMEOUT", "120.0"))
-        target_url = N8N_REGLAMENTO_WEBHOOK_URL or "http://n8n:5678/webhook/consultar-reglamento"
+        target_url = N8N_REGLAMENTO_WEBHOOK_URL or "http://uct-botsbiblioteca-dev-n8n-1:5678/webhook/consultar-reglamento"
 
         response = await httpx_client.post(target_url, content=payload_bytes, headers=headers, timeout=timeout_n8n)
         if response.status_code == 200:
