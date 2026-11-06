@@ -3,6 +3,3 @@ dist
 .git
 __pycache__
 *.pyc
-.env
-backend/backend.env
-backend.env
