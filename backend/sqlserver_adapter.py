@@ -276,6 +276,7 @@ class PoolWrapper:
         self._pool = asyncio.Queue(maxsize=max_size)
         self._created = 0
         self._lock = asyncio.Lock()
+        self._last_error = None
 
     def _create_raw(self):
         hosts_to_try = [self.host] if self.host else []
@@ -293,12 +294,13 @@ class PoolWrapper:
                 "password": self.password or "SqlAdmin2026!",
                 "database": self.db or "reservas_db",
                 "autocommit": False,
-                "login_timeout": 3,
-                "timeout": 10
+                "login_timeout": 2,
+                "timeout": 5
             }
             try:
                 conn = pymssql.connect(**conn_params)
                 self.host = h
+                self._last_error = None
                 return conn
             except Exception as e:
                 err_str = str(e)
@@ -312,7 +314,7 @@ class PoolWrapper:
                             password=self.password or "SqlAdmin2026!",
                             database="master",
                             autocommit=True,
-                            login_timeout=3
+                            login_timeout=2
                         )
                         cur = m_conn.cursor()
                         cur.execute(f"IF DB_ID('{self.db}') IS NULL CREATE DATABASE [{self.db}];")
@@ -320,6 +322,7 @@ class PoolWrapper:
                         m_conn = None
                         conn = pymssql.connect(**conn_params)
                         self.host = h
+                        self._last_error = None
                         return conn
                     except Exception as inner_e:
                         last_exc = inner_e
@@ -332,18 +335,31 @@ class PoolWrapper:
                 else:
                     last_exc = e
                 continue
+        self._last_error = str(last_exc)
         raise last_exc
 
-    async def init(self):
-        for _ in range(15):
+    async def init(self, timeout_sec: float = 2.0):
+        try:
+            conn = await asyncio.wait_for(asyncio.to_thread(self._create_raw), timeout=timeout_sec)
+            await self._pool.put((conn, time.time()))
+            self._created += 1
+            self._last_error = None
+        except Exception as e:
+            self._last_error = str(e)
+        asyncio.create_task(self._background_fill())
+
+    async def _background_fill(self):
+        while self._created < 1:
             try:
                 conn = await asyncio.to_thread(self._create_raw)
                 await self._pool.put((conn, time.time()))
                 self._created += 1
+                self._last_error = None
                 break
-            except Exception:
+            except Exception as e:
+                self._last_error = str(e)
                 await asyncio.sleep(2)
-        for _ in range(self.min_size - self._created):
+        while self._created < self.min_size:
             try:
                 conn = await asyncio.to_thread(self._create_raw)
                 await self._pool.put((conn, time.time()))
@@ -358,6 +374,7 @@ class PoolWrapper:
                 self.raw_conn = None
 
             async def __aenter__(self):
+                t0 = time.time()
                 while True:
                     try:
                         self.raw_conn, last_used = self.pool._pool.get_nowait()
@@ -366,15 +383,25 @@ class PoolWrapper:
                         need_wait = False
                         async with self.pool._lock:
                             if self.pool._created < self.pool.max_size:
-                                self.raw_conn = await asyncio.to_thread(self.pool._create_raw)
-                                self.pool._created += 1
-                                last_used = time.time()
-                                break
+                                try:
+                                    self.raw_conn = await asyncio.to_thread(self.pool._create_raw)
+                                    self.pool._created += 1
+                                    last_used = time.time()
+                                    self.pool._last_error = None
+                                    break
+                                except Exception as e:
+                                    self.pool._last_error = str(e)
                             else:
                                 need_wait = True
                         if need_wait:
-                            self.raw_conn, last_used = await self.pool._pool.get()
-                            break
+                            try:
+                                self.raw_conn, last_used = await asyncio.wait_for(self.pool._pool.get(), timeout=5.0)
+                                break
+                            except asyncio.TimeoutError:
+                                pass
+                        if time.time() - t0 > 10.0:
+                            raise RuntimeError(f"Tiempo agotado esperando conexion a BD: {self.pool._last_error or 'BD no disponible'}")
+                        await asyncio.sleep(0.5)
 
                 if time.time() - last_used > 45:
                     def _ping(c):

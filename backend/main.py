@@ -51,11 +51,16 @@ app.add_middleware(
 
 @app.get("/api/health")
 async def health_check():
-    db_err = getattr(app.state, "db_error", None)
+    pool_created = getattr(pool, "_created", 0) if pool else 0
+    pool_host = getattr(pool, "host", None) if pool else None
+    pool_err = getattr(pool, "_last_error", None) if pool else None
+    db_err = getattr(app.state, "db_error", None) or pool_err
     return {
         "status": "ok",
-        "db_connected": db_err is None,
-        "db_error": db_err
+        "db_connected": pool is not None and pool_created > 0 and db_err is None,
+        "db_error": db_err,
+        "db_host": pool_host,
+        "pool_conns": pool_created
     }
 
 N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL")
@@ -365,36 +370,23 @@ class FeriadosChileContainer(set):
 FERIADOS_CHILE = FeriadosChileContainer()
 
 
-@app.on_event("startup")
-async def startup():
-    global pool, httpx_client
-    app.state.db_error = None
-    try:
-        pool = await asyncpg.create_pool(
-            DATABASE_URL,
-            min_size=5,
-            max_size=30,
-            max_queries=50000,
-            command_timeout=10.0
-        )
-    except Exception as e:
-        app.state.db_error = str(e)
-        print(f"[Startup Error] Error creando pool de base de datos: {e}", flush=True)
-    httpx_client = httpx.AsyncClient(
-        limits=httpx.Limits(max_keepalive_connections=20, max_connections=100),
-        timeout=30.0
-    )
+async def _init_database_and_services():
+    global tarea_limpieza_bg, tarea_monitor_terminal_bg
+    for _ in range(60):
+        if pool is not None and getattr(pool, "_created", 0) > 0:
+            break
+        await asyncio.sleep(1)
 
     try:
         try:
             from backend.db_seeder import auto_seed_if_empty
         except ImportError:
             from db_seeder import auto_seed_if_empty
-        asyncio.create_task(auto_seed_if_empty())
+        await auto_seed_if_empty()
     except Exception as e:
         print(f"[Startup Warning] Error en auto-seeder: {e}", flush=True)
 
-    if pool is not None:
+    if pool is not None and getattr(pool, "_created", 0) > 0:
         try:
             async with pool.acquire() as conn:
                 await conn.execute("""
@@ -541,13 +533,9 @@ async def startup():
                         LEFT JOIN estudiante_carrera ec ON e.estd_rut = ec.estd_rut
                         LEFT JOIN carrera_programa cp ON ec.carr_codigo = cp.carr_codigo
                     """)
-
-
-
         except Exception as e:
             print(f"[Startup Warning] Error en SQL inicial: {e}", flush=True)
 
-    global tarea_limpieza_bg, tarea_monitor_terminal_bg
     tarea_limpieza_bg = asyncio.create_task(tarea_limpieza_sesiones_periodica())
     tarea_monitor_terminal_bg = asyncio.create_task(background_terminal_watcher())
     try:
@@ -557,7 +545,29 @@ async def startup():
             from backend.tunnel import start_tunnel_server
         asyncio.create_task(start_tunnel_server())
     except Exception as e:
-        print(f"Error al iniciar túnel: {e}")
+        print(f"Error al iniciar tunel: {e}")
+
+
+@app.on_event("startup")
+async def startup():
+    global pool, httpx_client
+    app.state.db_error = None
+    try:
+        pool = await asyncpg.create_pool(
+            DATABASE_URL,
+            min_size=2,
+            max_size=30,
+            max_queries=50000,
+            command_timeout=10.0
+        )
+    except Exception as e:
+        app.state.db_error = str(e)
+        print(f"[Startup Error] Error creando pool de base de datos: {e}", flush=True)
+    httpx_client = httpx.AsyncClient(
+        limits=httpx.Limits(max_keepalive_connections=20, max_connections=100),
+        timeout=30.0
+    )
+    asyncio.create_task(_init_database_and_services())
 
 
 @app.on_event("shutdown")
