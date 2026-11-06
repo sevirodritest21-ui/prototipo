@@ -2205,19 +2205,6 @@ export default function Dashboard() {
           </div>
 
           <div className="flex items-center gap-2.5 self-end sm:self-auto">
-            <div className="relative hidden md:flex items-center">
-              <input
-                type="text"
-                placeholder="Buscar estudiante, RUT o reserva..."
-                value={busquedaGlobal}
-                onChange={(e) => setBusquedaGlobal(e.target.value)}
-                className="w-48 lg:w-64 pl-9 pr-4 py-2 rounded-xl bg-slate-100/90 border border-slate-200/90 text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:bg-white focus:border-[#00A3E0] focus:ring-3 focus:ring-[#00A3E0]/15 outline-none transition-all"
-              />
-              <svg className="w-3.5 h-3.5 absolute left-3 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-              </svg>
-            </div>
-
             <div className="relative">
               <select
                 value={campusSeleccionado || ""}
