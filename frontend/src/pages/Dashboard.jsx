@@ -2624,7 +2624,7 @@ export default function Dashboard() {
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-                <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200/80 p-5 md:p-6 shadow-xs space-y-6 flex flex-col justify-between">
+                <div className="lg:col-span-12 bg-white rounded-2xl border border-slate-200/80 p-5 md:p-6 shadow-xs space-y-6 flex flex-col justify-between">
                   <div className="space-y-4">
                     <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                       <div>
@@ -2651,7 +2651,7 @@ export default function Dashboard() {
                             <div
                               key={c.id}
                               onClick={() => setCampusDestinoCubiculo(c.id)}
-                              className="flex flex-col items-center gap-1.5 h-full justify-end cursor-pointer group flex-1 max-w-[70px]"
+                              className="flex flex-col items-center gap-1.5 h-full justify-end cursor-pointer group flex-1 max-w-[110px]"
                               title={`Clic para ver cubículos de ${c.nombre}`}
                             >
                               <span className="text-[10px] font-bold text-slate-600 group-hover:text-slate-900 transition-colors">
@@ -2659,9 +2659,9 @@ export default function Dashboard() {
                               </span>
                               <div
                                 style={{ height: `${alturaPct}%` }}
-                                className={`w-full max-w-[36px] ${colorBarra} rounded-t-lg transition-all duration-300 group-hover:opacity-90 ${esSeleccionado ? "ring-3 ring-sky-300 ring-offset-1" : ""}`}
+                                className={`w-full max-w-[48px] ${colorBarra} rounded-t-lg transition-all duration-300 group-hover:opacity-90 ${esSeleccionado ? "ring-3 ring-sky-300 ring-offset-1" : ""}`}
                               />
-                              <span className="text-[10px] font-semibold text-slate-600 truncate max-w-[65px] text-center pt-1">
+                              <span className="text-[10px] font-semibold text-slate-600 truncate max-w-[100px] text-center pt-1">
                                 {c.nombre}
                               </span>
                             </div>
@@ -2670,7 +2670,7 @@ export default function Dashboard() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
                       {campus.map((c) => {
                         const esActivo = String(c.id) === String(campusDestinoCubiculo);
                         return (
@@ -2733,89 +2733,6 @@ export default function Dashboard() {
                       {creandoCampus ? "Guardando..." : "Registrar Sede"}
                     </button>
                   </form>
-                </div>
-
-                <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200/80 p-5 md:p-6 shadow-xs flex flex-col justify-between space-y-5">
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                      <div>
-                        <h3 className="text-sm font-bold text-slate-800">Estado de Infraestructura</h3>
-                        <p className="text-[11px] text-slate-500">Servicios y conectividad institucional</p>
-                      </div>
-                      <div className="grid grid-cols-2 gap-1 w-5 h-5 opacity-40">
-                        <div className="w-2 h-2 bg-slate-800 rounded-xs" />
-                        <div className="w-2 h-2 bg-slate-800 rounded-xs" />
-                        <div className="w-2 h-2 bg-slate-800 rounded-xs" />
-                        <div className="w-2 h-2 bg-slate-800 rounded-xs" />
-                      </div>
-                    </div>
-
-                    <div className="space-y-3.5 pt-1">
-                      <div className="flex items-center justify-between py-1">
-                        <span className="text-xs font-semibold text-slate-700">API & Backend UCT</span>
-                        <span className="bg-[#004D7A] text-white text-[11px] font-bold px-3.5 py-1 rounded-full shadow-2xs">
-                          99.9% Uptime
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between py-1">
-                        <span className="text-xs font-semibold text-slate-700">Base de Datos SQL Server</span>
-                        <span className="bg-[#C59B27] text-white text-[11px] font-bold px-3.5 py-1 rounded-full shadow-2xs">
-                          Saludable
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between py-1">
-                        <span className="text-xs font-semibold text-slate-700">Terminal Facial MinMoe</span>
-                        <span className="bg-[#00629B] text-white text-[11px] font-bold px-3.5 py-1 rounded-full shadow-2xs">
-                          Operativo
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between py-1">
-                        <span className="text-xs font-semibold text-slate-700">Sede Activa en Vista</span>
-                        <span className="bg-[#004D7A] text-white text-[11px] font-bold px-3.5 py-1 rounded-full shadow-2xs truncate max-w-[140px]">
-                          {campus.find((c) => String(c.id) === String(campusDestinoCubiculo))?.nombre || "General"}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between py-1">
-                        <span className="text-xs font-semibold text-slate-700">Alertas de Servidor</span>
-                        <span className="bg-[#0F172A] text-white text-[11px] font-bold px-3.5 py-1 rounded-full shadow-2xs">
-                          Ninguna
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-100 space-y-2">
-                    <div className="flex items-center justify-between text-[11px] font-semibold text-slate-600">
-                      <span>Disponibilidad en sede activa</span>
-                      <span className="text-[#00629B] font-bold">
-                        {cubiculosCampus.length > 0
-                          ? `${Math.round(((cubiculosCampus.filter((cb) => !cb.en_mantenimiento).length) / cubiculosCampus.length) * 100)}%`
-                          : "100%"}
-                      </span>
-                    </div>
-                    <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden flex">
-                      <div
-                        style={{
-                          width: `${cubiculosCampus.length > 0
-                            ? ((cubiculosCampus.filter((cb) => !cb.en_mantenimiento).length) / cubiculosCampus.length) * 100
-                            : 100}%`
-                        }}
-                        className="bg-[#00629B] h-full transition-all duration-500"
-                      />
-                      <div
-                        style={{
-                          width: `${cubiculosCampus.length > 0
-                            ? ((cubiculosCampus.filter((cb) => cb.en_mantenimiento).length) / cubiculosCampus.length) * 100
-                            : 0}%`
-                        }}
-                        className="bg-[#C59B27] h-full transition-all duration-500"
-                      />
-                    </div>
-                  </div>
                 </div>
               </div>
 
