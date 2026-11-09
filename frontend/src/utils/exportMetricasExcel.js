@@ -1328,3 +1328,4 @@ export async function exportarMetricasPrediccionExcel({ prediccionData, modeloPr
 
   await descargarWorkbook(wb, `Reporte_Pronostico_Aforo_UCT_${campusNombre.replace(/\s+/g, "_")}_${fechaHoy}.xlsx`);
 }
+
