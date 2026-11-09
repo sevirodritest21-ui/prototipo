@@ -32,6 +32,315 @@ TABLE_ORDER = [
     'predicciones_aforo_log'
 ]
 
+DEMO_RESERVAS_NOV = [
+    {
+        "nombre": "Rodrigo Ignacio Sevilla Jaramillo",
+        "rut": "20.908.556-9",
+        "fecha": "2026-11-10",
+        "hora": "09:00:00",
+        "campus_id": 1,
+        "cubiculo_codigo": "CUB01-JP",
+        "carrera": "INGENIERÍA CIVIL EN INFORMÁTICA",
+        "acompanantes": [
+            {"nombre": "Ángel Alexis Obreque Herrera", "rut": "22.752.175-9"},
+            {"nombre": "Gabriel Ignacio Sepúlveda Millar", "rut": "22.750.376-9"}
+        ]
+    },
+    {
+        "nombre": "Constanza Belén Cheuque Espinoza",
+        "rut": "22.750.724-1",
+        "fecha": "2026-11-10",
+        "hora": "10:00:00",
+        "campus_id": 1,
+        "cubiculo_codigo": "CUB02-JP",
+        "carrera": "PSICOLOGÍA",
+        "acompanantes": [
+            {"nombre": "Fernanda Andrea Lizama Marileo", "rut": "22.751.752-2"}
+        ]
+    },
+    {
+        "nombre": "Consuelo Anahís Fuentes Álvarez",
+        "rut": "22.749.097-7",
+        "fecha": "2026-11-10",
+        "hora": "11:00:00",
+        "campus_id": 1,
+        "cubiculo_codigo": "CUB04-JP",
+        "carrera": "INGENIERÍA COMERCIAL",
+        "acompanantes": []
+    },
+    {
+        "nombre": "Zaritcha Madelainne Muñoz Cruz",
+        "rut": "22.752.702-1",
+        "fecha": "2026-11-10",
+        "hora": "15:00:00",
+        "campus_id": 1,
+        "cubiculo_codigo": "CUB03-JP",
+        "carrera": "KINESIOLOGÍA",
+        "acompanantes": [
+            {"nombre": "Antonia Rocío Álvarez López", "rut": "22.752.465-0"}
+        ]
+    },
+    {
+        "nombre": "Valentina Paz Morales Soto",
+        "rut": "19.821.432-1",
+        "fecha": "2026-11-10",
+        "hora": "10:00:00",
+        "campus_id": 2,
+        "cubiculo_codigo": "CUB01-DR",
+        "carrera": "DERECHO",
+        "acompanantes": [
+            {"nombre": "Cristóbal Ignacio Benítez Ramos", "rut": "20.145.892-3"}
+        ]
+    },
+    {
+        "nombre": "Camila Andrea Navarro Silva",
+        "rut": "18.992.341-K",
+        "fecha": "2026-11-10",
+        "hora": "12:00:00",
+        "campus_id": 2,
+        "cubiculo_codigo": "CUB03-DR",
+        "carrera": "DERECHO",
+        "acompanantes": []
+    },
+    {
+        "nombre": "Matías Alejandro Fuentes Pérez",
+        "rut": "21.034.789-5",
+        "fecha": "2026-11-10",
+        "hora": "14:00:00",
+        "campus_id": 7,
+        "cubiculo_codigo": "CUB01-JA",
+        "carrera": "ARQUITECTURA",
+        "acompanantes": [
+            {"nombre": "Pablo Henríquez Soto", "rut": "19.777.888-9"}
+        ]
+    },
+    {
+        "nombre": "Emely Betsabeth Mena Manquein",
+        "rut": "22.752.440-5",
+        "fecha": "2026-11-11",
+        "hora": "09:00:00",
+        "campus_id": 1,
+        "cubiculo_codigo": "CUB01-JP",
+        "carrera": "PEDAGOGÍA EN EDUCACIÓN DIFERENCIAL",
+        "acompanantes": [
+            {"nombre": "Claudia Andrea Aguayo Quilán", "rut": "22.749.198-1"}
+        ]
+    },
+    {
+        "nombre": "Ángel Alexis Obreque Herrera",
+        "rut": "22.752.175-9",
+        "fecha": "2026-11-11",
+        "hora": "11:00:00",
+        "campus_id": 1,
+        "cubiculo_codigo": "CUB05-JP",
+        "carrera": "INGENIERÍA CIVIL EN INFORMÁTICA",
+        "acompanantes": [
+            {"nombre": "Joaquín Adolfo Aedo Lagos", "rut": "22.750.293-2"},
+            {"nombre": "Rodrigo Ignacio Sevilla Jaramillo", "rut": "20.908.556-9"}
+        ]
+    },
+    {
+        "nombre": "Bárbara Andrea Castillo Vera",
+        "rut": "21.777.888-9",
+        "fecha": "2026-11-11",
+        "hora": "14:00:00",
+        "campus_id": 1,
+        "cubiculo_codigo": "CUB02-JP",
+        "carrera": "PSICOLOGÍA",
+        "acompanantes": []
+    },
+    {
+        "nombre": "Montserrat Paz Silva Lara",
+        "rut": "21.111.222-3",
+        "fecha": "2026-11-11",
+        "hora": "16:00:00",
+        "campus_id": 1,
+        "cubiculo_codigo": "CUB06-JP",
+        "carrera": "MEDICINA",
+        "acompanantes": [
+            {"nombre": "Martina Alejandra Henríquez Vera", "rut": "21.789.012-3"}
+        ]
+    },
+    {
+        "nombre": "Sebastián Alonso Riquelme Díaz",
+        "rut": "20.671.324-9",
+        "fecha": "2026-11-11",
+        "hora": "10:00:00",
+        "campus_id": 2,
+        "cubiculo_codigo": "CUB02-DR",
+        "carrera": "DERECHO",
+        "acompanantes": [
+            {"nombre": "Francisca Loyola Pérez", "rut": "20.888.999-1"}
+        ]
+    },
+    {
+        "nombre": "Florencia Sofía Valenzuela Castro",
+        "rut": "19.554.218-7",
+        "fecha": "2026-11-11",
+        "hora": "15:00:00",
+        "campus_id": 2,
+        "cubiculo_codigo": "CUB04-DR",
+        "carrera": "DERECHO",
+        "acompanantes": []
+    },
+    {
+        "nombre": "Isidora Constanza Toledo Muñoz",
+        "rut": "18.776.432-0",
+        "fecha": "2026-11-11",
+        "hora": "11:00:00",
+        "campus_id": 7,
+        "cubiculo_codigo": "CUB02-JA",
+        "carrera": "DISEÑO",
+        "acompanantes": []
+    },
+    {
+        "nombre": "Gabriel Ignacio Sepúlveda Millar",
+        "rut": "22.750.376-9",
+        "fecha": "2026-11-12",
+        "hora": "09:00:00",
+        "campus_id": 1,
+        "cubiculo_codigo": "CUB03-JP",
+        "carrera": "INGENIERÍA CIVIL AMBIENTAL",
+        "acompanantes": [
+            {"nombre": "Emily Constanza Pérez Riffo", "rut": "22.749.223-6"}
+        ]
+    },
+    {
+        "nombre": "Benjamín Andrés Morales Silva",
+        "rut": "21.123.456-1",
+        "fecha": "2026-11-12",
+        "hora": "11:00:00",
+        "campus_id": 1,
+        "cubiculo_codigo": "CUB01-JP",
+        "carrera": "INGENIERÍA CIVIL EN INFORMÁTICA",
+        "acompanantes": [
+            {"nombre": "Daniela Andrea Poblete Torres", "rut": "21.222.333-4"}
+        ]
+    },
+    {
+        "nombre": "Fernanda Andrea Lizama Marileo",
+        "rut": "22.751.752-2",
+        "fecha": "2026-11-12",
+        "hora": "14:00:00",
+        "campus_id": 1,
+        "cubiculo_codigo": "CUB07-JP",
+        "carrera": "TRABAJO SOCIAL",
+        "acompanantes": []
+    },
+    {
+        "nombre": "Catalina Dominic Flores Bastías",
+        "rut": "22.751.940-1",
+        "fecha": "2026-11-12",
+        "hora": "16:00:00",
+        "campus_id": 1,
+        "cubiculo_codigo": "CUB04-JP",
+        "carrera": "FONOAUDIOLOGÍA",
+        "acompanantes": [
+            {"nombre": "Fabiola Helia Delgado Hernández", "rut": "22.751.467-1"}
+        ]
+    },
+    {
+        "nombre": "Felipe Andrés Carrasco Vergara",
+        "rut": "20.453.811-2",
+        "fecha": "2026-11-12",
+        "hora": "10:00:00",
+        "campus_id": 2,
+        "cubiculo_codigo": "CUB01-DR",
+        "carrera": "DERECHO",
+        "acompanantes": [
+            {"nombre": "Catalina Ignacia San Martín Jara", "rut": "19.123.654-8"}
+        ]
+    },
+    {
+        "nombre": "Joaquín Eduardo Vera Quintana",
+        "rut": "21.229.405-6",
+        "fecha": "2026-11-12",
+        "hora": "14:00:00",
+        "campus_id": 2,
+        "cubiculo_codigo": "CUB05-DR",
+        "carrera": "DERECHO",
+        "acompanantes": []
+    },
+    {
+        "nombre": "Cristóbal Ignacio Benítez Ramos",
+        "rut": "20.145.892-3",
+        "fecha": "2026-11-12",
+        "hora": "15:00:00",
+        "campus_id": 7,
+        "cubiculo_codigo": "CUB01-JA",
+        "carrera": "ARQUITECTURA",
+        "acompanantes": []
+    }
+]
+
+def _ensure_demo_reservas(cur, conn):
+    try:
+        cur.execute("SELECT id, codigo FROM [cubiculos]")
+        cub_map = {row[1]: row[0] for row in cur.fetchall() if row and row[1]}
+        if not cub_map:
+            return
+
+        for idx, item in enumerate(DEMO_RESERVAS_NOV, start=1):
+            cub_id = cub_map.get(item["cubiculo_codigo"])
+            if not cub_id:
+                continue
+
+            cur.execute(
+                "SELECT id FROM [reservas] WHERE [fecha] = %s AND [hora] = %s AND [cubiculo_id] = %s",
+                (item["fecha"], item["hora"], cub_id)
+            )
+            existing = cur.fetchone()
+            if existing:
+                continue
+
+            cur.execute(
+                """
+                INSERT INTO [reservas] ([nombre], [rut], [fecha], [hora], [session_id], [created_at], [campus_id], [cubiculo_id], [carrera])
+                VALUES (%s, %s, %s, %s, %s, GETDATE(), %s, %s, %s);
+                SELECT SCOPE_IDENTITY();
+                """,
+                (
+                    item["nombre"],
+                    item["rut"],
+                    item["fecha"],
+                    item["hora"],
+                    f"demo-nov-{idx}",
+                    item["campus_id"],
+                    cub_id,
+                    item["carrera"]
+                )
+            )
+            row_id = cur.fetchone()
+            res_id = int(row_id[0]) if row_id and row_id[0] else None
+
+            if res_id:
+                for ac in item["acompanantes"]:
+                    cur.execute(
+                        "INSERT INTO [reserva_acompanantes] ([reserva_id], [nombre], [rut]) VALUES (%s, %s, %s)",
+                        (res_id, ac["nombre"], ac["rut"])
+                    )
+                cur.execute(
+                    """
+                    INSERT INTO [historial_reservas] ([reserva_id], [nombre], [rut], [campus_id], [fecha], [hora], [estado], [fecha_registro], [carrera])
+                    VALUES (%s, %s, %s, %s, %s, %s, 'activa', GETDATE(), %s)
+                    """,
+                    (
+                        res_id,
+                        item["nombre"],
+                        item["rut"],
+                        item["campus_id"],
+                        item["fecha"],
+                        item["hora"][:5],
+                        item["carrera"]
+                    )
+                )
+        conn.commit()
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+
 def _run_seeder():
     env_host = os.getenv("MSSQL_HOST")
     is_docker = os.path.exists("/.dockerenv") or bool(os.getenv("RUNNING_IN_DOCKER"))
@@ -81,6 +390,7 @@ def _run_seeder():
             cur.execute("SELECT COUNT(*) FROM [usuarios]")
             cnt = cur.fetchone()[0]
             if cnt > 0:
+                _ensure_demo_reservas(cur, conn)
                 conn.close()
                 return
 
@@ -155,6 +465,7 @@ def _run_seeder():
                 except Exception:
                     pass
 
+        _ensure_demo_reservas(cur, conn)
         conn.close()
     except Exception:
         try:
