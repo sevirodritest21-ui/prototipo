@@ -5,6 +5,11 @@ import { apiGet, apiPost, apiPut, apiDelete } from "../services/api";
 import { queryClient } from "../services/queries";
 import logoUCT from "../assets/logobibliovice.png";
 import * as XLSX from "xlsx";
+import {
+  exportarMetricasReservasExcel,
+  exportarMetricasTalleresExcel,
+  exportarMetricasPrediccionExcel
+} from "../utils/exportMetricasExcel";
 
 const UI_ICON_MAP = {
   "\u{1F3DB}\uFE0F": "building", "\u{1F3DB}": "building", "\u{1F3E2}": "building",
@@ -1113,182 +1118,50 @@ export default function Dashboard() {
     }
   };
 
-  const handleExportarMetricasExcel = () => {
+  const handleExportarMetricasExcel = async () => {
     setExportandoMetricasExcel(true);
     try {
-      const bloques = metricas?.ocupacion_bloques || [];
-      if (!bloques || bloques.length === 0) {
-        setToastNotificacion({ tipo: "error", texto: "No hay datos de ocupación disponibles para exportar." });
-        setExportandoMetricasExcel(false);
-        return;
-      }
-      const info = metricas?.info_periodo || {};
-      const filasExcel = bloques.map((b, idx) => ({
-        "N°": idx + 1,
-        "Bloque Horario": b.rango,
-        "Reservas Registradas": b.total_reservas,
-        "Capacidad Máxima": b.capacidad_total,
-        "Cupos Libres": b.cupos_disponibles,
-        "% Ocupación": `${b.porcentaje_ocupacion}%`,
-        "Nivel Demanda": b.nivel_demanda,
-        "Sede": info.campus_nombre || "Todas las sedes",
-        "Período Evaluado": info.etiqueta || periodoMetricas
-      }));
-      const ws = XLSX.utils.json_to_sheet(filasExcel);
-      ws["!cols"] = [
-        { wch: 6 },
-        { wch: 18 },
-        { wch: 22 },
-        { wch: 18 },
-        { wch: 16 },
-        { wch: 14 },
-        { wch: 16 },
-        { wch: 22 },
-        { wch: 32 }
-      ];
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Ocupación por Horas");
-
-      const carrerasData = metricas?.reservas_por_carrera || [];
-      if (carrerasData.length > 0) {
-        const filasCarreras = carrerasData.map((c, idx) => ({
-          "N°": idx + 1,
-          "Carrera / Programa": c.carrera,
-          "Total Reservas": c.total,
-          "Reservas Activas": c.actuales,
-          "Reservas Históricas": c.historicas,
-          "Sede": info.campus_nombre || "Todas las sedes"
-        }));
-        const wsCarreras = XLSX.utils.json_to_sheet(filasCarreras);
-        wsCarreras["!cols"] = [
-          { wch: 6 },
-          { wch: 40 },
-          { wch: 16 },
-          { wch: 18 },
-          { wch: 20 },
-          { wch: 24 }
-        ];
-        XLSX.utils.book_append_sheet(wb, wsCarreras, "Reservas por Carrera");
-      }
-
-      XLSX.writeFile(wb, `Reporte_Ocupacion_Horarios_UCT_${periodoMetricas}_${fechaMetricas}.xlsx`);
-      setToastNotificacion({ tipo: "exito", texto: "Planilla Excel generada y descargada exitosamente." });
+      await exportarMetricasReservasExcel({
+        metricas,
+        periodoMetricas,
+        fechaMetricas,
+        traducirDia
+      });
+      setToastNotificacion({ tipo: "exito", texto: "Reporte ejecutivo Excel con gráficos y métricas generado exitosamente." });
     } catch (err) {
-      setToastNotificacion({ tipo: "error", texto: "Error al exportar a Excel: " + err.message });
+      setToastNotificacion({ tipo: "error", texto: err.message || "Error al exportar a Excel" });
     } finally {
       setExportandoMetricasExcel(false);
     }
   };
 
-  const handleExportarMetricasTalleresExcel = () => {
+  const handleExportarMetricasTalleresExcel = async () => {
+    setExportandoMetricasExcel(true);
     try {
-      const wb = XLSX.utils.book_new();
-      const totalTalleres = solicitudesTalleres.length;
-      const pendientesTalleres = solicitudesTalleres.filter((t) => t.estado === "pendiente").length;
-      const aprobadosTalleres = solicitudesTalleres.filter((t) => t.estado === "aprobado").length;
-      const realizadosTalleres = solicitudesTalleres.filter((t) => t.estado === "realizado").length;
-      const rechazadosTalleres = solicitudesTalleres.filter((t) => t.estado === "rechazado").length;
-      const resueltosTalleres = aprobadosTalleres + realizadosTalleres;
-      const tasaExitoTalleres = totalTalleres > 0 ? Math.round((resueltosTalleres / totalTalleres) * 100) : 0;
-      const totalParticipantesTalleres = solicitudesTalleres.reduce((acc, t) => {
-        const p = parseInt(t.participantes, 10);
-        return acc + (isNaN(p) || p <= 0 ? 1 : p);
-      }, 0);
-      const presencialTalleres = solicitudesTalleres.filter((t) => (t.modalidad || "").toLowerCase().includes("presencial")).length;
-      const virtualTalleres = solicitudesTalleres.filter((t) => (t.modalidad || "").toLowerCase().includes("virtual") || (t.modalidad || "").toLowerCase().includes("online")).length;
-      const pctPresencial = totalTalleres > 0 ? Math.round((presencialTalleres / totalTalleres) * 100) : 0;
-      const pctVirtual = totalTalleres > 0 ? 100 - pctPresencial : 0;
-
-      const talleresCountMap = {};
-      solicitudesTalleres.forEach((t) => {
-        const nombre = (t.taller || "Sin especificar").trim();
-        talleresCountMap[nombre] = (talleresCountMap[nombre] || 0) + 1;
+      await exportarMetricasTalleresExcel({
+        solicitudesTalleres
       });
-
-      const rankingTalleres = Object.entries(talleresCountMap)
-        .map(([nombre, count]) => ({
-          nombre,
-          count,
-          pct: totalTalleres > 0 ? Math.round((count / totalTalleres) * 100) : 0
-        }))
-        .sort((a, b) => b.count - a.count);
-
-      const topTaller = rankingTalleres[0] && rankingTalleres[0].count > 0 ? rankingTalleres[0].nombre : "Sin datos";
-
-      const carrerasTalleresMap = {};
-      solicitudesTalleres.forEach((t) => {
-        const c = (t.carrera || "Sin carrera informada").trim();
-        carrerasTalleresMap[c] = (carrerasTalleresMap[c] || 0) + 1;
-      });
-      const rankingCarrerasTalleres = Object.entries(carrerasTalleresMap)
-        .map(([carrera, count]) => ({
-          carrera,
-          count,
-          pct: totalTalleres > 0 ? Math.round((count / totalTalleres) * 100) : 0
-        }))
-        .sort((a, b) => b.count - a.count);
-
-      const resumenData = [
-        { "Métrica": "Total de Solicitudes Registradas", "Valor": totalTalleres },
-        { "Métrica": "Solicitudes Realizadas", "Valor": realizadosTalleres },
-        { "Métrica": "Solicitudes Aprobadas", "Valor": aprobadosTalleres },
-        { "Métrica": "Solicitudes Pendientes", "Valor": pendientesTalleres },
-        { "Métrica": "Solicitudes Rechazadas", "Valor": rechazadosTalleres },
-        { "Métrica": "Tasa de Aprobación/Realización", "Valor": `${tasaExitoTalleres}%` },
-        { "Métrica": "Participantes Totales Estimados", "Valor": totalParticipantesTalleres },
-        { "Métrica": "Modalidad Presencial", "Valor": `${presencialTalleres} (${pctPresencial}%)` },
-        { "Métrica": "Modalidad Virtual", "Valor": `${virtualTalleres} (${pctVirtual}%)` },
-        { "Métrica": "Taller Más Solicitado", "Valor": topTaller }
-      ];
-      const wsResumen = XLSX.utils.json_to_sheet(resumenData);
-      wsResumen["!cols"] = [{ wch: 35 }, { wch: 30 }];
-      XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen General");
-
-      const talleresSheetData = rankingTalleres.map((t, idx) => ({
-        "N°": idx + 1,
-        "Taller Especializado": t.nombre,
-        "Total Solicitudes": t.count,
-        "Porcentaje Demanda": `${t.pct}%`
-      }));
-      const wsTalleres = XLSX.utils.json_to_sheet(talleresSheetData);
-      wsTalleres["!cols"] = [{ wch: 6 }, { wch: 45 }, { wch: 18 }, { wch: 20 }];
-      XLSX.utils.book_append_sheet(wb, wsTalleres, "Demanda por Taller");
-
-      const carrerasSheetData = rankingCarrerasTalleres.map((c, idx) => ({
-        "N°": idx + 1,
-        "Carrera / Programa": c.carrera,
-        "Solicitudes": c.count,
-        "Porcentaje": `${c.pct}%`
-      }));
-      const wsCarreras = XLSX.utils.json_to_sheet(carrerasSheetData);
-      wsCarreras["!cols"] = [{ wch: 6 }, { wch: 40 }, { wch: 15 }, { wch: 15 }];
-      XLSX.utils.book_append_sheet(wb, wsCarreras, "Demanda por Carrera");
-
-      if (solicitudesTalleres.length > 0) {
-        const detalleData = solicitudesTalleres.map((s) => ({
-          "ID": s.id,
-          "Taller": s.taller,
-          "Solicitante": s.nombre,
-          "RUT": s.rut || "-",
-          "Email": s.email,
-          "Carrera": s.carrera,
-          "Modalidad": s.modalidad,
-          "Participantes": s.participantes,
-          "Estado": s.estado,
-          "Fecha Creación": s.created_at || "-"
-        }));
-        const wsDetalle = XLSX.utils.json_to_sheet(detalleData);
-        wsDetalle["!cols"] = [
-          { wch: 8 }, { wch: 40 }, { wch: 25 }, { wch: 14 }, { wch: 28 }, { wch: 30 }, { wch: 14 }, { wch: 15 }, { wch: 14 }, { wch: 20 }
-        ];
-        XLSX.utils.book_append_sheet(wb, wsDetalle, "Detalle Solicitudes");
-      }
-
-      const fechaHoy = new Date().toISOString().split("T")[0];
-      XLSX.writeFile(wb, `Reporte_Metricas_Talleres_UCT_${fechaHoy}.xlsx`);
-      setToastNotificacion({ tipo: "exito", texto: "Reporte de talleres exportado a Excel exitosamente." });
+      setToastNotificacion({ tipo: "exito", texto: "Reporte ejecutivo de talleres con gráficos exportado a Excel exitosamente." });
     } catch (err) {
-      setToastNotificacion({ tipo: "error", texto: "Error al exportar métricas de talleres: " + err.message });
+      setToastNotificacion({ tipo: "error", texto: err.message || "Error al exportar métricas de talleres" });
+    } finally {
+      setExportandoMetricasExcel(false);
+    }
+  };
+
+  const handleExportarMetricasPrediccionExcel = async () => {
+    setExportandoMetricasExcel(true);
+    try {
+      await exportarMetricasPrediccionExcel({
+        prediccionData,
+        modeloPrediccion,
+        diasFiltroPrediccion
+      });
+      setToastNotificacion({ tipo: "exito", texto: "Reporte ejecutivo de pronóstico de aforo con gráficos exportado a Excel exitosamente." });
+    } catch (err) {
+      setToastNotificacion({ tipo: "error", texto: err.message || "Error al exportar pronóstico de aforo" });
+    } finally {
+      setExportandoMetricasExcel(false);
     }
   };
 
@@ -6484,6 +6357,16 @@ export default function Dashboard() {
                       >
                         <span><UiIcon name="bolt" className="w-4 h-4" /></span>
                         <span>{cargandoPrediccion ? "Calibrando..." : "Autoentrenar"}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleExportarMetricasPrediccionExcel}
+                        disabled={cargandoPrediccion || exportandoMetricasExcel}
+                        className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50 shrink-0"
+                      >
+                        <span><UiIcon name="doc" className="w-4 h-4" /></span>
+                        <span>{exportandoMetricasExcel ? "Generando..." : "Exportar Excel (.xlsx)"}</span>
                       </button>
                     </div>
                   </div>
