@@ -2211,8 +2211,11 @@ export default function Dashboard() {
                 onChange={(e) => {
                   const nuevoId = Number(e.target.value);
                   setCampusSeleccionado(nuevoId);
+                  setCampusDestinoCubiculo(nuevoId);
                   setCubiculoFiltroGestion("todos");
+                  setReservasGestionLista([]);
                   setPaginaGestionReservas(1);
+                  fetchCubiculos(nuevoId);
                 }}
                 className="appearance-none pl-3.5 pr-8 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-[#002D4C] shadow-2xs hover:border-[#00629B] focus:border-[#00A3E0] focus:ring-3 focus:ring-[#00A3E0]/15 outline-none transition-all cursor-pointer min-w-[145px]"
               >
@@ -4012,15 +4015,15 @@ export default function Dashboard() {
             const codigosCubiculosDisponibles = Array.from(
               new Set([
                 ...(cubiculosCampus || [])
-                  .filter((c) => !c.campus_id || String(c.campus_id) === String(campusSeleccionado))
+                  .filter((c) => String(c.campus_id) === String(campusSeleccionado))
                   .map((c) => c.codigo)
                   .filter(Boolean),
                 ...reservasGestionLista
-                  .filter((r) => !r.campus_id || String(r.campus_id) === String(campusSeleccionado))
+                  .filter((r) => r.campus_id && String(r.campus_id) === String(campusSeleccionado))
                   .map((r) => r.cubiculo_codigo)
                   .filter(Boolean)
               ])
-            ).sort();
+            ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
             const reservasGestionFiltradas = reservasGestionLista.filter((r) => {
               if (cubiculoFiltroGestion !== "todos" && r.cubiculo_codigo !== cubiculoFiltroGestion) {
@@ -4159,9 +4162,13 @@ export default function Dashboard() {
                           <select
                             value={campusSeleccionado || ""}
                             onChange={(e) => {
-                              setCampusSeleccionado(Number(e.target.value));
+                              const nuevoId = Number(e.target.value);
+                              setCampusSeleccionado(nuevoId);
+                              setCampusDestinoCubiculo(nuevoId);
                               setCubiculoFiltroGestion("todos");
+                              setReservasGestionLista([]);
                               setPaginaGestionReservas(1);
+                              fetchCubiculos(nuevoId);
                             }}
                             className="appearance-none pl-9 pr-9 py-2.5 rounded-full border border-[#00629B]/30 bg-white hover:border-[#00629B] hover:bg-sky-50/40 text-xs font-bold text-[#002D4C] focus:border-[#00629B] focus:ring-3 focus:ring-[#00A3E0]/20 outline-none shadow-2xs transition-all cursor-pointer"
                           >

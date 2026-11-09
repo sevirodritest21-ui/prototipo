@@ -4796,6 +4796,7 @@ async def obtener_reservas_bloque(campus_id: int, fecha: str, hora: str, current
                 filas_ac = await conn.fetch("SELECT nombre, rut FROM reserva_acompanantes WHERE reserva_id = $1", r["id"])
                 resultado.append({
                     "id": str(r["id"]),
+                    "campus_id": campus_id,
                     "nombre": r["nombre"],
                     "rut": r["rut"],
                     "sessionId": r["session_id"],
