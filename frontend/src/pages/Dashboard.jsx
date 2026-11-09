@@ -1012,13 +1012,13 @@ export default function Dashboard() {
   }, [activeTab]);
 
   useEffect(() => {
-    const idAUsar = campusDestinoCubiculo || campusSeleccionado;
+    const idAUsar = activeTab === "sedes" ? (campusDestinoCubiculo || campusSeleccionado) : (campusSeleccionado || campusDestinoCubiculo);
     if (!idAUsar) return;
     const t = setTimeout(() => {
       handlersRef.current.fetchCubiculos?.(idAUsar);
     }, 0);
     return () => clearTimeout(t);
-  }, [campusDestinoCubiculo, campusSeleccionado, fechaSeleccionada]);
+  }, [activeTab, campusDestinoCubiculo, campusSeleccionado, fechaSeleccionada]);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -2208,7 +2208,12 @@ export default function Dashboard() {
             <div className="relative">
               <select
                 value={campusSeleccionado || ""}
-                onChange={(e) => setCampusSeleccionado(Number(e.target.value))}
+                onChange={(e) => {
+                  const nuevoId = Number(e.target.value);
+                  setCampusSeleccionado(nuevoId);
+                  setCubiculoFiltroGestion("todos");
+                  setPaginaGestionReservas(1);
+                }}
                 className="appearance-none pl-3.5 pr-8 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-[#002D4C] shadow-2xs hover:border-[#00629B] focus:border-[#00A3E0] focus:ring-3 focus:ring-[#00A3E0]/15 outline-none transition-all cursor-pointer min-w-[145px]"
               >
                 {campus.map((c) => (
@@ -4006,8 +4011,14 @@ export default function Dashboard() {
 
             const codigosCubiculosDisponibles = Array.from(
               new Set([
-                ...(cubiculosCampus || []).map((c) => c.codigo).filter(Boolean),
-                ...reservasGestionLista.map((r) => r.cubiculo_codigo).filter(Boolean)
+                ...(cubiculosCampus || [])
+                  .filter((c) => !c.campus_id || String(c.campus_id) === String(campusSeleccionado))
+                  .map((c) => c.codigo)
+                  .filter(Boolean),
+                ...reservasGestionLista
+                  .filter((r) => !r.campus_id || String(r.campus_id) === String(campusSeleccionado))
+                  .map((r) => r.cubiculo_codigo)
+                  .filter(Boolean)
               ])
             ).sort();
 
