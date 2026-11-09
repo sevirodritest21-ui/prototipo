@@ -296,7 +296,11 @@ async def notificar_respuesta_taller_n8n(detalle: dict):
 
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
-    response = await call_next(request)
+    asyncpg.clear_rls_context()
+    try:
+        response = await call_next(request)
+    finally:
+        asyncpg.clear_rls_context()
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-XSS-Protection"] = "1; mode=block"
@@ -1261,6 +1265,12 @@ async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] =
             raise credentials_exception
         d_row = dict(row)
         d_row["es_regular"] = bool(row.get("es_regular"))
+        asyncpg.set_rls_context(
+            rol=d_row.get("rol"),
+            rut=d_row.get("rut"),
+            email=d_row.get("email"),
+            enforced=True
+        )
         return d_row
 
 
@@ -4621,6 +4631,11 @@ async def consultar_reservas(data: EsquemaConsulta, request: Request, credential
                         detail="No tienes permiso para consultar reservas pertenecientes a otro RUT de estudiante."
                     )
                 rut_consulta = user_rut_limpio
+            asyncpg.set_rls_context(
+                rol=current_user.get("rol"),
+                rut=current_user.get("rut"),
+                enforced=True
+            )
 
         async with pool.acquire() as conn:
             if data.sessionId:

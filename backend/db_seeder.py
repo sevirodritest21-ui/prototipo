@@ -341,6 +341,80 @@ def _ensure_demo_reservas(cur, conn):
         except Exception:
             pass
 
+def _ensure_rls_policies(cur, conn):
+    rls_statements = [
+        "IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'rls') EXEC('CREATE SCHEMA [rls]')",
+        "IF OBJECT_ID('rls.Pol_Seguridad_Filas_UCT', 'SP') IS NOT NULL DROP SECURITY POLICY [rls].[Pol_Seguridad_Filas_UCT]",
+        "IF OBJECT_ID('rls.fn_predicado_acceso_reservas', 'IF') IS NOT NULL DROP FUNCTION [rls].[fn_predicado_acceso_reservas]",
+        "IF OBJECT_ID('rls.fn_predicado_acceso_historial', 'IF') IS NOT NULL DROP FUNCTION [rls].[fn_predicado_acceso_historial]",
+        "IF OBJECT_ID('rls.fn_predicado_acceso_talleres', 'IF') IS NOT NULL DROP FUNCTION [rls].[fn_predicado_acceso_talleres]",
+        """
+        CREATE FUNCTION [rls].[fn_predicado_acceso_reservas](@id INT, @rut NVARCHAR(50))
+        RETURNS TABLE
+        WITH SCHEMABINDING
+        AS
+        RETURN SELECT 1 AS fn_access
+        WHERE
+            SESSION_CONTEXT(N'rls_enforced') IS NULL
+            OR CAST(SESSION_CONTEXT(N'rls_enforced') AS VARCHAR(10)) <> '1'
+            OR CAST(SESSION_CONTEXT(N'rls_rol') AS VARCHAR(50)) = 'admin'
+            OR REPLACE(REPLACE(REPLACE(UPPER(ISNULL(@rut, N'')), N'.', N''), N'-', N''), N' ', N'') = CAST(SESSION_CONTEXT(N'rls_rut') AS NVARCHAR(50))
+            OR EXISTS (
+                SELECT 1
+                FROM [dbo].[reserva_acompanantes] AS ra
+                WHERE ra.[reserva_id] = @id
+                  AND REPLACE(REPLACE(REPLACE(UPPER(ISNULL(ra.[rut], N'')), N'.', N''), N'-', N''), N' ', N'') = CAST(SESSION_CONTEXT(N'rls_rut') AS NVARCHAR(50))
+            )
+        """,
+        """
+        CREATE FUNCTION [rls].[fn_predicado_acceso_historial](@rut NVARCHAR(50))
+        RETURNS TABLE
+        WITH SCHEMABINDING
+        AS
+        RETURN SELECT 1 AS fn_access
+        WHERE
+            SESSION_CONTEXT(N'rls_enforced') IS NULL
+            OR CAST(SESSION_CONTEXT(N'rls_enforced') AS VARCHAR(10)) <> '1'
+            OR CAST(SESSION_CONTEXT(N'rls_rol') AS VARCHAR(50)) = 'admin'
+            OR REPLACE(REPLACE(REPLACE(UPPER(ISNULL(@rut, N'')), N'.', N''), N'-', N''), N' ', N'') = CAST(SESSION_CONTEXT(N'rls_rut') AS NVARCHAR(50))
+        """,
+        """
+        CREATE FUNCTION [rls].[fn_predicado_acceso_talleres](@rut NVARCHAR(50), @email NVARCHAR(255))
+        RETURNS TABLE
+        WITH SCHEMABINDING
+        AS
+        RETURN SELECT 1 AS fn_access
+        WHERE
+            SESSION_CONTEXT(N'rls_enforced') IS NULL
+            OR CAST(SESSION_CONTEXT(N'rls_enforced') AS VARCHAR(10)) <> '1'
+            OR CAST(SESSION_CONTEXT(N'rls_rol') AS VARCHAR(50)) = 'admin'
+            OR REPLACE(REPLACE(REPLACE(UPPER(ISNULL(@rut, N'')), N'.', N''), N'-', N''), N' ', N'') = CAST(SESSION_CONTEXT(N'rls_rut') AS NVARCHAR(50))
+            OR LOWER(LTRIM(RTRIM(ISNULL(@email, N'')))) = LOWER(CAST(SESSION_CONTEXT(N'rls_email') AS NVARCHAR(255)))
+        """,
+        """
+        CREATE SECURITY POLICY [rls].[Pol_Seguridad_Filas_UCT]
+            ADD FILTER PREDICATE [rls].[fn_predicado_acceso_reservas]([id], [rut]) ON [dbo].[reservas],
+            ADD BLOCK PREDICATE [rls].[fn_predicado_acceso_reservas]([id], [rut]) ON [dbo].[reservas] AFTER INSERT,
+            ADD BLOCK PREDICATE [rls].[fn_predicado_acceso_reservas]([id], [rut]) ON [dbo].[reservas] AFTER UPDATE,
+            ADD BLOCK PREDICATE [rls].[fn_predicado_acceso_reservas]([id], [rut]) ON [dbo].[reservas] BEFORE DELETE,
+            ADD FILTER PREDICATE [rls].[fn_predicado_acceso_historial]([rut]) ON [dbo].[historial_reservas],
+            ADD FILTER PREDICATE [rls].[fn_predicado_acceso_talleres]([rut], [email]) ON [dbo].[solicitudes_talleres],
+            ADD BLOCK PREDICATE [rls].[fn_predicado_acceso_talleres]([rut], [email]) ON [dbo].[solicitudes_talleres] AFTER INSERT,
+            ADD BLOCK PREDICATE [rls].[fn_predicado_acceso_talleres]([rut], [email]) ON [dbo].[solicitudes_talleres] AFTER UPDATE,
+            ADD BLOCK PREDICATE [rls].[fn_predicado_acceso_talleres]([rut], [email]) ON [dbo].[solicitudes_talleres] BEFORE DELETE
+        WITH (STATE = ON)
+        """
+    ]
+    for stmt in rls_statements:
+        try:
+            cur.execute(stmt.strip())
+            conn.commit()
+        except Exception:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+
 def _run_seeder():
     env_host = os.getenv("MSSQL_HOST")
     is_docker = os.path.exists("/.dockerenv") or bool(os.getenv("RUNNING_IN_DOCKER"))
@@ -391,6 +465,7 @@ def _run_seeder():
             cnt = cur.fetchone()[0]
             if cnt > 0:
                 _ensure_demo_reservas(cur, conn)
+                _ensure_rls_policies(cur, conn)
                 conn.close()
                 return
 
@@ -466,6 +541,7 @@ def _run_seeder():
                     pass
 
         _ensure_demo_reservas(cur, conn)
+        _ensure_rls_policies(cur, conn)
         conn.close()
     except Exception:
         try:

@@ -3,12 +3,32 @@ import os
 import json
 import time
 import asyncio
+from contextvars import ContextVar
 from typing import Optional, List, Any, Dict, Union
 import pymssql
 from dotenv import load_dotenv
 
 _env_path = os.path.join(os.path.dirname(__file__), "backend.env")
 load_dotenv(_env_path if os.path.exists(_env_path) else "backend.env")
+
+_rls_context: ContextVar[Optional[Dict[str, str]]] = ContextVar("_rls_context", default=None)
+
+def set_rls_context(rol: Optional[str] = None, rut: Optional[str] = None, email: Optional[str] = None, enforced: bool = True):
+    rut_clean = re.sub(r'[\.\-\s]', '', str(rut or '')).upper().strip()
+    email_clean = str(email or '').strip().lower()
+    rol_clean = str(rol or 'estudiante').strip().lower()
+    _rls_context.set({
+        "enforced": "1" if enforced else "0",
+        "rol": rol_clean,
+        "rut": rut_clean,
+        "email": email_clean
+    })
+
+def clear_rls_context():
+    _rls_context.set(None)
+
+def get_rls_context() -> Optional[Dict[str, str]]:
+    return _rls_context.get()
 
 class UniqueViolationError(Exception):
     pass
@@ -372,6 +392,7 @@ class PoolWrapper:
             def __init__(self, pool_ref):
                 self.pool = pool_ref
                 self.raw_conn = None
+                self.rls_applied = False
 
             async def __aenter__(self):
                 t0 = time.time()
@@ -421,6 +442,31 @@ class PoolWrapper:
                             pass
                         self.raw_conn = await asyncio.to_thread(self.pool._create_raw)
 
+                ctx = _rls_context.get()
+                if ctx and ctx.get("enforced") == "1":
+                    def _set_rls(c, rls_data):
+                        cur = c.cursor()
+                        cur.execute(
+                            """
+                            EXEC sp_set_session_context @key=N'rls_enforced', @value=%s;
+                            EXEC sp_set_session_context @key=N'rls_rol', @value=%s;
+                            EXEC sp_set_session_context @key=N'rls_rut', @value=%s;
+                            EXEC sp_set_session_context @key=N'rls_email', @value=%s;
+                            """,
+                            (
+                                rls_data.get("enforced", "1"),
+                                rls_data.get("rol", "estudiante"),
+                                rls_data.get("rut", ""),
+                                rls_data.get("email", "")
+                            )
+                        )
+                        c.commit()
+                    try:
+                        await asyncio.to_thread(_set_rls, self.raw_conn, ctx)
+                        self.rls_applied = True
+                    except Exception:
+                        pass
+
                 return ConnectionWrapper(self.raw_conn)
 
             async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -431,6 +477,19 @@ class PoolWrapper:
                             await asyncio.to_thread(self.raw_conn.rollback)
                         else:
                             await asyncio.to_thread(self.raw_conn.commit)
+                        if self.rls_applied:
+                            def _clear_rls(c):
+                                cur = c.cursor()
+                                cur.execute(
+                                    """
+                                    EXEC sp_set_session_context @key=N'rls_enforced', @value='0';
+                                    EXEC sp_set_session_context @key=N'rls_rol', @value='system';
+                                    EXEC sp_set_session_context @key=N'rls_rut', @value='';
+                                    EXEC sp_set_session_context @key=N'rls_email', @value='';
+                                    """
+                                )
+                                c.commit()
+                            await asyncio.to_thread(_clear_rls, self.raw_conn)
                     except Exception:
                         is_broken = True
 
