@@ -43,21 +43,44 @@ BLOQUES_HORAS = [
 DIAS_NOMBRES = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
 
 
+_cached_mssql_host = None
+
 def _get_db_connection() -> Any:
+    global _cached_mssql_host
     env_host = os.getenv("MSSQL_HOST")
     is_docker = os.path.exists("/.dockerenv") or bool(os.getenv("RUNNING_IN_DOCKER"))
-    server = env_host if (env_host and (not is_docker or env_host not in ('localhost', '127.0.0.1'))) else ("sqlserver" if is_docker else "localhost")
-    user = os.getenv("MSSQL_USER", "")
-    password = os.getenv("MSSQL_PASSWORD", "")
-    database = os.getenv("MSSQL_DB") or os.getenv("MSSQL_DATABASE", "")
-    port = os.getenv("MSSQL_PORT", "1433")
-    return pymssql.connect(
-        server=server,
-        user=user,
-        password=password,
-        database=database,
-        port=port
-    )
+    hosts_to_try = []
+    if _cached_mssql_host:
+        hosts_to_try.append(_cached_mssql_host)
+    if env_host and (not is_docker or env_host not in ("localhost", "127.0.0.1")):
+        if env_host not in hosts_to_try:
+            hosts_to_try.append(env_host)
+    for fallback in (["botsbiblioteca-sqlserver-dev", "sqlserver", "host.docker.internal", "localhost"] if is_docker else ["localhost", "127.0.0.1", "botsbiblioteca-sqlserver-dev", "sqlserver"]):
+        if fallback not in hosts_to_try:
+            hosts_to_try.append(fallback)
+
+    user = os.getenv("MSSQL_USER") or "sa"
+    password = os.getenv("MSSQL_PASSWORD") or "SqlAdmin2026!"
+    database = os.getenv("MSSQL_DB") or os.getenv("MSSQL_DATABASE") or "reservas_db"
+    port = int(os.getenv("MSSQL_PORT") or "1433")
+
+    last_err = None
+    for h in hosts_to_try:
+        try:
+            conn = pymssql.connect(
+                server=h,
+                user=user,
+                password=password,
+                database=database,
+                port=port,
+                login_timeout=3
+            )
+            _cached_mssql_host = h
+            return conn
+        except Exception as e:
+            last_err = e
+            continue
+    raise last_err
 
 
 def _asegurar_tabla_predicciones(cursor, conn):
@@ -587,7 +610,8 @@ def cargar_o_entrenar_modelo(forzar: bool = False, algoritmo: str = "random_fore
     elif not forzar and tipo_norm == "random_forest" and os.path.exists(MODEL_PATH):
         try:
             bundle = joblib.load(MODEL_PATH)
-            return bundle
+            if isinstance(bundle, dict) and "model" in bundle and "metrics" in bundle:
+                return bundle
         except Exception:
             pass
 

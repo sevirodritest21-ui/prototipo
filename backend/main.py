@@ -2456,7 +2456,13 @@ async def obtener_prediccion_aforo(
         from backend.ml_occupancy import predecir_aforo_semanal
     except ImportError:
         from ml_occupancy import predecir_aforo_semanal
-    return predecir_aforo_semanal(campus_id=campus_id, dias=dias, forzar_reentrenamiento=reentrenar, algoritmo=modelo)
+    return await asyncio.to_thread(
+        predecir_aforo_semanal,
+        campus_id=campus_id,
+        dias=dias,
+        forzar_reentrenamiento=reentrenar,
+        algoritmo=modelo
+    )
 
 
 @app.post("/api/metricas/prediccion/reentrenar")
@@ -2472,7 +2478,13 @@ async def forzar_autoentrenamiento_ml(
         from backend.ml_occupancy import predecir_aforo_semanal
     except ImportError:
         from ml_occupancy import predecir_aforo_semanal
-    return predecir_aforo_semanal(campus_id=campus_id, dias=dias, forzar_reentrenamiento=True, algoritmo=modelo)
+    return await asyncio.to_thread(
+        predecir_aforo_semanal,
+        campus_id=campus_id,
+        dias=dias,
+        forzar_reentrenamiento=True,
+        algoritmo=modelo
+    )
 
 @app.get("/api/dashboard/metricas")
 async def obtener_metricas_dashboard(
