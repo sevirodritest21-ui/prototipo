@@ -270,7 +270,7 @@ CREATE TABLE [predicciones_aforo_log] (
     [pct_predicho] FLOAT NOT NULL,
     [pct_real] FLOAT NULL,
     [error_abs] FLOAT NULL,
-    [evaluado] BIT NOT NULL,
-    [created_at] DATETIME NOT NULL,
+    [evaluado] BIT NOT NULL DEFAULT 0,
+    [created_at] DATETIME NULL DEFAULT GETDATE(),
     [evaluated_at] DATETIME NULL
 );
