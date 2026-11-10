@@ -6,7 +6,7 @@ import es from "date-fns/locale/es";
 import { useAuth } from "../context/AuthContext";
 import { API_URL } from "../services/api";
 import { useCampusQuery, useDiasBloqueadosQuery, useFeriadosQuery, queryClient } from "../services/queries";
-import { obtenerSessionId } from "../utils/session";
+import { obtenerSessionId, enmascararRut } from "../utils/session";
 import "./MisReservas.css";
 
 registerLocale("es", es);
@@ -466,7 +466,7 @@ export default function MisReservas() {
                     <span className="mr-profile-tag">Credencial Estudiantil</span>
                     <h2>{user?.nombre || "Estudiante UCT"}</h2>
                     <div className="mr-profile-meta">
-                      <span>RUT: {user?.rut || "Sin registrar"}</span>
+                      <span>RUT: {user?.rut ? enmascararRut(user.rut) : "Sin registrar"}</span>
                       {user?.correo && <span>• {user.correo}</span>}
                     </div>
                   </div>
@@ -694,9 +694,11 @@ export default function MisReservas() {
                                 </p>
                                 <p className="mr-person-rut">
                                   RUT:{" "}
-                                  {res.es_titular === false
-                                    ? res.titular_rut || res.rut
-                                    : user?.rut || res.rut || "N/A"}
+                                  {enmascararRut(
+                                    res.es_titular === false
+                                      ? res.titular_rut || res.rut
+                                      : user?.rut || res.rut
+                                  ) || "N/A"}
                                 </p>
                               </div>
 
@@ -710,7 +712,7 @@ export default function MisReservas() {
                                     {res.acompanantes.map((ac, idx) => (
                                       <span key={idx} className="mr-companion-chip">
                                         <span className="mr-companion-dot" />
-                                        {ac.nombre} {ac.rut ? <small>({ac.rut})</small> : ""}
+                                        {ac.nombre} {ac.rut ? <small>({enmascararRut(ac.rut)})</small> : ""}
                                       </span>
                                     ))}
                                   </div>
@@ -956,7 +958,7 @@ export default function MisReservas() {
                     <span className="flex items-center gap-1.5">
                       <IconLock className="w-3.5 h-3.5 text-[#00A3E0]" /> RUT
                     </span>
-                    <strong className="tabular-nums">{user?.rut || "N/A"}</strong>
+                    <strong className="tabular-nums">{enmascararRut(user?.rut) || "N/A"}</strong>
                   </div>
                   <p className="mr-readonly-note">
                     Los datos personales del estudiante titular no son modificables.

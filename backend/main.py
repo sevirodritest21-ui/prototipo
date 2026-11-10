@@ -565,17 +565,17 @@ async def startup():
     try:
         pool = await asyncpg.create_pool(
             DATABASE_URL,
-            min_size=2,
-            max_size=30,
+            min_size=15,
+            max_size=80,
             max_queries=50000,
-            command_timeout=10.0
+            command_timeout=15.0
         )
     except Exception as e:
         app.state.db_error = str(e)
         print(f"[Startup Error] Error creando pool de base de datos: {e}", flush=True)
     httpx_client = httpx.AsyncClient(
-        limits=httpx.Limits(max_keepalive_connections=20, max_connections=100),
-        timeout=30.0
+        limits=httpx.Limits(max_keepalive_connections=100, max_connections=500),
+        timeout=60.0
     )
     asyncio.create_task(_init_database_and_services())
 
@@ -633,24 +633,6 @@ def obtener_ip_cliente(request: Request) -> str:
 
 async def check_rate_limit(key_prefix: str, identifier: str, max_requests: int = 15, window_seconds: int = 60, increment: bool = True) -> bool:
     key = f"{key_prefix}:{identifier}"
-    if pool:
-        try:
-            async with pool.acquire() as conn:
-                count = await conn.fetchval(
-                    """
-                    SELECT COUNT(*) FROM rate_limits 
-                    WHERE key = $1 AND created_at >= NOW() - ($2 || ' seconds')::INTERVAL
-                    """,
-                    key, str(window_seconds)
-                )
-                if count >= max_requests:
-                    return False
-                if increment:
-                    await conn.execute("INSERT INTO rate_limits (key) VALUES ($1)", key)
-                return True
-        except Exception:
-            pass
-
     now = datetime.utcnow().timestamp()
     timestamps = rate_limit_fallback_store.get(key, [])
     timestamps = [t for t in timestamps if now - t < window_seconds]
@@ -769,8 +751,13 @@ async def verificar_estudiante_regular(conn, rut: str) -> dict:
     }
 
 
+_disponibilidad_cache: Dict[str, tuple] = {}
+_static_cache: Dict[str, tuple] = {}
+
+
 async def invalidar_caches_disponibilidad(campus_id: Optional[int] = None, fecha_str: Optional[str] = None):
-    pass
+    _disponibilidad_cache.clear()
+    _static_cache.clear()
 
 
 # --- Esquemas Pydantic ---
@@ -1215,6 +1202,9 @@ def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) 
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
+_user_auth_cache: Dict[str, tuple] = {}
+
+
 async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)) -> dict:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -1241,6 +1231,18 @@ async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] =
     except JWTError:
         raise credentials_exception
 
+    now_ts = _time.time()
+    cached = _user_auth_cache.get(email)
+    if cached and (now_ts - cached[0] < 120):
+        d_row = dict(cached[1])
+        asyncpg.set_rls_context(
+            rol=d_row.get("rol"),
+            rut=d_row.get("rut"),
+            email=d_row.get("email"),
+            enforced=True
+        )
+        return d_row
+
     user_query = """
         SELECT 
             u.id, 
@@ -1253,7 +1255,7 @@ async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] =
             sa.salu_nombre AS situacion,
             CASE WHEN u.rol = 'admin' OR sa.salu_codigo = 1 OR UPPER(sa.salu_nombre) = 'REGULAR' THEN 1 ELSE 0 END AS es_regular
         FROM usuarios u
-        LEFT JOIN estudiante e ON REPLACE(REPLACE(REPLACE(UPPER(u.rut), '.', ''), '-', ''), ' ', '') = CONCAT(e.estd_rut, e.estd_dv)
+        LEFT JOIN estudiante e ON e.estd_rut = TRY_CAST(LEFT(REPLACE(REPLACE(REPLACE(u.rut, '.', ''), '-', ''), ' ', ''), CASE WHEN LEN(REPLACE(REPLACE(REPLACE(u.rut, '.', ''), '-', ''), ' ', '')) > 1 THEN LEN(REPLACE(REPLACE(REPLACE(u.rut, '.', ''), '-', ''), ' ', '')) - 1 ELSE 0 END) AS INT)
         LEFT JOIN estudiante_carrera ec ON e.estd_rut = ec.estd_rut
         LEFT JOIN carrera_programa cp ON ec.carr_codigo = cp.carr_codigo
         LEFT JOIN situacion_alumno sa ON ec.salu_codigo = sa.salu_codigo
@@ -1265,6 +1267,7 @@ async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] =
             raise credentials_exception
         d_row = dict(row)
         d_row["es_regular"] = bool(row.get("es_regular"))
+        _user_auth_cache[email] = (now_ts, d_row)
         asyncpg.set_rls_context(
             rol=d_row.get("rol"),
             rut=d_row.get("rut"),
@@ -1477,6 +1480,11 @@ async def get_me(current_user: dict = Depends(get_current_user)):
 
 @app.get("/api/cubiculos")
 async def obtener_cubiculos(campus_id: Optional[int] = None, fecha: Optional[str] = None):
+    cache_key = f"cub:{campus_id}:{fecha}"
+    cached = _disponibilidad_cache.get(cache_key)
+    if cached and (_time.time() - cached[0] < 5.0):
+        return cached[1]
+
     fecha_dt = None
     if fecha:
         try:
@@ -1525,7 +1533,9 @@ async def obtener_cubiculos(campus_id: Optional[int] = None, fecha: Optional[str
                 )
             else:
                 filas = await conn.fetch("SELECT id, codigo, campus_id, estado FROM cubiculos ORDER BY campus_id, codigo ASC")
-        return [dict(f) for f in filas]
+        res_list = [dict(f) for f in filas]
+        _disponibilidad_cache[cache_key] = (_time.time(), res_list)
+        return res_list
 
 
 @app.post("/api/cubiculos", status_code=status.HTTP_201_CREATED)
@@ -1848,18 +1858,23 @@ async def consultar_sancion_usuario(
             payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
             email = payload.get("sub")
             if email:
-                async with pool.acquire() as conn:
-                    row_u = await conn.fetchrow("SELECT rut, rol FROM usuarios WHERE email = $1", email)
-                    if row_u and (row_u["rol"] != "admin" or not rut_target):
-                        rut_target = row_u["rut"]
+                cached = _user_auth_cache.get(email)
+                if cached and (_time.time() - cached[0] < 120):
+                    row_u = cached[1]
+                    if row_u and (row_u.get("rol") != "admin" or not rut_target):
+                        rut_target = row_u.get("rut")
+                else:
+                    async with pool.acquire() as conn:
+                        row_u = await conn.fetchrow("SELECT rut, rol FROM usuarios WHERE email = $1", email)
+                        if row_u and (row_u["rol"] != "admin" or not rut_target):
+                            rut_target = row_u["rut"]
         except Exception:
             pass
 
     if not rut_target:
         return {"suspendido": False, "total_inasistencias": 0, "dias_restantes": 0, "fecha_desbloqueo": None, "mensaje": ""}
 
-    async with pool.acquire() as conn:
-        return await verificar_sancion_usuario(conn, rut_target)
+    return await verificar_sancion_usuario(None, rut_target)
 
 
 @app.get("/api/admin/sancionados")
@@ -2089,9 +2104,14 @@ async def actualizar_estado_incidencia(
 
 @app.get("/api/cms/anuncios")
 async def obtener_anuncios_cms():
+    cached = _static_cache.get("cms_anuncios")
+    if cached and (_time.time() - cached[0] < 15.0):
+        return cached[1]
     async with pool.acquire() as conn:
         filas = await conn.fetch("SELECT * FROM anuncios_cms ORDER BY orden ASC, id ASC")
-        return [dict(f) for f in filas]
+        res = [dict(f) for f in filas]
+        _static_cache["cms_anuncios"] = (_time.time(), res)
+        return res
 
 
 @app.post("/api/cms/anuncios", status_code=status.HTTP_201_CREATED)
@@ -2147,9 +2167,14 @@ async def eliminar_anuncio_cms(anuncio_id: int, current_user: dict = Depends(get
 
 @app.get("/api/cms/tarjetas")
 async def obtener_tarjetas_cms():
+    cached = _static_cache.get("cms_tarjetas")
+    if cached and (_time.time() - cached[0] < 15.0):
+        return cached[1]
     async with pool.acquire() as conn:
         filas = await conn.fetch("SELECT * FROM tarjetas_cms ORDER BY orden ASC, id ASC")
-        return [dict(f) for f in filas]
+        res = [dict(f) for f in filas]
+        _static_cache["cms_tarjetas"] = (_time.time(), res)
+        return res
 
 
 @app.post("/api/cms/tarjetas", status_code=status.HTTP_201_CREATED)
@@ -2205,9 +2230,14 @@ async def eliminar_tarjeta_cms(tarjeta_id: int, current_user: dict = Depends(get
 
 @app.get("/api/cms/faqs")
 async def obtener_faqs_cms():
+    cached = _static_cache.get("cms_faqs")
+    if cached and (_time.time() - cached[0] < 15.0):
+        return cached[1]
     async with pool.acquire() as conn:
         filas = await conn.fetch("SELECT * FROM faqs_cms ORDER BY orden ASC, id ASC")
-        return [dict(f) for f in filas]
+        res = [dict(f) for f in filas]
+        _static_cache["cms_faqs"] = (_time.time(), res)
+        return res
 
 
 @app.post("/api/cms/faqs", status_code=status.HTTP_201_CREATED)
@@ -2387,6 +2417,9 @@ async def buscar_estudiantes(q: str, current_user: dict = Depends(get_current_us
 
 @app.get("/api/campus")
 async def obtener_campus():
+    cached = _static_cache.get("campus_list")
+    if cached and (_time.time() - cached[0] < 15.0):
+        return cached[1]
     try:
         async with pool.acquire() as conn:
             filas = await conn.fetch(
@@ -2398,7 +2431,9 @@ async def obtener_campus():
                 GROUP BY c.id, c.nombre, c.cubiculas_fisicos ORDER BY c.id ASC
                 """
             )
-            return [dict(f) for f in filas]
+            res = [dict(f) for f in filas]
+            _static_cache["campus_list"] = (_time.time(), res)
+            return res
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
@@ -2928,13 +2963,17 @@ async def consultar_disponibilidad(campus_id: int, fecha: str, request: Request)
     await enforce_rate_limit(
         "disponibilidad",
         client_ip,
-        max_requests=60,
+        max_requests=120,
         window_seconds=60,
         custom_message="Límite de consultas de disponibilidad alcanzado. Por favor espera un momento."
     )
     try:
         fecha_parsed = datetime.strptime(fecha.strip(), "%Y-%m-%d").date()
         fecha_str = fecha_parsed.strftime("%Y-%m-%d")
+        disp_key = f"disp:{campus_id}:{fecha_str}"
+        cached_disp = _disponibilidad_cache.get(disp_key)
+        if cached_disp and (_time.time() - cached_disp[0] < 5.0):
+            return cached_disp[1]
 
         hoy = date.today()
         es_fer, nombre_fer = es_feriado_chile(fecha_parsed)
@@ -3041,6 +3080,7 @@ async def consultar_disponibilidad(campus_id: int, fecha: str, request: Request)
                 "cubiculas_fisicos": capacidad_campus,
                 "bloques": resultado
             }
+            _disponibilidad_cache[disp_key] = (_time.time(), respuesta)
 
         return respuesta
     except Exception as e:
@@ -3679,6 +3719,10 @@ async def responder_solicitud_taller(
 async def listar_mis_solicitudes_talleres(current_user: dict = Depends(get_current_user)):
     user_rut = str(current_user.get("rut") or "").replace(".", "").replace("-", "").replace(" ", "").upper().strip()
     user_email = str(current_user.get("email") or "").strip().lower()
+    t_key = f"talleres:{user_rut}:{user_email}"
+    cached = _static_cache.get(t_key)
+    if cached and (_time.time() - cached[0] < 15.0):
+        return cached[1]
 
     async with pool.acquire() as conn:
         query = """
@@ -3706,7 +3750,9 @@ async def listar_mis_solicitudes_talleres(current_user: dict = Depends(get_curre
                 "observaciones": f["observaciones"],
                 "created_at": str(f["created_at"]) if f["created_at"] else ""
             })
-        return {"solicitudes": resultado}
+        resp = {"solicitudes": resultado}
+        _static_cache[t_key] = (_time.time(), resp)
+        return resp
 
 
 @app.delete("/api/talleres/mis-solicitudes/{solicitud_id}")
@@ -3747,6 +3793,19 @@ async def eliminar_solicitud_taller(solicitud_id: int, current_user: dict = Depe
     async with pool.acquire() as conn:
         await conn.execute("DELETE FROM solicitudes_talleres WHERE id = $1", solicitud_id)
         return {"status": "ok", "message": f"Solicitud #{solicitud_id} eliminada."}
+
+
+_session_saved_cache: Dict[str, float] = {}
+_chat_faq_cache: Dict[str, str] = {}
+_chat_faq_locks: Dict[str, asyncio.Lock] = {}
+
+
+def _es_pregunta_informativa_general(msg: str) -> bool:
+    if not msg:
+        return False
+    m = msg.lower().strip()
+    acc_words = ["reservar", "agendar", "quiero un", "cancelar", "anular", "editar", "modificar", "cambiar mi", "mis reservas", "tengo reserva", "para hoy", "para mañana", "2026-", "bloque de las"]
+    return not any(w in m for w in acc_words)
 
 
 @app.post("/api/chat")
@@ -3792,30 +3851,40 @@ async def hablar_con_bot(input_data: MessageInput, request: Request, current_use
         if not rut_a_guardar and rut_de_session:
             rut_a_guardar = rut_de_session
 
-        async with pool.acquire() as conn:
-            if input_data.sessionId and rut_a_guardar:
-                await conn.execute(
-                    """
-                    IF EXISTS (SELECT 1 FROM sesiones WHERE session_id = $1)
-                        UPDATE sesiones SET rut = $2, nombre = COALESCE($3, nombre), updated_at = GETDATE() WHERE session_id = $1
-                    ELSE
-                        INSERT INTO sesiones (session_id, rut, nombre, updated_at) VALUES ($1, $2, $3, GETDATE())
-                    """,
-                    input_data.sessionId, rut_a_guardar, nombre_a_guardar
-                )
-            elif input_data.sessionId and not rut_a_guardar:
+        now_s_ts = _time.time()
+        if input_data.sessionId and rut_a_guardar:
+            if now_s_ts - _session_saved_cache.get(input_data.sessionId, 0) > 300:
+                async with pool.acquire() as conn:
+                    await conn.execute(
+                        """
+                        IF EXISTS (SELECT 1 FROM sesiones WHERE session_id = $1)
+                            UPDATE sesiones SET rut = $2, nombre = COALESCE($3, nombre), updated_at = GETDATE() WHERE session_id = $1
+                        ELSE
+                            INSERT INTO sesiones (session_id, rut, nombre, updated_at) VALUES ($1, $2, $3, GETDATE())
+                        """,
+                        input_data.sessionId, rut_a_guardar, nombre_a_guardar
+                    )
+                _session_saved_cache[input_data.sessionId] = now_s_ts
+        elif input_data.sessionId and not rut_a_guardar:
+            async with pool.acquire() as conn:
                 row_recup = await conn.fetchrow("SELECT rut, nombre FROM sesiones WHERE session_id = $1", input_data.sessionId)
                 if row_recup:
                     rut_a_guardar = row_recup["rut"]
                     nombre_a_guardar = row_recup["nombre"]
 
         if rut_a_guardar and (not current_user or current_user.get("rol") != "admin"):
-            async with pool.acquire() as conn:
-                reg_check = await verificar_estudiante_regular(conn, rut_a_guardar)
-                if not reg_check["es_regular"]:
+            if current_user and "es_regular" in current_user:
+                if not current_user.get("es_regular"):
                     return {
                         "response": "Actualmente estás como estudiante no regular, cuando resuelvas esa situación estarás activo nuevamente."
                     }
+            else:
+                async with pool.acquire() as conn:
+                    reg_check = await verificar_estudiante_regular(conn, rut_a_guardar)
+                    if not reg_check["es_regular"]:
+                        return {
+                            "response": "Actualmente estás como estudiante no regular, cuando resuelvas esa situación estarás activo nuevamente."
+                        }
 
         now_dt = datetime.now()
         fecha_actual = now_dt.strftime("%Y-%m-%d")
@@ -3851,33 +3920,52 @@ async def hablar_con_bot(input_data: MessageInput, request: Request, current_use
             "hora_actual": hora_actual
         }
 
-        payload_bytes, headers = generar_headers_webhook_n8n(payload)
-        timeout_n8n = float(os.getenv("N8N_CHATBOT_TIMEOUT", "120.0"))
-        response = await httpx_client.post(N8N_WEBHOOK_URL, content=payload_bytes, headers=headers, timeout=timeout_n8n)
-        if response.status_code != 200:
-            try:
-                err_data = response.json()
-                raw_err = str(err_data.get("message") or err_data.get("detail") or err_data.get("output") or "")
-            except Exception:
-                raw_err = response.text or ""
+        es_faq = _es_pregunta_informativa_general(input_data.message)
+        faq_key = input_data.message.strip().lower() if es_faq and input_data.message else None
+        if faq_key and faq_key in _chat_faq_cache:
+            return {"response": _chat_faq_cache[faq_key]}
 
-            clean_err = re.sub(r'(?i)Bad request\s*-\s*please check your parameters\s*', '', raw_err).strip()
-            clean_err = re.sub(r'(?i)NodeApiError:\s*', '', clean_err).strip()
-            if clean_err:
-                return {"response": clean_err}
-            raise HTTPException(status_code=response.status_code, detail=f"Error {response.status_code} desde el servicio n8n.")
+        lock = None
+        if faq_key:
+            lock = _chat_faq_locks.setdefault(faq_key, asyncio.Lock())
+            await lock.acquire()
+            if faq_key in _chat_faq_cache:
+                lock.release()
+                return {"response": _chat_faq_cache[faq_key]}
 
-        data = response.json()
-        bot_response = data.get("output") or data.get("message") or data.get("response") or "Reserva procesada con éxito."
-        bot_response = re.sub(r'\[Usuario autenticado:[^\]]*\]\s*', '', bot_response)
-        bot_response = re.sub(r'\[Fecha y hora actual:[^\]]*\]\s*', '', bot_response)
-        bot_response = re.sub(r'\[Contexto temporal:[^\]]*\]\s*', '', bot_response)
-        bot_response = re.sub(r'(?i)Bad request\s*-\s*please check your parameters\s*', '', bot_response)
-        bot_response = re.sub(r'(?i)NodeApiError:\s*', '', bot_response)
-        bot_response = re.sub(r'(?i)Calling\s+[a-zA-Z0-9_\-]+(\s*with\s+input:)?\s*\{[\s\S]*?\}', '', bot_response).strip()
-        if not bot_response:
-            bot_response = "Estoy procesando tu solicitud de cubículos. ¿En qué fecha, hora y sede te gustaría agendar?"
-        return {"response": bot_response}
+        try:
+            payload_bytes, headers = generar_headers_webhook_n8n(payload)
+            timeout_n8n = float(os.getenv("N8N_CHATBOT_TIMEOUT", "120.0"))
+            response = await httpx_client.post(N8N_WEBHOOK_URL, content=payload_bytes, headers=headers, timeout=timeout_n8n)
+            if response.status_code != 200:
+                try:
+                    err_data = response.json()
+                    raw_err = str(err_data.get("message") or err_data.get("detail") or err_data.get("output") or "")
+                except Exception:
+                    raw_err = response.text or ""
+
+                clean_err = re.sub(r'(?i)Bad request\s*-\s*please check your parameters\s*', '', raw_err).strip()
+                clean_err = re.sub(r'(?i)NodeApiError:\s*', '', clean_err).strip()
+                if clean_err:
+                    return {"response": clean_err}
+                raise HTTPException(status_code=response.status_code, detail=f"Error {response.status_code} desde el servicio n8n.")
+
+            data = response.json()
+            bot_response = data.get("output") or data.get("message") or data.get("response") or "Reserva procesada con éxito."
+            bot_response = re.sub(r'\[Usuario autenticado:[^\]]*\]\s*', '', bot_response)
+            bot_response = re.sub(r'\[Fecha y hora actual:[^\]]*\]\s*', '', bot_response)
+            bot_response = re.sub(r'\[Contexto temporal:[^\]]*\]\s*', '', bot_response)
+            bot_response = re.sub(r'(?i)Bad request\s*-\s*please check your parameters\s*', '', bot_response)
+            bot_response = re.sub(r'(?i)NodeApiError:\s*', '', bot_response)
+            bot_response = re.sub(r'(?i)Calling\s+[a-zA-Z0-9_\-]+(\s*with\s+input:)?\s*\{[\s\S]*?\}', '', bot_response).strip()
+            if not bot_response:
+                bot_response = "Estoy procesando tu solicitud de cubículos. ¿En qué fecha, hora y sede te gustaría agendar?"
+            if faq_key:
+                _chat_faq_cache[faq_key] = bot_response
+            return {"response": bot_response}
+        finally:
+            if lock and lock.locked():
+                lock.release()
 
     except HTTPException:
         raise
@@ -4597,11 +4685,11 @@ async def editar_reserva(data: EsquemaEditarReserva, background_tasks: Backgroun
 
 @app.post("/api/reservas/consultar")
 async def consultar_reservas(data: EsquemaConsulta, request: Request, credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)):
-    client_id = data.sessionId or obtener_ip_cliente(request)
+    client_id = data.rut or data.sessionId or obtener_ip_cliente(request)
     await enforce_rate_limit(
         "consultar_reservas",
         client_id,
-        max_requests=30,
+        max_requests=60,
         window_seconds=60,
         custom_message="Límite de consultas de reservas alcanzado. Por favor espera un momento."
     )
@@ -4614,10 +4702,14 @@ async def consultar_reservas(data: EsquemaConsulta, request: Request, credential
                 payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
                 email: str = payload.get("sub")
                 if email:
-                    async with pool.acquire() as conn:
-                        row_u = await conn.fetchrow("SELECT rut, rol FROM usuarios WHERE email = $1", email)
-                        if row_u:
-                            current_user = dict(row_u)
+                    cached = _user_auth_cache.get(email)
+                    if cached and (_time.time() - cached[0] < 120):
+                        current_user = dict(cached[1])
+                    else:
+                        async with pool.acquire() as conn:
+                            row_u = await conn.fetchrow("SELECT rut, rol FROM usuarios WHERE email = $1", email)
+                            if row_u:
+                                current_user = dict(row_u)
             except JWTError:
                 pass
 
@@ -4637,19 +4729,28 @@ async def consultar_reservas(data: EsquemaConsulta, request: Request, credential
                 enforced=True
             )
 
+        pagina = max(1, data.pagina_historial or 1)
+        limite = max(1, min(data.limite_historial or 5, 50))
+        if not rut_consulta and data.sessionId:
+            rut_consulta = extraer_rut_de_session(data.sessionId)
+        if rut_consulta and "[" not in str(rut_consulta):
+            rut_limpio_pre = re.sub(r'[\.\-\s]', '', str(rut_consulta)).upper().strip()
+            cons_key = f"cons:{rut_limpio_pre}:{pagina}:{limite}"
+            cached_cons = _disponibilidad_cache.get(cons_key)
+            if cached_cons and (_time.time() - cached_cons[0] < 10.0):
+                return cached_cons[1]
+
         async with pool.acquire() as conn:
-            if data.sessionId:
-                rut_ses = extraer_rut_de_session(data.sessionId)
+            if not rut_consulta and data.sessionId:
                 row_sesion = await conn.fetchrow("SELECT rut FROM sesiones WHERE session_id = $1", data.sessionId)
                 if row_sesion and row_sesion["rut"]:
-                    rut_ses = row_sesion["rut"]
-                if rut_ses and (not current_user or current_user.get("rol") != "admin"):
-                    rut_consulta = rut_ses
+                    rut_consulta = row_sesion["rut"]
 
             if not rut_consulta or "[" in str(rut_consulta):
                 raise HTTPException(status_code=400, detail="RUT no válido.")
 
             rut_limpio = re.sub(r'[\.\-\s]', '', str(rut_consulta)).upper().strip()
+            cons_key = f"cons:{rut_limpio}:{pagina}:{limite}"
 
             reservas_usuario = await conn.fetch(
                 """
@@ -4727,7 +4828,7 @@ async def consultar_reservas(data: EsquemaConsulta, request: Request, credential
 
             if not respuesta and total_historial == 0:
                 sancion = await verificar_sancion_usuario(conn, rut_limpio)
-                return {
+                empty_res = {
                     "success": True,
                     "reservas": [],
                     "sancion": sancion,
@@ -4738,6 +4839,8 @@ async def consultar_reservas(data: EsquemaConsulta, request: Request, credential
                         "total_paginas": 1
                     }
                 }
+                _disponibilidad_cache[cons_key] = (_time.time(), empty_res)
+                return empty_res
 
             if offset >= MAX_HISTORIAL:
                 historial_pasadas = []
@@ -4779,7 +4882,7 @@ async def consultar_reservas(data: EsquemaConsulta, request: Request, credential
                 })
 
             sancion = await verificar_sancion_usuario(conn, rut_limpio)
-            return {
+            full_res = {
                 "success": True,
                 "reservas": respuesta,
                 "sancion": sancion,
@@ -4790,6 +4893,8 @@ async def consultar_reservas(data: EsquemaConsulta, request: Request, credential
                     "total_paginas": total_paginas
                 }
             }
+            _disponibilidad_cache[cons_key] = (_time.time(), full_res)
+            return full_res
 
     except HTTPException:
         raise

@@ -1796,7 +1796,7 @@ export default function FormularioReserva() {
                       <ul className="mt-1 space-y-0.5 text-[11px] opacity-75">
                         {listAcompanantes.map((ac, idx) => (
                           <li key={idx}>
-                            + {ac.nombre} {ac.rut ? `(${ac.rut})` : ""}
+                            + {ac.nombre} {ac.rut ? `(${enmascararRut(ac.rut)})` : ""}
                           </li>
                         ))}
                       </ul>

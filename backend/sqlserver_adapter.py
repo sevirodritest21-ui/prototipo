@@ -202,14 +202,41 @@ def translate_query(query: str, args: tuple):
     translated_q = re.sub(r'=\s*ANY\s*\(\s*%s\s*\)', r'IN (%s)', translated_q, flags=re.IGNORECASE)
     return translated_q, new_args_tuple
 
+_conn_rls_dirty: Dict[int, bool] = {}
+
 class ConnectionWrapper:
     def __init__(self, raw_conn):
         self._conn = raw_conn
+        self._rls_ctx = _rls_context.get()
+
+    def _sync_rls_before_query(self, cur):
+        conn_id = id(self._conn)
+        ctx = self._rls_ctx
+        if ctx and ctx.get("enforced") == "1":
+            cur.execute(
+                """
+                EXEC sp_set_session_context @key=N'rls_enforced', @value=%s;
+                EXEC sp_set_session_context @key=N'rls_rol', @value=%s;
+                EXEC sp_set_session_context @key=N'rls_rut', @value=%s;
+                EXEC sp_set_session_context @key=N'rls_email', @value=%s;
+                """,
+                (
+                    ctx.get("enforced", "1"),
+                    ctx.get("rol", "estudiante"),
+                    ctx.get("rut", ""),
+                    ctx.get("email", "")
+                )
+            )
+            _conn_rls_dirty[conn_id] = True
+        elif _conn_rls_dirty.get(conn_id):
+            cur.execute("EXEC sp_set_session_context @key=N'rls_enforced', @value='0';")
+            _conn_rls_dirty[conn_id] = False
 
     def _execute_sync(self, query: str, args: tuple):
         t_query, t_args = translate_query(query, args)
         cur = self._conn.cursor()
         try:
+            self._sync_rls_before_query(cur)
             cur.execute(t_query, t_args if t_args else None)
             return cur
         except Exception as e:
@@ -360,6 +387,12 @@ class PoolWrapper:
 
     async def init(self, timeout_sec: float = 2.0):
         try:
+            from concurrent.futures import ThreadPoolExecutor
+            loop = asyncio.get_running_loop()
+            loop.set_default_executor(ThreadPoolExecutor(max_workers=64))
+        except Exception:
+            pass
+        try:
             conn = await asyncio.wait_for(asyncio.to_thread(self._create_raw), timeout=timeout_sec)
             await self._pool.put((conn, time.time()))
             self._created += 1
@@ -392,7 +425,6 @@ class PoolWrapper:
             def __init__(self, pool_ref):
                 self.pool = pool_ref
                 self.raw_conn = None
-                self.rls_applied = False
 
             async def __aenter__(self):
                 t0 = time.time()
@@ -401,28 +433,30 @@ class PoolWrapper:
                         self.raw_conn, last_used = self.pool._pool.get_nowait()
                         break
                     except asyncio.QueueEmpty:
-                        need_wait = False
+                        can_create = False
                         async with self.pool._lock:
                             if self.pool._created < self.pool.max_size:
-                                try:
-                                    self.raw_conn = await asyncio.to_thread(self.pool._create_raw)
-                                    self.pool._created += 1
-                                    last_used = time.time()
-                                    self.pool._last_error = None
-                                    break
-                                except Exception as e:
-                                    self.pool._last_error = str(e)
-                            else:
-                                need_wait = True
-                        if need_wait:
+                                self.pool._created += 1
+                                can_create = True
+                        if can_create:
                             try:
-                                self.raw_conn, last_used = await asyncio.wait_for(self.pool._pool.get(), timeout=5.0)
+                                self.raw_conn = await asyncio.to_thread(self.pool._create_raw)
+                                last_used = time.time()
+                                self.pool._last_error = None
+                                break
+                            except Exception as e:
+                                async with self.pool._lock:
+                                    self.pool._created = max(0, self.pool._created - 1)
+                                self.pool._last_error = str(e)
+                        else:
+                            try:
+                                self.raw_conn, last_used = await asyncio.wait_for(self.pool._pool.get(), timeout=2.0)
                                 break
                             except asyncio.TimeoutError:
                                 pass
-                        if time.time() - t0 > 10.0:
+                        if time.time() - t0 > 15.0:
                             raise RuntimeError(f"Tiempo agotado esperando conexion a BD: {self.pool._last_error or 'BD no disponible'}")
-                        await asyncio.sleep(0.5)
+                        await asyncio.sleep(0.02)
 
                 if time.time() - last_used > 45:
                     def _ping(c):
@@ -442,56 +476,16 @@ class PoolWrapper:
                             pass
                         self.raw_conn = await asyncio.to_thread(self.pool._create_raw)
 
-                ctx = _rls_context.get()
-                if ctx and ctx.get("enforced") == "1":
-                    def _set_rls(c, rls_data):
-                        cur = c.cursor()
-                        cur.execute(
-                            """
-                            EXEC sp_set_session_context @key=N'rls_enforced', @value=%s;
-                            EXEC sp_set_session_context @key=N'rls_rol', @value=%s;
-                            EXEC sp_set_session_context @key=N'rls_rut', @value=%s;
-                            EXEC sp_set_session_context @key=N'rls_email', @value=%s;
-                            """,
-                            (
-                                rls_data.get("enforced", "1"),
-                                rls_data.get("rol", "estudiante"),
-                                rls_data.get("rut", ""),
-                                rls_data.get("email", "")
-                            )
-                        )
-                        c.commit()
-                    try:
-                        await asyncio.to_thread(_set_rls, self.raw_conn, ctx)
-                        self.rls_applied = True
-                    except Exception:
-                        pass
-
                 return ConnectionWrapper(self.raw_conn)
 
             async def __aexit__(self, exc_type, exc_val, exc_tb):
                 if self.raw_conn:
                     is_broken = False
-                    try:
-                        if exc_type:
+                    if exc_type:
+                        try:
                             await asyncio.to_thread(self.raw_conn.rollback)
-                        else:
-                            await asyncio.to_thread(self.raw_conn.commit)
-                        if self.rls_applied:
-                            def _clear_rls(c):
-                                cur = c.cursor()
-                                cur.execute(
-                                    """
-                                    EXEC sp_set_session_context @key=N'rls_enforced', @value='0';
-                                    EXEC sp_set_session_context @key=N'rls_rol', @value='system';
-                                    EXEC sp_set_session_context @key=N'rls_rut', @value='';
-                                    EXEC sp_set_session_context @key=N'rls_email', @value='';
-                                    """
-                                )
-                                c.commit()
-                            await asyncio.to_thread(_clear_rls, self.raw_conn)
-                    except Exception:
-                        is_broken = True
+                        except Exception:
+                            is_broken = True
 
                     if is_broken:
                         try:
@@ -533,8 +527,8 @@ async def create_pool(*args, **kwargs) -> PoolWrapper:
     user = os.getenv("MSSQL_USER") or "sa"
     password = os.getenv("MSSQL_PASSWORD") or "SqlAdmin2026!"
     db = os.getenv("MSSQL_DB") or "reservas_db"
-    min_size = int(kwargs.get("min_size", 5))
-    max_size = int(kwargs.get("max_size", 20))
+    min_size = int(kwargs.get("min_size", 10))
+    max_size = int(kwargs.get("max_size", 50))
     pool = PoolWrapper(host=host, port=port, user=user, password=password, db=db, min_size=min_size, max_size=max_size)
     await pool.init()
     return pool

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "../context/AuthContext";
 import { apiGet, apiPost, apiDelete } from "../services/api";
+import { enmascararRut } from "../utils/session";
 import "./SolicitudTalleres.css";
 
 const Icon = ({ path, className = "w-4 h-4" }) => (
@@ -417,7 +418,7 @@ export default function SolicitudTalleres() {
                     <span className="st-profile-tag">Credencial Estudiantil</span>
                     <h2>{user?.nombre || "Estudiante UCT"}</h2>
                     <div className="st-profile-meta">
-                      <span>RUT: {user?.rut || "Sin registrar"}</span>
+                      <span>RUT: {user?.rut ? enmascararRut(user.rut) : "Sin registrar"}</span>
                       {user?.email && <span>• {user.email}</span>}
                     </div>
                   </div>
