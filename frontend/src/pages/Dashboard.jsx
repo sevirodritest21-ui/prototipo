@@ -147,9 +147,34 @@ export default function Dashboard() {
   const [campusDestinoCubiculo, setCampusDestinoCubiculo] = useState("");
   const [creandoCubiculo, setCreandoCubiculo] = useState(false);
 
-  const hoyStr = new Date().toISOString().split("T")[0];
+  const hoyDateInit = new Date();
+  const hoyStr = `${hoyDateInit.getFullYear()}-${String(hoyDateInit.getMonth() + 1).padStart(2, "0")}-${String(hoyDateInit.getDate()).padStart(2, "0")}`;
   const [fechaSeleccionada, setFechaSeleccionada] = useState(hoyStr);
   const [activeTab, setActiveTab] = useState("monitoreo");
+  const [vistaGestionReservas, setVistaGestionReservas] = useState("agenda");
+
+  const obtenerEstadoReserva = (res, fechaRef = fechaSeleccionada) => {
+    const estServidor = String(res?.estado || "").toLowerCase().trim();
+    if (estServidor && estServidor !== "activa") return estServidor;
+    const fStr = String(res?.fecha || fechaRef || "").slice(0, 10);
+    const ahora = new Date();
+    const hoyLocal = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, "0")}-${String(ahora.getDate()).padStart(2, "0")}`;
+    if (fStr && fStr < hoyLocal) return "completada";
+    if (fStr === hoyLocal) {
+      const hRaw = String(res?.hora || "").trim().slice(0, 5);
+      const partes = hRaw.split(":");
+      if (partes.length >= 2) {
+        const hIni = parseInt(partes[0], 10);
+        const mIni = parseInt(partes[1], 10) || 0;
+        if (!isNaN(hIni)) {
+          const finMinutos = (hIni + 1) * 60 + mIni;
+          const actualMinutos = ahora.getHours() * 60 + ahora.getMinutes();
+          if (actualMinutos >= finMinutos) return "completada";
+        }
+      }
+    }
+    return estServidor || "activa";
+  };
   const [busquedaOrdenes, setBusquedaOrdenes] = useState("");
   const [busquedaCubiculos, setBusquedaCubiculos] = useState("");
   const [busquedaGlobal, setBusquedaGlobal] = useState("");
@@ -965,13 +990,13 @@ export default function Dashboard() {
 
   useEffect(() => {
     const t = setTimeout(() => {
-      if (activeTab === "historial") {
+      if (activeTab === "reservas" && vistaGestionReservas === "historial") {
         setPaginaHistorial(1);
         handlersRef.current.fetchHistorial?.(1, limiteHistorial);
       }
     }, 0);
     return () => clearTimeout(t);
-  }, [campusFiltroHistorial, busquedaHistorial, filtroEstadoHistorial, limiteHistorial, activeTab]);
+  }, [campusFiltroHistorial, busquedaHistorial, filtroEstadoHistorial, limiteHistorial, activeTab, vistaGestionReservas]);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -1011,10 +1036,10 @@ export default function Dashboard() {
       if (activeTab === "bloqueos") h.fetchDiasBloqueados?.();
       if (activeTab === "incidencias") h.fetchIncidencias?.();
       if (activeTab === "talleres") h.fetchSolicitudesTalleres?.();
-      if (activeTab === "historial") h.fetchHistorial?.(h.paginaHistorial, h.limiteHistorial);
+      if (activeTab === "reservas" && vistaGestionReservas === "historial") h.fetchHistorial?.(h.paginaHistorial, h.limiteHistorial);
     }, 0);
     return () => clearTimeout(t);
-  }, [activeTab]);
+  }, [activeTab, vistaGestionReservas]);
 
   useEffect(() => {
     const idAUsar = activeTab === "sedes" ? (campusDestinoCubiculo || campusSeleccionado) : (campusSeleccionado || campusDestinoCubiculo);
@@ -1858,15 +1883,6 @@ export default function Dashboard() {
             </svg>
           ),
         },
-        {
-          id: "historial",
-          label: "Historial de Registros",
-          svg: (
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          ),
-        },
       ],
     },
   ];
@@ -1879,10 +1895,10 @@ export default function Dashboard() {
       fetchIncidencias();
       fetchResumen();
     }
+    if (tabId === "reservas" && vistaGestionReservas === "historial") fetchHistorial();
     if (tabId === "cms" || tabId === "faqs") fetchCMS();
     if (tabId === "calendario") fetchDiasBloqueados();
     if (tabId === "talleres") fetchSolicitudesTalleres();
-    if (tabId === "historial") fetchHistorial();
     if (tabId === "incidencias") fetchIncidencias();
     if (tabId === "metricas") {
       setTipoMetricas("selector");
@@ -3439,7 +3455,7 @@ export default function Dashboard() {
                                 }
 
                                 return filtradas.map((h, i) => {
-                                  const est = (h.estado || "").toLowerCase();
+                                  const est = obtenerEstadoReserva(h, h.fecha);
                                   let dotColor = "bg-slate-400";
                                   let labelStatus = "Finalizada";
 
@@ -3959,30 +3975,33 @@ export default function Dashboard() {
 
             const handleExportarGestionExcel = () => {
               if (reservasOrdenadas.length === 0) {
-                setToastNotificacion({ tipo: "error", texto: "No hay reservas activas en la tabla para exportar." });
+                setToastNotificacion({ tipo: "error", texto: "No hay reservas en la tabla para exportar." });
                 return;
               }
-              const dataExport = reservasOrdenadas.map((r, i) => ({
-                "N°": i + 1,
-                "Folio": `#${r.id}`,
-                "Estudiante Titular": r.nombre,
-                "RUT": r.rut,
-                "Cubículo": r.cubiculo_codigo || "N/A",
-                "Sede": campusSeleccionadoObj?.nombre || "Sede UCT",
-                "Fecha": r.fecha || fechaSeleccionada,
-                "Horario": r.rango || r.hora,
-                "Modalidad": (r.acompanantes?.length || 0) > 0 ? `Grupal (${r.acompanantes.length + 1})` : "Individual",
-                "Acompañantes": (r.acompanantes || []).map((ac) => `${ac.nombre} (${ac.rut || "-"})`).join(", ") || "Sin acompañantes",
-                "Estado": "Activa"
-              }));
+              const dataExport = reservasOrdenadas.map((r, i) => {
+                const estCalc = obtenerEstadoReserva(r, r.fecha || fechaSeleccionada);
+                return {
+                  "N°": i + 1,
+                  "Folio": `#${r.id}`,
+                  "Estudiante Titular": r.nombre,
+                  "RUT": r.rut,
+                  "Cubículo": r.cubiculo_codigo || "N/A",
+                  "Sede": campusSeleccionadoObj?.nombre || "Sede UCT",
+                  "Fecha": r.fecha || fechaSeleccionada,
+                  "Horario": r.rango || r.hora,
+                  "Modalidad": (r.acompanantes?.length || 0) > 0 ? `Grupal (${r.acompanantes.length + 1})` : "Individual",
+                  "Acompañantes": (r.acompanantes || []).map((ac) => `${ac.nombre} (${ac.rut || "-"})`).join(", ") || "Sin acompañantes",
+                  "Estado": estCalc === "completada" ? "Completada" : "Activa"
+                };
+              });
               const wb = XLSX.utils.book_new();
               const ws = XLSX.utils.json_to_sheet(dataExport);
               ws["!cols"] = [
                 { wch: 5 }, { wch: 10 }, { wch: 28 }, { wch: 15 }, { wch: 12 },
                 { wch: 24 }, { wch: 14 }, { wch: 18 }, { wch: 16 }, { wch: 42 }, { wch: 12 }
               ];
-              XLSX.utils.book_append_sheet(wb, ws, "Reservas Activas");
-              XLSX.writeFile(wb, `Reservas_Activas_${campusSeleccionadoObj?.nombre || "UCT"}_${fechaSeleccionada}.xlsx`);
+              XLSX.utils.book_append_sheet(wb, ws, "Reservas");
+              XLSX.writeFile(wb, `Reservas_${campusSeleccionadoObj?.nombre || "UCT"}_${fechaSeleccionada}.xlsx`);
               setToastNotificacion({ tipo: "exito", texto: "Listado de reservas exportado a Excel correctamente." });
             };
 
@@ -3997,8 +4016,42 @@ export default function Dashboard() {
             return (
               <div className="flex-1 flex flex-col min-h-[calc(100vh-118px)] animate-fadeIn">
                 <div className="flex-1 flex flex-col justify-between bg-white rounded-3xl border border-[#00629B]/20 shadow-[0_18px_48px_-14px_rgba(0,45,76,0.12)] overflow-hidden">
-                  <div className="flex-1 flex flex-col">
-                    <div className="p-5 sm:px-7 sm:py-5 flex flex-col xl:flex-row xl:items-center justify-between gap-4 bg-gradient-to-r from-white via-sky-50/35 to-white border-b border-slate-200/80">
+                  <div className="px-5 sm:px-7 py-3.5 bg-gradient-to-r from-[#002D4C] via-[#004D7A] to-[#00629B] border-b border-white/15 flex flex-wrap items-center justify-between gap-3">
+                    <div className="inline-flex items-center p-1 rounded-full bg-black/25 border border-white/15">
+                      <button
+                        type="button"
+                        onClick={() => setVistaGestionReservas("agenda")}
+                        className={`px-4 py-2 rounded-full text-xs font-extrabold transition-all cursor-pointer inline-flex items-center gap-2 ${
+                          vistaGestionReservas === "agenda"
+                            ? "bg-white text-[#002D4C] shadow-sm"
+                            : "text-sky-100 hover:text-white"
+                        }`}
+                      >
+                        <UiIcon name="calendar" className="w-3.5 h-3.5" />
+                        <span>Reservas por Día y Bloque</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setVistaGestionReservas("historial");
+                          fetchHistorial(1, limiteHistorial);
+                        }}
+                        className={`px-4 py-2 rounded-full text-xs font-extrabold transition-all cursor-pointer inline-flex items-center gap-2 ${
+                          vistaGestionReservas === "historial"
+                            ? "bg-white text-[#002D4C] shadow-sm"
+                            : "text-sky-100 hover:text-white"
+                        }`}
+                      >
+                        <UiIcon name="clock" className="w-3.5 h-3.5" />
+                        <span>Historial de Reservas</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {vistaGestionReservas === "agenda" ? (
+                    <>
+                      <div className="flex-1 flex flex-col">
+                        <div className="p-5 sm:px-7 sm:py-5 flex flex-col xl:flex-row xl:items-center justify-between gap-4 bg-gradient-to-r from-white via-sky-50/35 to-white border-b border-slate-200/80">
                       <div className="flex flex-wrap items-center gap-3">
                         <div className="relative w-full sm:w-72">
                           <input
@@ -4315,10 +4368,17 @@ export default function Dashboard() {
                                     </td>
 
                                     <td className="py-3.5 px-4 whitespace-nowrap">
-                                      <span className="inline-flex items-center gap-1.5 justify-center px-3 py-1 rounded-full text-[11px] font-extrabold bg-[#00629B] text-white shadow-2xs">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-[#FFC20E]" />
-                                        <span>Activa</span>
-                                      </span>
+                                      {obtenerEstadoReserva(res, res.fecha || fechaSeleccionada) === "completada" ? (
+                                        <span className="inline-flex items-center gap-1.5 justify-center px-3 py-1 rounded-full text-[11px] font-extrabold bg-emerald-600 text-white shadow-2xs">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-200" />
+                                          <span>Completada</span>
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1.5 justify-center px-3 py-1 rounded-full text-[11px] font-extrabold bg-[#00629B] text-white shadow-2xs">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-[#FFC20E]" />
+                                          <span>Activa</span>
+                                        </span>
+                                      )}
                                     </td>
 
                                     <td className="py-3.5 px-4 text-slate-600">
@@ -4405,7 +4465,7 @@ export default function Dashboard() {
                         </svg>
                       </div>
                       <span className="text-slate-500 font-medium">
-                        de <strong className="text-[#002D4C] font-extrabold">{totalFilas}</strong> {totalFilas === 1 ? "reserva activa" : "reservas activas"}
+                        de <strong className="text-[#002D4C] font-extrabold">{totalFilas}</strong> {totalFilas === 1 ? "reserva" : "reservas"}
                       </span>
                     </div>
 
@@ -4464,6 +4524,217 @@ export default function Dashboard() {
                       </button>
                     </div>
                   </div>
+                    </>
+                  ) : (
+                    <div className="flex-1 flex flex-col p-6 md:p-8 space-y-6 animate-fadeIn">
+                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+                        <div className="space-y-1.5">
+                          <h2 className={SECTION_TITLE}>Historial de Reservas y Cancelaciones</h2>
+                          <p className="text-xs text-slate-500 max-w-2xl leading-relaxed">
+                            Consulta el registro permanente de reservas pasadas, completadas, archivadas o canceladas por los estudiantes.
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+                          <button
+                            type="button"
+                            onClick={handleDescargarExcelHistorial}
+                            disabled={exportandoExcel || cargandoHistorial}
+                            className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl shadow-[0_6px_16px_-8px_rgba(5,150,105,0.9)] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Exportar archivo Excel (.xlsx)"
+                          >
+                            <span><UiIcon name="chart" className="w-4 h-4" /></span>
+                            <span>{exportandoExcel ? "Generando Excel..." : "Descargar Excel"}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={handleLimpiarHistorial}
+                            disabled={limpiandoHistorial || cargandoHistorial || historial.length === 0}
+                            className={BTN_DANGER}
+                            title="Purgar y vaciar historial antiguo"
+                          >
+                            <span><UiIcon name="trash" className="w-4 h-4" /></span>
+                            <span>{limpiandoHistorial ? "Limpiando..." : "Limpiar historial"}</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                          <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+                            <div className="relative w-full sm:w-80">
+                              <input
+                                type="text"
+                                value={busquedaHistorial}
+                                onChange={(e) => setBusquedaHistorial(e.target.value)}
+                                placeholder="Buscar por alumno o RUT..."
+                                className={INPUT}
+                              />
+                            </div>
+                            <select
+                              value={campusFiltroHistorial}
+                              onChange={(e) => setCampusFiltroHistorial(e.target.value)}
+                              className={`${INPUT} sm:w-auto font-semibold cursor-pointer`}
+                            >
+                              <option value="todos">Todas las sedes</option>
+                              {campus.map((c) => (
+                                <option key={c.id} value={c.id}>{c.nombre}</option>
+                              ))}
+                            </select>
+                            <select
+                              value={filtroEstadoHistorial}
+                              onChange={(e) => setFiltroEstadoHistorial(e.target.value)}
+                              className={`${INPUT} sm:w-auto font-semibold cursor-pointer`}
+                            >
+                              <option value="todos">Todos los estados</option>
+                              <option value="completada">Completada con éxito</option>
+                              <option value="liberada">Liberada por estudiante</option>
+                              <option value="cancelada">Cancelada por admin</option>
+                              <option value="inasistencia">Inasistencia</option>
+                              <option value="activa">Activa / En curso</option>
+                              <option value="justificada">Justificada</option>
+                            </select>
+                          </div>
+                          <button onClick={() => fetchHistorial(1, limiteHistorial)} className={BTN_GHOST}>
+                            Actualizar registros
+                          </button>
+                        </div>
+
+                        {cargandoHistorial ? (
+                          <div className="py-14 text-center text-slate-500 space-y-3">
+                            <div className="w-6 h-6 border-2 border-[#00629B] border-t-transparent rounded-full animate-spin mx-auto" />
+                            <p className="text-xs font-medium">Cargando registros históricos...</p>
+                          </div>
+                        ) : historial.length === 0 ? (
+                          <div className="py-12 text-center bg-slate-50/70 rounded-2xl border border-dashed border-slate-200 text-xs text-slate-500">
+                            No hay reservas registradas en el historial para esta búsqueda.
+                          </div>
+                        ) : (
+                          <>
+                            <div className="overflow-x-auto rounded-2xl border border-slate-200/80 shadow-xs">
+                              <table className="w-full text-left border-collapse text-xs">
+                                <thead>
+                                  <tr className="bg-slate-50/80 text-slate-600 font-semibold border-b border-slate-200 text-[11px]">
+                                    <th className="p-3.5">ID original</th>
+                                    <th className="p-3.5">Alumno titular</th>
+                                    <th className="p-3.5">RUT</th>
+                                    <th className="p-3.5">Carrera</th>
+                                    <th className="p-3.5">Sede</th>
+                                    <th className="p-3.5">Fecha reserva</th>
+                                    <th className="p-3.5">Hora bloque</th>
+                                    <th className="p-3.5">Estado</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 bg-white">
+                                  {historial.map((h) => {
+                                    const estHist = obtenerEstadoReserva(h, h.fecha);
+                                    return (
+                                    <tr key={h.id} className="hover:bg-slate-50/70 transition-colors">
+                                      <td className="p-3.5 font-semibold text-slate-400">#{h.reserva_id || h.id}</td>
+                                      <td className="p-3.5 font-bold text-slate-900">{h.nombre}</td>
+                                      <td className="p-3.5 font-medium text-slate-700">{h.rut}</td>
+                                      <td className="p-3.5 font-semibold text-[#00629B] max-w-[200px] truncate" title={h.carrera || "General"}>
+                                        {h.carrera || "General"}
+                                      </td>
+                                      <td className="p-3.5 text-slate-600 font-medium">{h.campus_nombre || "Sede Principal"}</td>
+                                      <td className="p-3.5 text-slate-800 font-semibold">{h.fecha}</td>
+                                      <td className="p-3.5 font-bold text-[#00629B]">{h.hora} hrs</td>
+                                      <td className="p-3.5">
+                                        <span
+                                          className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${estHist === "cancelada"
+                                            ? "bg-rose-50 text-rose-700 border border-rose-200"
+                                            : estHist === "liberada"
+                                              ? "bg-amber-50 text-amber-800 border border-amber-200"
+                                              : estHist === "inasistencia"
+                                                ? "bg-rose-100 text-rose-800 border border-rose-300"
+                                                : estHist === "completada" || estHist === "expirada"
+                                                  ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                                                  : estHist === "justificada"
+                                                    ? "bg-purple-50 text-purple-800 border border-purple-200"
+                                                    : "bg-sky-50 text-sky-800 border border-sky-200"
+                                            }`}
+                                        >
+                                          {estHist === "inasistencia"
+                                            ? "Inasistencia"
+                                            : estHist === "liberada"
+                                              ? "Liberada"
+                                              : estHist === "cancelada"
+                                                ? "Cancelada"
+                                                : estHist === "completada" || estHist === "expirada"
+                                                  ? "Completada con éxito"
+                                                  : estHist === "justificada"
+                                                    ? "Justificada"
+                                                    : "Activa"}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+
+                            {totalHistorial > 0 && (
+                              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 pb-2 border-t border-slate-100 text-xs text-slate-600">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium">Mostrar</span>
+                                  <select
+                                    value={limiteHistorial}
+                                    onChange={(e) => {
+                                      const nuevoLim = Number(e.target.value);
+                                      setLimiteHistorial(nuevoLim);
+                                      setPaginaHistorial(1);
+                                      fetchHistorial(1, nuevoLim);
+                                    }}
+                                    className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl font-bold text-slate-800 outline-none cursor-pointer shadow-2xs hover:border-slate-300"
+                                  >
+                                    <option value={10}>10</option>
+                                    <option value={25}>25</option>
+                                    <option value={50}>50</option>
+                                    <option value={100}>100</option>
+                                  </select>
+                                  <span className="font-medium">por página</span>
+                                  <span className="text-slate-400 ml-2 font-mono text-[11px]">
+                                    ({(paginaHistorial - 1) * limiteHistorial + 1} - {Math.min(paginaHistorial * limiteHistorial, totalHistorial)} de {totalHistorial})
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    disabled={paginaHistorial <= 1 || cargandoHistorial}
+                                    onClick={() => {
+                                      const prev = paginaHistorial - 1;
+                                      setPaginaHistorial(prev);
+                                      fetchHistorial(prev, limiteHistorial);
+                                    }}
+                                    className="px-3.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shadow-2xs"
+                                  >
+                                    ◀ Anterior
+                                  </button>
+                                  <span className="px-3 py-1.5 font-bold text-[#00629B] bg-sky-50 rounded-xl border border-sky-100 font-mono text-xs">
+                                    {paginaHistorial} / {Math.max(1, Math.ceil(totalHistorial / limiteHistorial))}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    disabled={paginaHistorial >= Math.ceil(totalHistorial / limiteHistorial) || cargandoHistorial}
+                                    onClick={() => {
+                                      const sig = paginaHistorial + 1;
+                                      setPaginaHistorial(sig);
+                                      fetchHistorial(sig, limiteHistorial);
+                                    }}
+                                    className="px-3.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shadow-2xs"
+                                  >
+                                    Siguiente ▶
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -6636,226 +6907,6 @@ export default function Dashboard() {
                 </div>
               )}
             </>
-          )}
-
-          {(activeTab === "historial") && (
-            <div className={`${CARD} p-6 md:p-8 mb-8 space-y-6 animate-fadeIn`}>
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
-                <div className="space-y-1.5">
-                  <h2 className={SECTION_TITLE}>Historial de Reservas y Cancelaciones</h2>
-                  <p className="text-xs text-slate-500 max-w-2xl leading-relaxed">
-                    Consulta el registro permanente de reservas pasadas, archivadas o canceladas por los estudiantes.
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
-                  <button
-                    type="button"
-                    onClick={handleDescargarExcelHistorial}
-                    disabled={exportandoExcel || cargandoHistorial}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl shadow-[0_6px_16px_-8px_rgba(5,150,105,0.9)] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Exportar archivo Excel (.xlsx)"
-                  >
-                    <span><UiIcon name="chart" className="w-4 h-4" /></span>
-                    <span>{exportandoExcel ? "Generando Excel..." : "Descargar Excel"}</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleLimpiarHistorial}
-                    disabled={limpiandoHistorial || cargandoHistorial || historial.length === 0}
-                    className={BTN_DANGER}
-                    title="Purgar y vaciar historial antiguo"
-                  >
-                    <span><UiIcon name="trash" className="w-4 h-4" /></span>
-                    <span>{limpiandoHistorial ? "Limpiando..." : "Limpiar historial"}</span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setMostrarHistorial(!mostrarHistorial);
-                      if (!mostrarHistorial) fetchHistorial();
-                    }}
-                    className={`${BTN_PRIMARY} px-4 py-2.5`}
-                  >
-                    <span>{mostrarHistorial ? "Ocultar" : "Mostrar"}</span>
-                  </button>
-                </div>
-              </div>
-
-              {mostrarHistorial && (
-                <div className="space-y-4 animate-fadeIn">
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-                    <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
-                      <div className="relative w-full sm:w-80">
-                        <input
-                          type="text"
-                          value={busquedaHistorial}
-                          onChange={(e) => setBusquedaHistorial(e.target.value)}
-                          placeholder="Buscar por alumno o RUT..."
-                          className={INPUT}
-                        />
-                      </div>
-                      <select
-                        value={campusFiltroHistorial}
-                        onChange={(e) => setCampusFiltroHistorial(e.target.value)}
-                        className={`${INPUT} sm:w-auto font-semibold cursor-pointer`}
-                      >
-                        <option value="todos">Todas las sedes</option>
-                        {campus.map((c) => (
-                          <option key={c.id} value={c.id}>{c.nombre}</option>
-                        ))}
-                      </select>
-                      <select
-                        value={filtroEstadoHistorial}
-                        onChange={(e) => setFiltroEstadoHistorial(e.target.value)}
-                        className={`${INPUT} sm:w-auto font-semibold cursor-pointer`}
-                      >
-                        <option value="todos">Todos los estados</option>
-                        <option value="completada">Completada con éxito</option>
-                        <option value="liberada">Liberada por estudiante</option>
-                        <option value="cancelada">Cancelada por admin</option>
-                        <option value="inasistencia">Inasistencia</option>
-                        <option value="activa">Activa / En curso</option>
-                        <option value="justificada">Justificada</option>
-                      </select>
-                    </div>
-                    <button onClick={() => fetchHistorial(1, limiteHistorial)} className={BTN_GHOST}>
-                      Actualizar registros
-                    </button>
-                  </div>
-
-                  {cargandoHistorial ? (
-                    <div className="py-14 text-center text-slate-500 space-y-3">
-                      <div className="w-6 h-6 border-2 border-[#00629B] border-t-transparent rounded-full animate-spin mx-auto" />
-                      <p className="text-xs font-medium">Cargando registros históricos...</p>
-                    </div>
-                  ) : historial.length === 0 ? (
-                    <div className="py-12 text-center bg-slate-50/70 rounded-2xl border border-dashed border-slate-200 text-xs text-slate-500">
-                      No hay reservas registradas en el historial para esta búsqueda.
-                    </div>
-                  ) : (
-                    <>
-                      <div className="overflow-x-auto rounded-2xl border border-slate-200/80 shadow-xs">
-                        <table className="w-full text-left border-collapse text-xs">
-                          <thead>
-                            <tr className="bg-slate-50/80 text-slate-600 font-semibold border-b border-slate-200 text-[11px]">
-                              <th className="p-3.5">ID original</th>
-                              <th className="p-3.5">Alumno titular</th>
-                              <th className="p-3.5">RUT</th>
-                              <th className="p-3.5">Carrera</th>
-                              <th className="p-3.5">Sede</th>
-                              <th className="p-3.5">Fecha reserva</th>
-                              <th className="p-3.5">Hora bloque</th>
-                              <th className="p-3.5">Estado</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100 bg-white">
-                            {historial.map((h) => (
-                              <tr key={h.id} className="hover:bg-slate-50/70 transition-colors">
-                                <td className="p-3.5 font-semibold text-slate-400">#{h.reserva_id || h.id}</td>
-                                <td className="p-3.5 font-bold text-slate-900">{h.nombre}</td>
-                                <td className="p-3.5 font-medium text-slate-700">{h.rut}</td>
-                                <td className="p-3.5 font-semibold text-[#00629B] max-w-[200px] truncate" title={h.carrera || "General"}>
-                                  {h.carrera || "General"}
-                                </td>
-                                <td className="p-3.5 text-slate-600 font-medium">{h.campus_nombre || "Sede Principal"}</td>
-                                <td className="p-3.5 text-slate-800 font-semibold">{h.fecha}</td>
-                                <td className="p-3.5 font-bold text-[#00629B]">{h.hora} hrs</td>
-                                <td className="p-3.5">
-                                  <span
-                                    className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${h.estado === "cancelada"
-                                      ? "bg-rose-50 text-rose-700 border border-rose-200"
-                                      : h.estado === "liberada"
-                                        ? "bg-amber-50 text-amber-800 border border-amber-200"
-                                        : h.estado === "inasistencia"
-                                          ? "bg-rose-100 text-rose-800 border border-rose-300"
-                                          : h.estado === "completada" || h.estado === "expirada"
-                                            ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                                            : h.estado === "justificada"
-                                              ? "bg-purple-50 text-purple-800 border border-purple-200"
-                                              : "bg-sky-50 text-sky-800 border border-sky-200"
-                                      }`}
-                                  >
-                                    {h.estado === "inasistencia"
-                                      ? "Inasistencia"
-                                      : h.estado === "liberada"
-                                        ? "Liberada"
-                                        : h.estado === "cancelada"
-                                          ? "Cancelada"
-                                          : h.estado === "completada" || h.estado === "expirada"
-                                            ? "Completada con éxito"
-                                            : h.estado === "justificada"
-                                              ? "Justificada"
-                                              : "Activa"}
-                                  </span>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {totalHistorial > 0 && (
-                        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 pb-2 border-t border-slate-100 text-xs text-slate-600">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">Mostrar</span>
-                            <select
-                              value={limiteHistorial}
-                              onChange={(e) => {
-                                const nuevoLim = Number(e.target.value);
-                                setLimiteHistorial(nuevoLim);
-                                setPaginaHistorial(1);
-                                fetchHistorial(1, nuevoLim);
-                              }}
-                              className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl font-bold text-slate-800 outline-none cursor-pointer shadow-2xs hover:border-slate-300"
-                            >
-                              <option value={10}>10</option>
-                              <option value={25}>25</option>
-                              <option value={50}>50</option>
-                              <option value={100}>100</option>
-                            </select>
-                            <span className="font-medium">por página</span>
-                            <span className="text-slate-400 ml-2 font-mono text-[11px]">
-                              ({(paginaHistorial - 1) * limiteHistorial + 1} - {Math.min(paginaHistorial * limiteHistorial, totalHistorial)} de {totalHistorial})
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              disabled={paginaHistorial <= 1 || cargandoHistorial}
-                              onClick={() => {
-                                const prev = paginaHistorial - 1;
-                                setPaginaHistorial(prev);
-                                fetchHistorial(prev, limiteHistorial);
-                              }}
-                              className="px-3.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shadow-2xs"
-                            >
-                              ◀ Anterior
-                            </button>
-                            <span className="px-3 py-1.5 font-bold text-[#00629B] bg-sky-50 rounded-xl border border-sky-100 font-mono text-xs">
-                              {paginaHistorial} / {Math.max(1, Math.ceil(totalHistorial / limiteHistorial))}
-                            </span>
-                            <button
-                              type="button"
-                              disabled={paginaHistorial >= Math.ceil(totalHistorial / limiteHistorial) || cargandoHistorial}
-                              onClick={() => {
-                                const sig = paginaHistorial + 1;
-                                setPaginaHistorial(sig);
-                                fetchHistorial(sig, limiteHistorial);
-                              }}
-                              className="px-3.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shadow-2xs"
-                            >
-                              Siguiente ▶
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
           )}
 
           {bloqueSeleccionado && (() => {

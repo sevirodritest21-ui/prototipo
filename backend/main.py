@@ -409,7 +409,7 @@ async def _init_database_and_services():
                 await conn.execute("""
                     UPDATE historial_reservas
                     SET estado = 'completada'
-                    WHERE (fecha < CURRENT_DATE OR (fecha = CURRENT_DATE AND hora < CURRENT_TIME))
+                    WHERE (fecha < CAST(GETDATE() AS DATE) OR (fecha = CAST(GETDATE() AS DATE) AND DATEDIFF(minute, TRY_CAST(LEFT(CAST(hora AS VARCHAR(10)), 5) AS TIME), CAST(GETDATE() AS TIME)) >= 60))
                       AND estado NOT IN ('cancelada', 'liberada', 'inasistencia', 'justificada')
                 """)
                 await conn.execute("""
@@ -4343,7 +4343,7 @@ async def obtener_historial_reservas(
                 r.id, r.id AS reserva_id, r.nombre, r.rut, r.fecha::text, CONVERT(VARCHAR(5), r.hora, 108) AS hora,
                 COALESCE(r.carrera, 'Otras Carreras / General') AS carrera,
                 CASE 
-                    WHEN (r.fecha < CURRENT_DATE) OR (r.fecha = CURRENT_DATE AND r.hora < CURRENT_TIME) THEN 'completada'
+                    WHEN (r.fecha < CAST(GETDATE() AS DATE)) OR (r.fecha = CAST(GETDATE() AS DATE) AND DATEDIFF(minute, TRY_CAST(CONVERT(VARCHAR(5), r.hora, 108) AS TIME), CAST(GETDATE() AS TIME)) >= 60) THEN 'completada'
                     ELSE 'activa'
                 END AS estado,
                 COALESCE(r.created_at, CAST(r.fecha AS DATETIME2)) AS sort_ts,
@@ -4364,7 +4364,7 @@ async def obtener_historial_reservas(
                     WHEN h.estado = 'liberada' THEN 'liberada'
                     WHEN h.estado = 'inasistencia' THEN 'inasistencia'
                     WHEN h.estado = 'justificada' THEN 'justificada'
-                    WHEN (h.fecha < CURRENT_DATE) OR (h.fecha = CURRENT_DATE AND h.hora::time < CURRENT_TIME) THEN 'completada'
+                    WHEN (h.fecha < CAST(GETDATE() AS DATE)) OR (h.fecha = CAST(GETDATE() AS DATE) AND DATEDIFF(minute, TRY_CAST(LEFT(CAST(h.hora AS VARCHAR(10)), 5) AS TIME), CAST(GETDATE() AS TIME)) >= 60) THEN 'completada'
                     WHEN h.estado = 'expirada' THEN 'completada'
                     ELSE h.estado
                 END AS estado,
@@ -4909,7 +4909,11 @@ async def obtener_reservas_bloque(campus_id: int, fecha: str, hora: str, current
 
     try:
         fecha_parsed = datetime.strptime(fecha.strip(), "%Y-%m-%d").date()
-        hora_parsed = datetime.strptime(hora.strip(), "%H:%M").time()
+        hora_parsed = datetime.strptime(hora.strip()[:5], "%H:%M").time()
+        ahora = datetime.now()
+        fin_bloque_dt = datetime.combine(fecha_parsed, hora_parsed) + timedelta(hours=1)
+        es_completada = (fecha_parsed < ahora.date()) or (fecha_parsed == ahora.date() and ahora >= fin_bloque_dt)
+        estado_bloque = "completada" if es_completada else "activa"
 
         async with pool.acquire() as conn:
             filas_reservas = await conn.fetch(
@@ -4923,6 +4927,13 @@ async def obtener_reservas_bloque(campus_id: int, fecha: str, hora: str, current
                 campus_id, fecha_parsed, hora_parsed
             )
 
+            if es_completada and filas_reservas:
+                ids_completadas = [r["id"] for r in filas_reservas]
+                await conn.execute(
+                    "UPDATE historial_reservas SET estado = 'completada' WHERE reserva_id = ANY($1) AND estado = 'activa'",
+                    ids_completadas
+                )
+
             resultado = []
             for r in filas_reservas:
                 filas_ac = await conn.fetch("SELECT nombre, rut FROM reserva_acompanantes WHERE reserva_id = $1", r["id"])
@@ -4934,6 +4945,7 @@ async def obtener_reservas_bloque(campus_id: int, fecha: str, hora: str, current
                     "sessionId": r["session_id"],
                     "fecha": fecha.strip(),
                     "hora": hora.strip(),
+                    "estado": estado_bloque,
                     "cubiculo_codigo": r["cubiculo_codigo"] or "N/A",
                     "acompanantes": [{"nombre": ac["nombre"], "rut": ac["rut"]} for ac in filas_ac]
                 })
