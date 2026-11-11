@@ -219,7 +219,7 @@ export default function Login() {
                   autoComplete="email"
                   value={form.email}
                   onChange={handleChange}
-                  placeholder={esEstudiante ? "alumno@alu.uct.cl" : "admin@biblioteca.cl"}
+                  placeholder={esEstudiante ? "alumno@alu.uct.cl" : "admin@biblioteca.uct.cl"}
                   className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 text-sm outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-900/5 transition-all"
                 />
               </div>
