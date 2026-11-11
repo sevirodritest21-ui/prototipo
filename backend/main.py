@@ -1107,6 +1107,7 @@ class ActualizarEstadoIncidenciaRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: str
     password: str
+    rol: Optional[str] = None
 
 
 class TokenResponse(BaseModel):
@@ -1388,6 +1389,22 @@ async def login(data: LoginRequest, request: Request, response: Response):
             detail="Credenciales incorrectas.",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    if data.rol:
+        req_rol = data.rol.strip().lower()
+        user_rol = (row["rol"] or "").strip().lower()
+        if req_rol == "admin" and user_rol != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Esta cuenta no tiene permisos de Administrador. Por favor selecciona Estudiante.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        elif req_rol == "estudiante" and user_rol == "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Esta cuenta es de Administrador. Por favor selecciona la pestaña Administrador.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
     access_token = create_access_token(data={"sub": row["email"]})
     refresh_token = create_refresh_token(data={"sub": row["email"]})
 

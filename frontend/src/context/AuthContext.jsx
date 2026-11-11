@@ -32,8 +32,10 @@ export function AuthProvider({ children }) {
     restoreSession();
   }, []);
 
-  const login = useCallback(async (email, password) => {
-    const data = await apiPost('/api/auth/login', { email, password });
+  const login = useCallback(async (email, password, rol = null) => {
+    const payload = { email, password };
+    if (rol) payload.rol = rol;
+    const data = await apiPost('/api/auth/login', payload);
     localStorage.setItem('auth_token', data.access_token);
     setToken(data.access_token);
     const userData = await apiGet('/api/auth/me');

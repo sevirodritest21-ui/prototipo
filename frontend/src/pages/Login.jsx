@@ -61,7 +61,7 @@ export default function Login() {
     setLoading(true);
     setError("");
     try {
-      const userData = await login(form.email, form.password);
+      const userData = await login(form.email, form.password, tipoUsuario);
       sessionStorage.removeItem("alerta_incidencias_admin_mostrada");
 
       if (userData.rol === "admin") {
