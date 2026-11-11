@@ -183,6 +183,7 @@ export default function Dashboard() {
     return new Date(d.getFullYear(), d.getMonth(), 1);
   });
   const [modalManualUsuario, setModalManualUsuario] = useState(false);
+  const [modalAcompanantesGestion, setModalAcompanantesGestion] = useState(null);
   const [seccionManual, setSeccionManual] = useState("terminologia");
   const [busquedaManual, setBusquedaManual] = useState("");
 
@@ -4383,11 +4384,24 @@ export default function Dashboard() {
 
                                     <td className="py-3.5 px-4 text-slate-600">
                                       {numAc > 0 ? (
-                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-50 border border-sky-200/80 text-[#004D7A] font-semibold text-xs">
-                                          <span>{numAc} {numAc === 1 ? "acompañante" : "acompañantes"}</span>
-                                          <span className="text-slate-400">·</span>
-                                          <span className="truncate max-w-[180px]">{res.acompanantes.map((a) => a.nombre.split(" ")[0]).join(", ")}</span>
-                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => setModalAcompanantesGestion(res)}
+                                          title="Ver detalle de acompañantes"
+                                          className="text-left px-2.5 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 border border-sky-200/80 hover:border-[#00629B] text-[#004D7A] font-semibold text-xs transition-all cursor-pointer min-w-[150px]"
+                                        >
+                                          <ul className="space-y-0.5">
+                                            {res.acompanantes.slice(0, 3).map((a, i) => (
+                                              <li key={i} className="flex items-center gap-1.5 truncate max-w-[200px]">
+                                                <span className="w-1 h-1 rounded-full bg-[#00629B] shrink-0" />
+                                                <span className="truncate">{a.nombre}</span>
+                                              </li>
+                                            ))}
+                                            {numAc > 3 && (
+                                              <li className="text-[10px] text-slate-500 pl-2.5">+{numAc - 3} más</li>
+                                            )}
+                                          </ul>
+                                        </button>
                                       ) : (
                                         <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 font-semibold text-xs">
                                           Individual
@@ -6907,6 +6921,56 @@ export default function Dashboard() {
                 </div>
               )}
             </>
+          )}
+
+          {modalAcompanantesGestion && (
+            <div
+              className="fixed inset-0 z-[70] bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn"
+              onClick={() => setModalAcompanantesGestion(null)}
+            >
+              <div
+                className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="px-5 py-4 border-b border-slate-100 flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-black text-[#002D4C]">Acompañantes de la reserva</h3>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Titular: <strong className="text-slate-700">{modalAcompanantesGestion.nombre}</strong> · Folio #{modalAcompanantesGestion.id}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setModalAcompanantesGestion(null)}
+                    className="text-slate-400 hover:text-slate-700 text-sm font-bold cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <ul className="p-5 space-y-2.5 max-h-[60vh] overflow-y-auto">
+                  {(modalAcompanantesGestion.acompanantes || []).map((ac, i) => (
+                    <li key={i} className="flex items-center gap-3 p-3 rounded-xl border border-slate-200/80 bg-slate-50/60">
+                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#002D4C] to-[#00629B] text-white text-xs font-black flex items-center justify-center shrink-0">
+                        {(ac.nombre || "AC").split(" ").filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase()).join("")}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-sm font-bold text-slate-900 truncate">{ac.nombre}</div>
+                        <div className="text-xs font-mono text-slate-500">RUT: {ac.rut || "No registrado"}</div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 text-right">
+                  <button
+                    type="button"
+                    onClick={() => setModalAcompanantesGestion(null)}
+                    className="py-2 px-5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
 
           {bloqueSeleccionado && (() => {
