@@ -1377,6 +1377,13 @@ async def login(data: LoginRequest, request: Request, response: Response):
             detail="Demasiados intentos fallidos de inicio de sesión desde esta IP. Por favor, espera 1 minuto antes de reintentar."
         )
 
+    if data.rol and data.rol.strip().lower() == "estudiante":
+        if not data.email.strip().lower().endswith("@alu.uct.cl"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El correo institucional de estudiante debe pertenecer al dominio @alu.uct.cl.",
+            )
+
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT id, email, hashed_password, nombre, rut, rol FROM usuarios WHERE email = $1",

@@ -58,6 +58,10 @@ export default function Login() {
       setError("Por favor, completa todos los campos.");
       return;
     }
+    if (esEstudiante && !form.email.trim().toLowerCase().endsWith("@alu.uct.cl")) {
+      setError("El correo institucional de estudiante debe pertenecer al dominio @alu.uct.cl");
+      return;
+    }
     setLoading(true);
     setError("");
     try {
@@ -215,10 +219,15 @@ export default function Login() {
                   autoComplete="email"
                   value={form.email}
                   onChange={handleChange}
-                  placeholder={esEstudiante ? "alumno@alumnos.cl" : "admin@biblioteca.cl"}
+                  placeholder={esEstudiante ? "alumno@alu.uct.cl" : "admin@biblioteca.cl"}
                   className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 text-sm outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-900/5 transition-all"
                 />
               </div>
+              {esEstudiante && (
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Usa tu correo institucional <strong className="text-[#00629B]">@alu.uct.cl</strong>
+                </p>
+              )}
             </div>
 
             {/* Password */}
