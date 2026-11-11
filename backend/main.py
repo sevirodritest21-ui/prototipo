@@ -38,10 +38,29 @@ if hasattr(_time, "tzset"):
 
 app = FastAPI(title="API de Reservas y Chatbot UCT (SQL Server)")
 
+_cors_env = os.getenv("ALLOWED_ORIGINS", "")
+_allowed_origins = [
+    "http://localhost",
+    "http://localhost:80",
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://localhost:8000",
+    "http://127.0.0.1",
+    "http://127.0.0.1:80",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:8000",
+]
+if _cors_env:
+    for _orig in _cors_env.split(","):
+        _orig_clean = _orig.strip()
+        if _orig_clean and _orig_clean != "*" and _orig_clean not in _allowed_origins:
+            _allowed_origins.append(_orig_clean)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_origin_regex=r"^https?://.*",
+    allow_origins=_allowed_origins,
+    allow_origin_regex=r"^https?://([a-zA-Z0-9-]+\.)*uct\.cl(:[0-9]+)?$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -78,7 +97,7 @@ N8N_SECRET_KEY = os.getenv("N8N_SECRET_KEY") or "uct_n8n_shared_secret_webhook_2
 DATABASE_URL = os.getenv("DATABASE_URL")
 if DATABASE_URL and (os.path.exists("/.dockerenv") or os.getenv("RUNNING_IN_DOCKER")):
     DATABASE_URL = DATABASE_URL.replace("@localhost:", "@host.docker.internal:").replace("@127.0.0.1:", "@host.docker.internal:")
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
+ALLOWED_ORIGINS = _allowed_origins
 SECRET_KEY = os.getenv("SECRET_KEY") or "87efb2c92bdaaa93b2b34cee6924b26dac35d774d7996019f58458cd7e24a697"
 
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
