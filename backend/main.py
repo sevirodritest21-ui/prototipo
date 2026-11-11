@@ -4076,9 +4076,26 @@ async def hablar_con_bot_admin(input_data: AdminChatMessageInput, request: Reque
         }
 
 
+async def validar_recordatorios_auth(
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)
+) -> dict:
+    webhook_token = request.headers.get("X-Webhook-Token") or request.headers.get("X-API-Key")
+    if webhook_token and hmac.compare_digest(webhook_token.strip(), N8N_SECRET_KEY.strip()):
+        return {"source": "n8n", "rol": "admin"}
+    if credentials and credentials.credentials:
+        user = await get_current_user(credentials)
+        if user.get("rol") == "admin":
+            return user
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Acceso restringido. Se requiere autenticación de administrador o cabecera X-Webhook-Token."
+    )
+
+
 @app.get("/api/reservas/recordatorios")
 @app.get("/api/reservas/recordatorios-manana")
-async def obtener_recordatorios_manana(dias: int = 1):
+async def obtener_recordatorios_manana(dias: int = 1, auth: dict = Depends(validar_recordatorios_auth)):
     try:
         async with pool.acquire() as conn:
             filas = await conn.fetch(
@@ -4092,7 +4109,7 @@ async def obtener_recordatorios_manana(dias: int = 1):
                     REPLACE(REPLACE(REPLACE(UPPER(u.rut), '.', ''), '-', ''), ' ', '') = REPLACE(REPLACE(REPLACE(UPPER(r.rut), '.', ''), '-', ''), ' ', '') 
                     OR LOWER(u.nombre) = LOWER(r.nombre)
                 )
-                WHERE r.fecha = CURRENT_DATE + ($1 * INTERVAL '1 day')
+                WHERE r.fecha = DATEADD(day, $1, CAST(GETDATE() AS DATE))
                 ORDER BY r.hora ASC
                 """,
                 int(dias)
@@ -5008,7 +5025,9 @@ async def actualizar_campus(campus_id: int, data: ActualizarCampusRequest, curre
 
 
 @app.post("/api/hikcentral/door/open")
-async def abrir_puerta_manual(door_code: str = "1"):
+async def abrir_puerta_manual(door_code: str = "1", current_user: dict = Depends(get_current_user)):
+    if current_user.get("rol") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso restringido a administradores.")
     try:
         direct_res = await open_door_direct(1)
         if direct_res.get("success"):
@@ -5021,6 +5040,43 @@ async def abrir_puerta_manual(door_code: str = "1"):
         {"doorIndexCodes": [str(door_code)], "controlType": 0}
     )
     return res
+
+
+async def verificar_acceso_camara(
+    token: Optional[str] = Query(None),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)
+) -> dict:
+    tok = credentials.credentials if credentials and credentials.credentials else token
+    if not tok:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Se requiere autenticación para acceder a la cámara.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if await is_token_blacklisted(tok):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token revocado.")
+    try:
+        payload = jwt.decode(tok, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("type") and payload.get("type") != "access":
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token no válido.")
+        email: str = payload.get("sub")
+        if not email:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token no válido.")
+    except JWTError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido o expirado.")
+
+    cached = _user_auth_cache.get(email)
+    if cached and (_time.time() - cached[0] < 120):
+        d_row = dict(cached[1])
+    else:
+        async with pool.acquire() as conn:
+            row_u = await conn.fetchrow("SELECT id, email, rol FROM usuarios WHERE email = $1", email)
+            if not row_u:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuario no encontrado.")
+            d_row = dict(row_u)
+    if d_row.get("rol") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso restringido a administradores.")
+    return d_row
 
 
 async def _generar_mjpeg_stream():
@@ -5044,7 +5100,7 @@ async def _generar_mjpeg_stream():
 
 
 @app.get("/api/terminal/camara/stream")
-async def stream_camara_terminal():
+async def stream_camara_terminal(auth: dict = Depends(verificar_acceso_camara)):
     headers = {
         "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
         "Pragma": "no-cache",
@@ -5059,7 +5115,7 @@ async def stream_camara_terminal():
 
 
 @app.get("/api/terminal/camara/snapshot")
-async def snapshot_camara_terminal():
+async def snapshot_camara_terminal(auth: dict = Depends(verificar_acceso_camara)):
     auth = httpx.DigestAuth(HIKVISION_TERMINAL_USER, HIKVISION_TERMINAL_PASS)
     async with httpx.AsyncClient(verify=False, timeout=4.0, auth=auth) as client:
         try:
