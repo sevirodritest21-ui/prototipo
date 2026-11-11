@@ -4016,15 +4016,15 @@ export default function Dashboard() {
             return (
               <div className="flex-1 flex flex-col min-h-[calc(100vh-118px)] animate-fadeIn">
                 <div className="flex-1 flex flex-col justify-between bg-white rounded-3xl border border-[#00629B]/20 shadow-[0_18px_48px_-14px_rgba(0,45,76,0.12)] overflow-hidden">
-                  <div className="px-5 sm:px-7 py-3.5 bg-gradient-to-r from-[#002D4C] via-[#004D7A] to-[#00629B] border-b border-white/15 flex flex-wrap items-center justify-between gap-3">
-                    <div className="inline-flex items-center p-1 rounded-full bg-black/25 border border-white/15">
+                  <div className="px-5 sm:px-7 pt-3 bg-white border-b border-slate-200/80 flex flex-wrap items-end justify-between gap-3">
+                    <div className="inline-flex items-end gap-1">
                       <button
                         type="button"
                         onClick={() => setVistaGestionReservas("agenda")}
-                        className={`px-4 py-2 rounded-full text-xs font-extrabold transition-all cursor-pointer inline-flex items-center gap-2 ${
+                        className={`relative px-4 pt-2 pb-3 text-xs font-extrabold transition-all cursor-pointer inline-flex items-center gap-2 border-b-[3px] -mb-px ${
                           vistaGestionReservas === "agenda"
-                            ? "bg-white text-[#002D4C] shadow-sm"
-                            : "text-sky-100 hover:text-white"
+                            ? "border-[#FFC20E] text-[#002D4C]"
+                            : "border-transparent text-slate-500 hover:text-[#00629B] hover:border-sky-200"
                         }`}
                       >
                         <UiIcon name="calendar" className="w-3.5 h-3.5" />
@@ -4036,10 +4036,10 @@ export default function Dashboard() {
                           setVistaGestionReservas("historial");
                           fetchHistorial(1, limiteHistorial);
                         }}
-                        className={`px-4 py-2 rounded-full text-xs font-extrabold transition-all cursor-pointer inline-flex items-center gap-2 ${
+                        className={`relative px-4 pt-2 pb-3 text-xs font-extrabold transition-all cursor-pointer inline-flex items-center gap-2 border-b-[3px] -mb-px ${
                           vistaGestionReservas === "historial"
-                            ? "bg-white text-[#002D4C] shadow-sm"
-                            : "text-sky-100 hover:text-white"
+                            ? "border-[#FFC20E] text-[#002D4C]"
+                            : "border-transparent text-slate-500 hover:text-[#00629B] hover:border-sky-200"
                         }`}
                       >
                         <UiIcon name="clock" className="w-3.5 h-3.5" />
