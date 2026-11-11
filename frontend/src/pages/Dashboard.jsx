@@ -3510,65 +3510,6 @@ export default function Dashboard() {
                           </table>
                         </div>
                       </div>
-
-                      {/* Cubículos de la Sede */}
-                      <div className={`${CARD} p-5`}>
-                        <div className="flex items-center justify-between pb-3 border-b border-slate-100 gap-3">
-                          <h3 className="text-sm font-bold text-slate-800 tracking-tight">
-                            Cubículos de la Sede
-                          </h3>
-                          <div className="relative">
-                            <input
-                              type="text"
-                              placeholder="Buscar cubículo..."
-                              value={busquedaCubiculos}
-                              onChange={(e) => setBusquedaCubiculos(e.target.value)}
-                              className="pl-3 pr-7 py-1 rounded-full bg-slate-100 text-[11px] font-medium text-slate-700 placeholder:text-slate-400 outline-none w-36 sm:w-44 focus:bg-white focus:border-[#00A3E0] border border-slate-200 transition-all"
-                            />
-                            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"><UiIcon name="search" className="w-4 h-4" /></span>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-                          {(cubiculosCampus && cubiculosCampus.length > 0
-                            ? cubiculosCampus
-                            : [
-                              { id: 1, codigo: "CB-01", en_mantenimiento: false },
-                              { id: 2, codigo: "CB-02", en_mantenimiento: false },
-                              { id: 3, codigo: "CB-03", en_mantenimiento: false },
-                              { id: 4, codigo: "CB-04", en_mantenimiento: false }
-                            ]
-                          )
-                            .filter((c) => {
-                              if (!busquedaCubiculos) return true;
-                              return c.codigo && c.codigo.toLowerCase().includes(busquedaCubiculos.toLowerCase());
-                            })
-                            .slice(0, 4)
-                            .map((c, idx) => {
-                              const contactColors = ["#00629B", "#00A3E0", "#FFC20E", "#004E7C"];
-                              const color = contactColors[idx % contactColors.length];
-
-                              return (
-                                <div key={c.id || idx} className="flex items-center gap-3 p-2.5 rounded-xl border border-slate-100 hover:bg-slate-50 transition-colors">
-                                  <div
-                                    className="w-10 h-10 rounded-full flex items-center justify-center text-xs font-black shadow-xs shrink-0"
-                                    style={{ backgroundColor: color, color: color === "#FFC20E" ? "#002D4C" : "#ffffff" }}
-                                  >
-                                    {c.codigo ? c.codigo.slice(0, 3) : "CB"}
-                                  </div>
-                                  <div className="min-w-0 flex-1">
-                                    <div className="text-xs font-bold text-slate-800 truncate">
-                                      Cubículo {c.codigo}
-                                    </div>
-                                    <div className="text-[10px] text-slate-400 truncate">
-                                      {c.en_mantenimiento ? "En mantenimiento" : "Capacidad 6 estudiantes"}
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                        </div>
-                      </div>
                     </div>
 
                     <div className="lg:col-span-5">
