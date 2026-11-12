@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
 import { useCmsAnunciosQuery, useCmsTarjetasQuery } from "./services/queries";
-import logoChatbot from "./assets/logoredondo.png";
+import logoChatbot from "./assets/logouctactual.png";
 import "./PaginaInicio.css";
 
 const IconChatSvg = ({ className = "w-5 h-5" }) => (
