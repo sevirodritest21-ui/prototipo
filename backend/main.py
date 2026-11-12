@@ -4025,14 +4025,12 @@ async def hablar_con_bot(input_data: MessageInput, request: Request, current_use
         carrera_usuario = current_user.get("carrera") if current_user else None
         matricula_usuario = current_user.get("idmatricula") if current_user else None
 
+        nombre_pila = (nombre_a_guardar.strip().split()[0] if nombre_a_guardar and nombre_a_guardar.strip() else "Estudiante")
         mensaje_enriquecido = f"{contexto_fecha}\n{input_data.message}"
         if rut_a_guardar:
-            detalles_auth = f"Usuario autenticado: {nombre_a_guardar or 'Estudiante'} | RUT: {rut_a_guardar}"
+            detalles_auth = f"Usuario: {nombre_pila} | Rol: Estudiante regular"
             if carrera_usuario:
                 detalles_auth += f" | Carrera: {carrera_usuario}"
-            if matricula_usuario:
-                detalles_auth += f" | Matrícula: {matricula_usuario}"
-            detalles_auth += f" | sessionId: {input_data.sessionId}"
             mensaje_enriquecido = f"[{detalles_auth}]\n{contexto_fecha}\n{input_data.message}"
 
         payload = {
@@ -4157,7 +4155,6 @@ async def hablar_con_bot_admin(input_data: AdminChatMessageInput, request: Reque
         "query": input_data.message.strip(),
         "admin_nombre": current_user.get("nombre") or "Asistente Biblioteca",
         "admin_email": current_user.get("email") or "",
-        "admin_rut": current_user.get("rut") or "",
         "rol": current_user.get("rol") or "admin",
         "contexto": "reglamento_biblioteca_uct",
         "fecha_actual": datetime.now().strftime("%Y-%m-%d %H:%M")
