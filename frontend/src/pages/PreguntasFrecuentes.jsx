@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useCmsFaqsQuery } from "../services/queries";
 import "./PreguntasFrecuentes.css";
@@ -23,6 +23,8 @@ export default function PreguntasFrecuentes() {
   const [busqueda, setBusqueda] = useState("");
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState("Todas");
   const [openIds, setOpenIds] = useState([1]);
+  const [paginaActual, setPaginaActual] = useState(1);
+  const FAQS_POR_PAGINA = 5;
 
   const categorias = useMemo(() => {
     const cats = new Set(faqs.map((f) => f.categoria || "General"));
@@ -44,6 +46,38 @@ export default function PreguntasFrecuentes() {
       return coincideCat && coincideTexto;
     });
   }, [faqs, categoriaSeleccionada, busqueda]);
+
+  useEffect(() => {
+    setPaginaActual(1);
+  }, [busqueda, categoriaSeleccionada]);
+
+  const totalPaginas = Math.ceil(faqsFiltradas.length / FAQS_POR_PAGINA) || 1;
+
+  const faqsPaginadas = useMemo(() => {
+    const inicio = (paginaActual - 1) * FAQS_POR_PAGINA;
+    return faqsFiltradas.slice(inicio, inicio + FAQS_POR_PAGINA);
+  }, [faqsFiltradas, paginaActual]);
+
+  const cambiarPagina = (nuevaPagina) => {
+    if (nuevaPagina < 1 || nuevaPagina > totalPaginas) return;
+    setPaginaActual(nuevaPagina);
+    const el = document.querySelector(".pf-categories-bar");
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
+  const generarNumerosPaginas = () => {
+    const paginas = [];
+    for (let i = 1; i <= totalPaginas; i++) {
+      if (i === 1 || i === totalPaginas || (i >= paginaActual - 1 && i <= paginaActual + 1)) {
+        paginas.push(i);
+      } else if (paginas[paginas.length - 1] !== "...") {
+        paginas.push("...");
+      }
+    }
+    return paginas;
+  };
 
   const toggleAccordion = (id) => {
     setOpenIds((prev) =>
@@ -157,42 +191,96 @@ export default function PreguntasFrecuentes() {
               </button>
             </div>
           ) : (
-            <div className="pf-faqs-list">
-              {faqsFiltradas.map((faq) => {
-                const isOpen = openIds.includes(faq.id);
-                return (
-                  <div
-                    key={faq.id}
-                    className={`pf-card ${isOpen ? "is-open" : ""}`}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => toggleAccordion(faq.id)}
-                      className="pf-card-btn"
+            <>
+              <div className="pf-faqs-list">
+                {faqsPaginadas.map((faq) => {
+                  const isOpen = openIds.includes(faq.id);
+                  return (
+                    <div
+                      key={faq.id}
+                      className={`pf-card ${isOpen ? "is-open" : ""}`}
                     >
-                      <div>
-                        <span className="pf-card-badge">
-                          {faq.categoria || "General"}
-                        </span>
-                        <h2 className="pf-card-q">
-                          {faq.pregunta}
-                        </h2>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => toggleAccordion(faq.id)}
+                        className="pf-card-btn"
+                      >
+                        <div>
+                          <span className="pf-card-badge">
+                            {faq.categoria || "General"}
+                          </span>
+                          <h2 className="pf-card-q">
+                            {faq.pregunta}
+                          </h2>
+                        </div>
 
-                      <div className="pf-chevron">
-                        <IconChevron className="w-4 h-4" />
-                      </div>
-                    </button>
+                        <div className="pf-chevron">
+                          <IconChevron className="w-4 h-4" />
+                        </div>
+                      </button>
 
-                    {isOpen && (
-                      <div className="pf-answer">
-                        {faq.respuesta}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                      {isOpen && (
+                        <div className="pf-answer">
+                          {faq.respuesta}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {faqsFiltradas.length > 0 && (
+                <div className="pf-pagination">
+                  <p className="pf-pagination-info">
+                    Mostrando{" "}
+                    <strong>{(paginaActual - 1) * FAQS_POR_PAGINA + 1}</strong> a{" "}
+                    <strong>{Math.min(paginaActual * FAQS_POR_PAGINA, faqsFiltradas.length)}</strong> de{" "}
+                    <strong>{faqsFiltradas.length}</strong> preguntas
+                  </p>
+
+                  {totalPaginas > 1 && (
+                    <div className="pf-pagination-nav">
+                      <button
+                        type="button"
+                        onClick={() => cambiarPagina(paginaActual - 1)}
+                        disabled={paginaActual <= 1}
+                        className="pf-page-btn pf-page-nav-btn"
+                        aria-label="Página anterior"
+                      >
+                        ← Anterior
+                      </button>
+
+                      {generarNumerosPaginas().map((num, idx) =>
+                        num === "..." ? (
+                          <span key={`dots-${idx}`} className="pf-page-dots">
+                            ...
+                          </span>
+                        ) : (
+                          <button
+                            key={num}
+                            type="button"
+                            onClick={() => cambiarPagina(num)}
+                            className={`pf-page-btn ${num === paginaActual ? "is-active" : ""}`}
+                          >
+                            {num}
+                          </button>
+                        )
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => cambiarPagina(paginaActual + 1)}
+                        disabled={paginaActual >= totalPaginas}
+                        className="pf-page-btn pf-page-nav-btn"
+                        aria-label="Página siguiente"
+                      >
+                        Siguiente →
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
           )}
 
           <div className="pf-cta-banner">
