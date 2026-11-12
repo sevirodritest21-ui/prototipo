@@ -493,10 +493,28 @@ export default function ChatbotFlotante() {
         } else if (error.name === 'AbortError') {
           errorMsg = 'La respuesta del asistente está tomando más tiempo del habitual. La solicitud continúa procesándose, te sugiero revisar tus reservas en unos momentos.';
         } else if (error?.detail) {
-          errorMsg = error.detail;
+          errorMsg = typeof error.detail === 'string' ? error.detail : (error.detail.message || error.detail.detail || errorMsg);
         } else if (error?.message && !error.message.includes('HTTP error')) {
           errorMsg = error.message;
         }
+
+        const limpiarErrorFrontend = (txt) => {
+          if (!txt || typeof txt !== 'string') return 'Lo siento, ocurrió un problema al procesar tu solicitud. Por favor intenta consultarme nuevamente.';
+          let c = txt
+            .replace(/Forbidden\s*-\s*perhaps\s+check\s+your\s+credentials\??/gi, '')
+            .replace(/Forbidden\s*-\s*check\s+your\s+credentials\??/gi, '')
+            .replace(/Unauthorized\s*-\s*perhaps\s+check\s+your\s+credentials\??/gi, '')
+            .replace(/Bad\s+request\s*-\s*please\s+check\s+your\s+parameters/gi, '')
+            .replace(/NodeApiError:\s*/gi, '')
+            .replace(/Workflow\s+execution\s+failed\s*(with\s+error:)?/gi, '')
+            .replace(/Error\s+500\s+desde\s+el\s+servicio\s+n8n\.?/gi, '')
+            .trim();
+          if (!c || c.toLowerCase().includes('workflow') || c.toLowerCase().includes('internal server error')) {
+            return 'Disculpa, ocurrió un inconveniente momentáneo al procesar tu solicitud con el sistema. Por favor intenta consultarme nuevamente.';
+          }
+          return c;
+        };
+        errorMsg = limpiarErrorFrontend(errorMsg);
 
         setMensajes((prev) =>
           prev.map((msg) => (msg.id === botPensandoId ? { ...msg, texto: errorMsg } : msg))

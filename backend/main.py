@@ -15,7 +15,7 @@ try:
 except ImportError:
     import sqlserver_adapter as asyncpg
 from fastapi import FastAPI, HTTPException, status, Depends, Request, Response, BackgroundTasks, Query
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, root_validator
@@ -66,6 +66,18 @@ app.add_middleware(
     allow_headers=["*"],
     allow_private_network=True,
 )
+
+
+@app.exception_handler(HTTPException)
+async def custom_http_exception_handler(request: Request, exc: HTTPException):
+    headers = getattr(exc, "headers", None)
+    detail_content = exc.detail
+    message_content = detail_content if isinstance(detail_content, str) else str(detail_content)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": detail_content, "message": message_content, "error": message_content},
+        headers=headers
+    )
 
 
 @app.get("/api/health")
@@ -3126,8 +3138,14 @@ async def consultar_disponibilidad(campus_id: int, fecha: str, request: Request)
             _disponibilidad_cache[disp_key] = (_time.time(), respuesta)
 
         return respuesta
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"⚠️ Error inesperado en consultar_disponibilidad: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="No se pudo consultar la disponibilidad de cubículos en este momento. Por favor intenta nuevamente."
+        )
 
 
 async def validar_acompanantes_cruzados(conn, rut_titular: str, fecha_parsed: date, hora_parsed: time, acompanantes, reserva_id_excluir: Optional[int] = None):
@@ -3208,6 +3226,13 @@ async def validar_acompanantes_cruzados(conn, rut_titular: str, fecha_parsed: da
                 detail=f"El acompañante {nombre_ac} figura como estudiante no regular, cuando resuelva esa situación estará activo nuevamente."
             )
 
+        sancion_ac = await verificar_sancion_usuario(conn, rut_ac_clean)
+        if sancion_ac.get("suspendido"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"El acompañante {nombre_ac} se encuentra con una sanción activa: {sancion_ac.get('mensaje')}"
+            )
+
     titular_como_ac = await conn.fetchrow(
         """
         SELECT r.id, r.fecha, r.hora, r.nombre AS titular_nombre
@@ -3274,11 +3299,11 @@ async def crear_reserva(
             rut_final = rut_ses
 
     if not rut_final or not reserva.fecha or not reserva.hora:
-        raise HTTPException(status_code=400, detail="Faltan datos obligatorios (RUT, fecha u hora).")
+        raise HTTPException(status_code=400, detail="Faltan datos obligatorios para agendar tu reserva (RUT, fecha u hora).")
 
     rut_limpio = re.sub(r'[\.\-\s]', '', str(rut_final)).upper().strip()
     if "[" in rut_limpio or "RUT_" in rut_limpio or len(rut_limpio) > 12:
-        raise HTTPException(status_code=400, detail="El RUT proporcionado no es válido.")
+        raise HTTPException(status_code=400, detail="El formato del RUT proporcionado no es válido.")
 
     client_id = rut_limpio or reserva.sessionId or obtener_ip_cliente(request)
     if not await check_rate_limit("reserva", client_id, max_requests=10, window_seconds=60):
@@ -3531,54 +3556,71 @@ async def crear_reserva(
 
         return res_data
 
+    except HTTPException:
+        raise
     except asyncpg.UniqueViolationError:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Ya existe una reserva previa para el RUT {rut_limpio} en esta fecha y hora."
         )
+    except Exception as e:
+        print(f"⚠️ Error inesperado en crear_reserva: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="No se pudo procesar la reserva en este momento debido a un inconveniente con el sistema. Por favor intenta nuevamente."
+        )
 
 
 @app.post("/api/contacto")
 async def recibir_mensaje_contacto(data: ContactoRequest, request: Request, background_tasks: BackgroundTasks):
-    nombre_limpio = sanitizar_texto(data.nombre, max_length=150)
-    email_limpio = sanitizar_texto(data.email, max_length=255)
-    rut_limpio = sanitizar_texto(data.rut, max_length=50) if data.rut else None
-    asunto_limpio = sanitizar_texto(data.asunto or "Consulta / Soporte", max_length=255)
-    mensaje_limpio = sanitizar_texto(data.mensaje, max_length=2000)
+    try:
+        nombre_limpio = sanitizar_texto(data.nombre, max_length=150)
+        email_limpio = sanitizar_texto(data.email, max_length=255)
+        rut_limpio = sanitizar_texto(data.rut, max_length=50) if data.rut else None
+        asunto_limpio = sanitizar_texto(data.asunto or "Consulta / Soporte", max_length=255)
+        mensaje_limpio = sanitizar_texto(data.mensaje, max_length=2000)
 
-    if not nombre_limpio or not email_limpio or not mensaje_limpio:
-        raise HTTPException(status_code=400, detail="Nombre, correo electrónico y mensaje son obligatorios.")
+        if not nombre_limpio or not email_limpio or not mensaje_limpio:
+            raise HTTPException(status_code=400, detail="Nombre, correo electrónico y mensaje son obligatorios.")
 
-    client_ip = obtener_ip_cliente(request)
-    await enforce_rate_limit("contacto_min", client_ip, max_requests=5, window_seconds=60)
+        client_ip = obtener_ip_cliente(request)
+        await enforce_rate_limit("contacto_min", client_ip, max_requests=5, window_seconds=60)
 
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            """
-            INSERT INTO contacto_mensajes (nombre, email, rut, asunto, mensaje, estado, created_at)
-            OUTPUT INSERTED.id
-            VALUES ($1, $2, $3, $4, $5, 'pendiente', GETDATE())
-            """,
-            nombre_limpio, email_limpio, rut_limpio, asunto_limpio, mensaje_limpio
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                INSERT INTO contacto_mensajes (nombre, email, rut, asunto, mensaje, estado, created_at)
+                OUTPUT INSERTED.id
+                VALUES ($1, $2, $3, $4, $5, 'pendiente', GETDATE())
+                """,
+                nombre_limpio, email_limpio, rut_limpio, asunto_limpio, mensaje_limpio
+            )
+            nuevo_id = row["id"] if row else None
+
+        detalle_contacto = {
+            "id": nuevo_id,
+            "nombre": nombre_limpio,
+            "email": email_limpio,
+            "rut": rut_limpio,
+            "asunto": asunto_limpio,
+            "mensaje": mensaje_limpio,
+            "created_at": datetime.now().isoformat()
+        }
+        background_tasks.add_task(notificar_contacto_n8n, detalle_contacto)
+
+        return {
+            "status": "ok",
+            "message": "Tu mensaje ha sido recibido con éxito. El equipo de soporte de la biblioteca te responderá a la brevedad.",
+            "id": nuevo_id
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"⚠️ Error inesperado en recibir_mensaje_contacto: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="No se pudo registrar tu mensaje de contacto en este momento. Por favor intenta nuevamente más tarde."
         )
-        nuevo_id = row["id"] if row else None
-
-    detalle_contacto = {
-        "id": nuevo_id,
-        "nombre": nombre_limpio,
-        "email": email_limpio,
-        "rut": rut_limpio,
-        "asunto": asunto_limpio,
-        "mensaje": mensaje_limpio,
-        "created_at": datetime.now().isoformat()
-    }
-    background_tasks.add_task(notificar_contacto_n8n, detalle_contacto)
-
-    return {
-        "status": "ok",
-        "message": "Tu mensaje ha sido recibido con éxito. El equipo de soporte de la biblioteca te responderá a la brevedad.",
-        "id": nuevo_id
-    }
 
 
 @app.post("/api/talleres/solicitar")
@@ -3843,6 +3885,50 @@ _chat_faq_cache: Dict[str, str] = {}
 _chat_faq_locks: Dict[str, asyncio.Lock] = {}
 
 
+def formatear_error_amigable_chatbot(raw: str) -> str:
+    if not raw:
+        return "Lo siento, ocurrió un inconveniente momentáneo al procesar tu solicitud con el sistema de reservas. Por favor intenta consultarme nuevamente."
+    txt = str(raw).strip()
+    patrones_tecnicos = [
+        r'(?i)Forbidden\s*-\s*perhaps\s+check\s+your\s+credentials\??\s*',
+        r'(?i)Forbidden\s*-\s*check\s+your\s+credentials\??\s*',
+        r'(?i)Unauthorized\s*-\s*perhaps\s+check\s+your\s+credentials\??\s*',
+        r'(?i)Unauthorized\s*-\s*check\s+your\s+credentials\??\s*',
+        r'(?i)Bad\s+request\s*-\s*please\s+check\s+your\s+parameters\s*',
+        r'(?i)NodeApiError:\s*',
+        r'(?i)Workflow\s+execution\s+failed\s*(with\s+error:)?\s*',
+        r'(?i)There\s+was\s+an\s+error\s+in\s+workflow\s+execution:?\s*',
+        r'(?i)Error\s+running\s+workflow:?\s*',
+        r'(?i)Workflow\s+was\s+started\s+but\s+encountered\s+an\s+error:?\s*',
+        r'(?i)Calling\s+[a-zA-Z0-9_\-]+(\s*with\s+input:)?\s*\{[\s\S]*?\}',
+        r'(?i)\[Usuario autenticado:[^\]]*\]\s*',
+        r'(?i)\[Fecha y hora actual:[^\]]*\]\s*',
+        r'(?i)\[Contexto temporal:[^\]]*\]\s*',
+        r'^\s*40[0-9]\s*-\s*',
+        r'^\s*50[0-9]\s*-\s*'
+    ]
+    for p in patrones_tecnicos:
+        txt = re.sub(p, '', txt).strip()
+    if txt.startswith('{') and txt.endswith('}'):
+        try:
+            parsed = json.loads(txt)
+            if isinstance(parsed, dict):
+                txt = parsed.get("detail") or parsed.get("message") or parsed.get("mensaje") or parsed.get("response") or txt
+        except Exception:
+            pass
+    for p in patrones_tecnicos:
+        txt = re.sub(p, '', txt).strip()
+    frases_tecnicas = [
+        "connection refused", "econnrefused", "internal server error",
+        "bad gateway", "service unavailable", "unknown error", "failed to fetch",
+        "workflow execution", "workflow error", "error in workflow", "nodeapierror", "http error"
+    ]
+    txt_lower = txt.lower().strip()
+    if not txt or any(inv in txt_lower for inv in frases_tecnicas):
+        return "Lo siento, ocurrió un inconveniente momentáneo al procesar tu solicitud con el sistema de reservas. Por favor intenta consultarme nuevamente o reformular tu consulta."
+    return txt
+
+
 def _es_pregunta_informativa_general(msg: str) -> bool:
     if not msg:
         return False
@@ -3979,28 +4065,26 @@ async def hablar_con_bot(input_data: MessageInput, request: Request, current_use
         try:
             payload_bytes, headers = generar_headers_webhook_n8n(payload)
             timeout_n8n = float(os.getenv("N8N_CHATBOT_TIMEOUT", "120.0"))
-            response = await httpx_client.post(N8N_WEBHOOK_URL, content=payload_bytes, headers=headers, timeout=timeout_n8n)
+            try:
+                response = await httpx_client.post(N8N_WEBHOOK_URL, content=payload_bytes, headers=headers, timeout=timeout_n8n)
+            except (httpx.TimeoutException, httpx.ConnectError, httpx.RequestError):
+                return {
+                    "response": "El asistente está tardando más de lo habitual en responder. Por favor intenta consultar nuevamente en unos momentos."
+                }
+
             if response.status_code != 200:
                 try:
                     err_data = response.json()
-                    raw_err = str(err_data.get("message") or err_data.get("detail") or err_data.get("output") or "")
+                    raw_err = str(err_data.get("message") or err_data.get("errorMessage") or err_data.get("detail") or err_data.get("output") or "")
                 except Exception:
                     raw_err = response.text or ""
 
-                clean_err = re.sub(r'(?i)Bad request\s*-\s*please check your parameters\s*', '', raw_err).strip()
-                clean_err = re.sub(r'(?i)NodeApiError:\s*', '', clean_err).strip()
-                if clean_err:
-                    return {"response": clean_err}
-                raise HTTPException(status_code=response.status_code, detail=f"Error {response.status_code} desde el servicio n8n.")
+                clean_err = formatear_error_amigable_chatbot(raw_err)
+                return {"response": clean_err}
 
             data = response.json()
             bot_response = data.get("output") or data.get("message") or data.get("response") or "Reserva procesada con éxito."
-            bot_response = re.sub(r'\[Usuario autenticado:[^\]]*\]\s*', '', bot_response)
-            bot_response = re.sub(r'\[Fecha y hora actual:[^\]]*\]\s*', '', bot_response)
-            bot_response = re.sub(r'\[Contexto temporal:[^\]]*\]\s*', '', bot_response)
-            bot_response = re.sub(r'(?i)Bad request\s*-\s*please check your parameters\s*', '', bot_response)
-            bot_response = re.sub(r'(?i)NodeApiError:\s*', '', bot_response)
-            bot_response = re.sub(r'(?i)Calling\s+[a-zA-Z0-9_\-]+(\s*with\s+input:)?\s*\{[\s\S]*?\}', '', bot_response).strip()
+            bot_response = formatear_error_amigable_chatbot(bot_response)
             if not bot_response:
                 bot_response = "Estoy procesando tu solicitud de cubículos. ¿En qué fecha, hora y sede te gustaría agendar?"
             if faq_key:
@@ -4013,7 +4097,10 @@ async def hablar_con_bot(input_data: MessageInput, request: Request, current_use
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error en comunicación con chatbot: {str(e)}")
+        print(f"⚠️ Error en hablar_con_bot: {e}")
+        return {
+            "response": "Lo siento, ocurrió un inconveniente momentáneo al procesar tu solicitud con el sistema de reservas. Por favor intenta consultarme nuevamente."
+        }
 
 
 class AdminChatMessageInput(BaseModel):
@@ -4081,22 +4168,33 @@ async def hablar_con_bot_admin(input_data: AdminChatMessageInput, request: Reque
         timeout_n8n = float(os.getenv("N8N_CHATBOT_TIMEOUT", "120.0"))
         target_url = N8N_REGLAMENTO_WEBHOOK_URL or "http://uct-botsbiblioteca-dev-n8n-1:5678/webhook/consultar-reglamento"
 
-        response = await httpx_client.post(target_url, content=payload_bytes, headers=headers, timeout=timeout_n8n)
+        try:
+            response = await httpx_client.post(target_url, content=payload_bytes, headers=headers, timeout=timeout_n8n)
+        except (httpx.TimeoutException, httpx.ConnectError, httpx.RequestError):
+            return {
+                "response": "El servicio de reglamento tardó más de lo esperado en responder. Por favor intenta nuevamente en unos momentos."
+            }
+
         if response.status_code == 200:
             data = response.json()
             bot_response = data.get("output") or data.get("message") or data.get("response") or "Consulta sobre reglamento procesada con éxito."
+            bot_response = formatear_error_amigable_chatbot(bot_response)
             return {"response": bot_response}
         elif response.status_code == 404:
             return {
                 "response": "ℹ️ El webhook de n8n para reglamento (`/webhook/consultar-reglamento`) está configurado pero aún no se encuentra activo en tu instancia de n8n. Una vez que actives el flujo con los PDFs de reglamento en n8n, responderé tus dudas normativas aquí."
             }
         else:
-            return {
-                "response": f"⚠️ Error {response.status_code} desde el servicio n8n de reglamento. Por favor verifica el flujo en n8n."
-            }
+            try:
+                err_data = response.json()
+                raw_err = str(err_data.get("message") or err_data.get("errorMessage") or err_data.get("detail") or err_data.get("output") or "")
+            except Exception:
+                raw_err = response.text or ""
+            return {"response": formatear_error_amigable_chatbot(raw_err)}
     except Exception as e:
+        print(f"⚠️ Error en hablar_con_bot_admin: {e}")
         return {
-            "response": f"⚠️ No se pudo comunicar con el webhook de n8n (`{str(e)}`). Asegúrate de que el contenedor de n8n tenga el flujo de reglamento activado en `/webhook/consultar-reglamento`."
+            "response": "⚠️ No se pudo comunicar con el webhook de reglamento en este momento. Por favor verifica que el flujo en n8n esté activo e intenta nuevamente."
         }
 
 
@@ -4165,8 +4263,14 @@ async def obtener_recordatorios_manana(dias: int = 1, auth: dict = Depends(valid
                 })
 
             return resultado
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"⚠️ Error inesperado en obtener_recordatorios_manana: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="No se pudieron consultar los recordatorios en este momento."
+        )
 
 
 @app.delete("/api/reservas")
@@ -4208,7 +4312,7 @@ async def eliminar_reserva(data: EsquemaEliminar, request: Request, background_t
                     rut_consulta = rut_ses
 
             if not rut_consulta:
-                raise HTTPException(status_code=400, detail="RUT no especificado.")
+                raise HTTPException(status_code=400, detail="Para cancelar tu reserva por favor indica el RUT del titular.")
 
             rut_limpio = re.sub(r'[\.\-\s]', '', str(rut_consulta)).upper().strip()
 
@@ -4256,7 +4360,7 @@ async def eliminar_reserva(data: EsquemaEliminar, request: Request, background_t
                         "reserva_id": res_ac["reserva_id"],
                         "canceladas": 1
                     }
-                raise HTTPException(status_code=404, detail=f"No se encontró ninguna reserva activa perteneciente al RUT {rut_limpio}.")
+                raise HTTPException(status_code=404, detail=f"No se encontró ninguna reserva activa vigente para el RUT {rut_limpio}. Puedes revisar tus reservas diciendo 'ver mis reservas'.")
 
             ids_a_borrar = [f["id"] for f in filas_canceladas]
 
@@ -4276,12 +4380,16 @@ async def eliminar_reserva(data: EsquemaEliminar, request: Request, background_t
 
             await invalidar_caches_disponibilidad()
             background_tasks.add_task(notificar_cancelacion_n8n, filas_canceladas)
-            return {"message": f"Reserva del RUT {rut_limpio} eliminada con éxito."}
+            return {"message": f"Reserva del RUT {rut_limpio} cancelada con éxito."}
 
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"⚠️ Error inesperado en eliminar_reserva: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="No se pudo cancelar la reserva en este momento. Por favor intenta nuevamente."
+        )
 
 
 @app.delete("/api/reservas/{reserva_id}")
@@ -4509,60 +4617,61 @@ async def procesar_edicion_reserva(
     credentials: Optional[HTTPAuthorizationCredentials] = None,
     background_tasks: Optional[BackgroundTasks] = None
 ) -> dict:
-    current_user = None
-    if credentials and credentials.credentials:
-        try:
-            payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
-            email: str = payload.get("sub")
-            if email:
-                async with pool.acquire() as conn:
-                    row_u = await conn.fetchrow("SELECT id, email, nombre, rut, rol FROM usuarios WHERE email = $1", email)
-                    if row_u:
-                        current_user = dict(row_u)
-        except JWTError:
-            pass
+    try:
+        current_user = None
+        if credentials and credentials.credentials:
+            try:
+                payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+                email: str = payload.get("sub")
+                if email:
+                    async with pool.acquire() as conn:
+                        row_u = await conn.fetchrow("SELECT id, email, nombre, rut, rol FROM usuarios WHERE email = $1", email)
+                        if row_u:
+                            current_user = dict(row_u)
+            except JWTError:
+                pass
 
-    async with pool.acquire() as conn:
-        async with conn.transaction():
-            target_id = reserva_id_target or data.reserva_id
-            rut_consulta = current_user.get("rut") if (current_user and current_user.get("rut")) else data.rut
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                target_id = reserva_id_target or data.reserva_id
+                rut_consulta = current_user.get("rut") if (current_user and current_user.get("rut")) else data.rut
 
-            if data.sessionId:
-                rut_ses = extraer_rut_de_session(data.sessionId)
-                row_sesion = await conn.fetchrow("SELECT rut FROM sesiones WHERE session_id = $1", data.sessionId)
-                if row_sesion and row_sesion["rut"]:
-                    rut_ses = row_sesion["rut"]
-                if rut_ses and (not current_user or current_user.get("rol") != "admin"):
-                    rut_consulta = rut_ses
+                if data.sessionId:
+                    rut_ses = extraer_rut_de_session(data.sessionId)
+                    row_sesion = await conn.fetchrow("SELECT rut FROM sesiones WHERE session_id = $1", data.sessionId)
+                    if row_sesion and row_sesion["rut"]:
+                        rut_ses = row_sesion["rut"]
+                    if rut_ses and (not current_user or current_user.get("rol") != "admin"):
+                        rut_consulta = rut_ses
 
-            if target_id:
-                res_existente = await conn.fetchrow("SELECT id, nombre, rut, fecha, hora, campus_id, cubiculo_id, session_id FROM reservas WHERE id = $1", target_id)
-            elif rut_consulta:
-                rut_limpio = str(rut_consulta).replace(".", "").upper().strip()
-                res_existente = await conn.fetchrow(
-                    """
-                    SELECT id, nombre, rut, fecha, hora, campus_id, cubiculo_id, session_id 
-                    FROM reservas 
-                    WHERE rut = $1 
-                      AND (fecha > CURRENT_DATE OR (fecha = CURRENT_DATE AND hora + INTERVAL '1 hour' > CURRENT_TIME))
-                    ORDER BY id DESC LIMIT 1
-                    """,
-                    rut_limpio
-                )
-            else:
-                raise HTTPException(status_code=400, detail="Debes especificar el ID de reserva, RUT o sessionId para editar.")
+                if target_id:
+                    res_existente = await conn.fetchrow("SELECT id, nombre, rut, fecha, hora, campus_id, cubiculo_id, session_id FROM reservas WHERE id = $1", target_id)
+                elif rut_consulta:
+                    rut_limpio = str(rut_consulta).replace(".", "").upper().strip()
+                    res_existente = await conn.fetchrow(
+                        """
+                        SELECT id, nombre, rut, fecha, hora, campus_id, cubiculo_id, session_id 
+                        FROM reservas 
+                        WHERE rut = $1 
+                          AND (fecha > CURRENT_DATE OR (fecha = CURRENT_DATE AND hora + INTERVAL '1 hour' > CURRENT_TIME))
+                        ORDER BY id DESC LIMIT 1
+                        """,
+                        rut_limpio
+                    )
+                else:
+                    raise HTTPException(status_code=400, detail="Para modificar tu reserva se requiere tu RUT o el identificador de la reserva.")
 
-            if not res_existente:
-                raise HTTPException(status_code=404, detail="No se encontró ninguna reserva activa para modificar.")
+                if not res_existente:
+                    raise HTTPException(status_code=404, detail="No se encontró ninguna reserva activa vigente asociada a tus datos para modificar.")
 
-            reserva_id = res_existente["id"]
-            rut_reserva = res_existente["rut"]
+                reserva_id = res_existente["id"]
+                rut_reserva = res_existente["rut"]
 
-            if rut_consulta and (not current_user or current_user.get("rol") != "admin"):
-                rut_res_clean = str(rut_reserva).replace(".", "").replace("-", "").upper().strip()
-                rut_con_clean = str(rut_consulta).replace(".", "").replace("-", "").upper().strip()
-                if rut_res_clean != rut_con_clean:
-                    raise HTTPException(status_code=403, detail="No tienes permisos para modificar esta reserva.")
+                if rut_consulta and (not current_user or current_user.get("rol") != "admin"):
+                    rut_res_clean = str(rut_reserva).replace(".", "").replace("-", "").upper().strip()
+                    rut_con_clean = str(rut_consulta).replace(".", "").replace("-", "").upper().strip()
+                    if rut_res_clean != rut_con_clean:
+                        raise HTTPException(status_code=403, detail="No tienes permisos para modificar esta reserva ya que pertenece a otro estudiante.")
 
             nueva_fecha = datetime.strptime(data.fecha.strip(), "%Y-%m-%d").date() if data.fecha and data.fecha.strip() else res_existente["fecha"]
             nueva_hora = datetime.strptime(data.hora.strip(), "%H:%M").time() if data.hora and data.hora.strip() else res_existente["hora"]
@@ -4709,28 +4818,36 @@ async def procesar_edicion_reserva(
             filas_ac = await conn.fetch("SELECT nombre, rut FROM reserva_acompanantes WHERE reserva_id = $1", reserva_id)
             acompanantes_guardados = [{"nombre": ac["nombre"], "rut": ac["rut"]} for ac in filas_ac]
 
-    await invalidar_caches_disponibilidad()
+        await invalidar_caches_disponibilidad()
 
-    res_data = {
-        "id": str(row_upd["id"]),
-        "nombre": row_upd["nombre"],
-        "rut": row_upd["rut"],
-        "fecha": row_upd["fecha"].strftime("%Y-%m-%d"),
-        "hora": row_upd["hora"].strftime("%H:%M"),
-        "campus_id": row_upd["campus_id"],
-        "campus": nuevo_campus_nombre,
-        "cubiculo_codigo": nuevo_cubiculo_codigo,
-        "sessionId": row_upd["session_id"],
-        "carrera": row_upd.get("carrera") or "General",
-        "acompanantes": acompanantes_guardados
-    }
+        res_data = {
+            "id": str(row_upd["id"]),
+            "nombre": row_upd["nombre"],
+            "rut": row_upd["rut"],
+            "fecha": row_upd["fecha"].strftime("%Y-%m-%d"),
+            "hora": row_upd["hora"].strftime("%H:%M"),
+            "campus_id": row_upd["campus_id"],
+            "campus": nuevo_campus_nombre,
+            "cubiculo_codigo": nuevo_cubiculo_codigo,
+            "sessionId": row_upd["session_id"],
+            "carrera": row_upd.get("carrera") or "General",
+            "acompanantes": acompanantes_guardados
+        }
 
-    if background_tasks:
-        background_tasks.add_task(notificar_edicion_n8n, res_data)
-    else:
-        await notificar_edicion_n8n(res_data)
+        if background_tasks:
+            background_tasks.add_task(notificar_edicion_n8n, res_data)
+        else:
+            await notificar_edicion_n8n(res_data)
 
-    return res_data
+        return res_data
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"⚠️ Error inesperado en procesar_edicion_reserva: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="No se pudo modificar la reserva en este momento. Por favor intenta nuevamente."
+        )
 
 
 @app.put("/api/reservas/{reserva_id}", response_model=ReservaResponse)
@@ -4807,7 +4924,7 @@ async def consultar_reservas(data: EsquemaConsulta, request: Request, credential
                     rut_consulta = row_sesion["rut"]
 
             if not rut_consulta or "[" in str(rut_consulta):
-                raise HTTPException(status_code=400, detail="RUT no válido.")
+                raise HTTPException(status_code=400, detail="Para consultar tus reservas por favor proporciona un RUT válido.")
 
             rut_limpio = re.sub(r'[\.\-\s]', '', str(rut_consulta)).upper().strip()
             cons_key = f"cons:{rut_limpio}:{pagina}:{limite}"
@@ -4959,7 +5076,11 @@ async def consultar_reservas(data: EsquemaConsulta, request: Request, credential
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"⚠️ Error inesperado en consultar_reservas: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="No se pudieron consultar las reservas en este momento. Por favor intenta nuevamente."
+        )
 
 
 @app.get("/api/dashboard/reservas-bloque")
