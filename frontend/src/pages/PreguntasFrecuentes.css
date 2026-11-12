@@ -139,16 +139,7 @@ html.dark .pf-root {
 }
 
 .pf-gradient-text {
-  background: linear-gradient(100deg, #FFC20E 0%, #FFF3C4 40%, #00A3E0 75%, #FFC20E 100%);
-  background-size: 200% auto;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: pfShimmer 6s linear infinite;
-}
-
-@keyframes pfShimmer {
-  to { background-position: 200% center; }
+  color: #FFC20E;
 }
 
 .pf-underline {

@@ -155,16 +155,7 @@ html.dark .rg-root {
 }
 
 .rg-gradient-text {
-  background: linear-gradient(100deg, var(--rg-gold) 0%, #fff3c4 25%, var(--rg-sky) 50%, var(--rg-gold) 75%, #fff3c4 100%);
-  background-size: 250% auto;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: rg-shine 6s linear infinite;
-}
-
-@keyframes rg-shine {
-  to { background-position: 250% center; }
+  color: var(--rg-gold);
 }
 
 .rg-underline {

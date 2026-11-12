@@ -168,16 +168,7 @@ html.dark .st-root {
 }
 
 .st-gradient-text {
-  background: linear-gradient(100deg, var(--st-gold) 0%, #fff3c4 25%, var(--st-sky) 50%, var(--st-gold) 75%, #fff3c4 100%);
-  background-size: 250% auto;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: st-shine 6s linear infinite;
-}
-
-@keyframes st-shine {
-  to { background-position: 250% center; }
+  color: var(--st-gold);
 }
 
 .st-underline {

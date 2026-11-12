@@ -137,18 +137,7 @@ html.dark .fr-root {
 }
 
 .fr-gradient-text {
-    background: linear-gradient(100deg, var(--fr-gold) 0%, #fff3c4 30%, var(--fr-sky) 65%, var(--fr-gold) 100%);
-    background-size: 220% auto;
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    animation: fr-shine 6s linear infinite;
-}
-
-@keyframes fr-shine {
-    to {
-        background-position: 220% center;
-    }
+    color: var(--fr-gold);
 }
 
 .fr-underline {
