@@ -84,7 +84,7 @@ const formatearTextoMarkdown = (texto) => {
 
 const renderizarMensajeChat = (texto, esBot) => {
   if (!texto) return null;
-  if (!esBot || texto === 'Escribiendo...') return <span className="whitespace-pre-line">{texto}</span>;
+  if (!esBot || texto === 'Escribiendo...' || texto.includes('alta demanda')) return <span className="whitespace-pre-line">{texto}</span>;
 
   const lineas = texto.split('\n');
   const bloques = [];
@@ -386,6 +386,16 @@ export default function ChatbotFlotante() {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 120000);
 
+    const timerAltaDemanda = setTimeout(() => {
+      setMensajes((prev) =>
+        prev.map((msg) =>
+          msg.id === botPensandoId && msg.texto === 'Escribiendo...'
+            ? { ...msg, texto: '⏳ Estamos experimentando alta demanda, por favor espera un momento...' }
+            : msg
+        )
+      );
+    }, 5000);
+
     try {
       const endpoint = esModoAdmin ? '/api/chat/admin' : '/api/chat';
       const payload = esModoAdmin
@@ -521,6 +531,8 @@ export default function ChatbotFlotante() {
         );
       }
     } finally {
+      clearTimeout(timeoutId);
+      clearTimeout(timerAltaDemanda);
       setCargandoBot(false);
     }
   };
@@ -718,7 +730,7 @@ export default function ChatbotFlotante() {
             <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-gradient-to-b from-sky-50/30 via-slate-50/50 to-white/80 dark:from-slate-950/70 dark:via-slate-900/80 dark:to-slate-950/90 backdrop-blur-md">
               {mensajes.map((msg, index) => {
                 const esMensajeBienvenida = index === 0 && (msg.texto || '').includes('asistente de biblioteca');
-                let cardData = msg.esBot && msg.texto !== 'Escribiendo...' && !esMensajeBienvenida ? extraerDatosReserva(msg.texto) : null;
+                let cardData = msg.esBot && msg.texto !== 'Escribiendo...' && !msg.texto.includes('alta demanda') && !esMensajeBienvenida ? extraerDatosReserva(msg.texto) : null;
 
                 if (cardData && cardData.tipo === 'cancelada' && !cardData.campus && !cardData.fecha) {
                   for (let i = index - 1; i >= 0; i--) {
@@ -747,7 +759,7 @@ export default function ChatbotFlotante() {
                     <div className={`max-w-[88%] rounded-2xl px-4 py-2.5 text-sm backdrop-blur-md transition-all ${msg.esBot
                       ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-tl-sm border border-slate-200/70 dark:border-slate-700/80 shadow-[0_4px_16px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_16px_rgba(0,0,0,0.3)]'
                       : 'bg-gradient-to-r from-[#00629B] to-[#007AB8] text-white rounded-tr-sm shadow-[0_4px_16px_rgba(0,98,155,0.25)] border border-sky-400/30'
-                      } ${msg.texto === 'Escribiendo...' ? 'text-slate-400 italic bg-white/50 dark:bg-slate-800/50 dark:text-slate-400 animate-pulse' : ''}`}>
+                      } ${msg.texto === 'Escribiendo...' || msg.texto.includes('alta demanda') ? 'text-slate-400 italic bg-white/50 dark:bg-slate-800/50 dark:text-slate-400 animate-pulse' : ''}`}>
                       {renderizarMensajeChat(msg.texto, msg.esBot)}
                     </div>
 
