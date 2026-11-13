@@ -1,9 +1,10 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 export default function ConsentModal() {
-  const { user, aceptarTerminos } = useAuth();
+  const { user, aceptarTerminos, logout } = useAuth();
+  const navigate = useNavigate();
   const [leido, setLeido] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState(null);
@@ -18,9 +19,20 @@ export default function ConsentModal() {
       setGuardando(true);
       setError(null);
       await aceptarTerminos();
-    } catch (err) {
+    } catch {
       setError("No se pudo registrar la aceptación. Por favor intenta nuevamente.");
       setGuardando(false);
+    }
+  };
+
+  const handleRechazar = async () => {
+    try {
+      setGuardando(true);
+      await logout();
+      navigate("/login", { replace: true });
+    } catch {
+      localStorage.removeItem("auth_token");
+      window.location.href = "/login";
     }
   };
 
@@ -96,14 +108,24 @@ export default function ConsentModal() {
             <p className="text-xs text-rose-600 font-medium">{error}</p>
           )}
 
-          <button
-            type="button"
-            onClick={handleAceptar}
-            disabled={!leido || guardando}
-            className="w-full py-3 px-4 rounded-xl font-bold text-sm text-slate-900 bg-[#FFC20E] hover:bg-[#FFD13B] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg active:scale-[0.99] cursor-pointer"
-          >
-            {guardando ? "Registrando aceptación..." : "Aceptar y continuar"}
-          </button>
+          <div className="flex flex-col sm:flex-row gap-2.5 pt-1">
+            <button
+              type="button"
+              onClick={handleRechazar}
+              disabled={guardando}
+              className="w-full sm:w-1/3 py-2.5 px-4 rounded-xl font-bold text-xs text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 border border-rose-200 dark:border-rose-900/60 transition-all cursor-pointer text-center"
+            >
+              Rechazar y salir
+            </button>
+            <button
+              type="button"
+              onClick={handleAceptar}
+              disabled={!leido || guardando}
+              className="w-full sm:w-2/3 py-2.5 px-4 rounded-xl font-bold text-xs text-slate-900 bg-[#FFC20E] hover:bg-[#FFD13B] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg active:scale-[0.99] cursor-pointer text-center"
+            >
+              {guardando ? "Procesando..." : "Aceptar y continuar"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
