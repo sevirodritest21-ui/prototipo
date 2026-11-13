@@ -60,13 +60,6 @@ export default function ConsentModal() {
             </div>
 
             <div className="flex items-start gap-2.5">
-              <span className="text-sm shrink-0">🚪</span>
-              <div>
-                <strong className="text-slate-800 dark:text-slate-100 font-semibold">Alternativa No Biométrica:</strong> El control de acceso automatizado por reconocimiento facial es voluntario. Cuentas siempre con la alternativa de ingreso mediante Credencial TUI física/digital o validación en mesón.
-              </div>
-            </div>
-
-            <div className="flex items-start gap-2.5">
               <span className="text-sm shrink-0">🛡️</span>
               <div>
                 <strong className="text-slate-800 dark:text-slate-100 font-semibold">Tus Derechos ARCO+P:</strong> Puedes acceder, rectificar o solicitar la supresión de tus registros de reserva en cualquier momento desde tu perfil o contactando a <a href="mailto:biblioteca@uct.cl" className="text-[#00629B] dark:text-[#38BDF8] underline">biblioteca@uct.cl</a>.

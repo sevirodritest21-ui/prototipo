@@ -114,31 +114,8 @@ export default function PoliticaPrivacidad() {
       )
     },
     {
-      id: "biometria",
-      titulo: "5. Control de Acceso y Tecnologías Biométricas (Alternativa Garantizada)",
-      icono: <IconLock className="w-5 h-5 text-rose-600 dark:text-rose-400" />,
-      contenido: (
-        <>
-          <p>
-            En determinados campus y salas de estudio, la biblioteca dispone de terminales de validación de acceso automatizado. Respecto a estas tecnologías:
-          </p>
-          <ul className="pp-list">
-            <li>
-              <strong>Carácter Voluntario y Optativo:</strong> El uso de reconocimiento facial o sensores biométricos es complementario y voluntario conforme a la normativa sobre datos sensibles.
-            </li>
-            <li>
-              <strong>Alternativa No Biométrica Garantizada:</strong> Todo estudiante tiene el derecho inalienable de optar por la validación presencial mediante su <strong>Credencial TUI física o digital (App UCT)</strong> o mediante el personal en el mesón de atención, sin restricción alguna ni menoscabo en el acceso al cubículo asignado.
-            </li>
-            <li>
-              <strong>Finalidad Exclusiva de Seguridad:</strong> Las imágenes o registros de terminal se emplean únicamente para verificación de acceso puntual durante el bloque reservado y no son cedidas a terceros.
-            </li>
-          </ul>
-        </>
-      )
-    },
-    {
       id: "derechos-arco",
-      titulo: "6. Derechos del Titular (Derechos ARCO+P)",
+      titulo: "5. Derechos del Titular (Derechos ARCO+P)",
       icono: <IconShield className="w-5 h-5 text-sky-600 dark:text-sky-400" />,
       contenido: (
         <>
@@ -179,7 +156,7 @@ export default function PoliticaPrivacidad() {
     },
     {
       id: "retencion",
-      titulo: "7. Conservación y Depuración de Datos",
+      titulo: "6. Conservación y Depuración de Datos",
       icono: <IconFileText className="w-5 h-5 text-teal-600 dark:text-teal-400" />,
       contenido: (
         <>
@@ -257,7 +234,7 @@ export default function PoliticaPrivacidad() {
             type="text"
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar en la política de privacidad (ej: IA, biometría, derechos, RUT, cancelación)..."
+            placeholder="Buscar en la política de privacidad (ej: IA, derechos, RUT, cancelación)..."
             className="pp-search-input"
           />
           {busqueda && (
