@@ -80,8 +80,8 @@ html.dark .pp-root {
   position: relative;
   background: linear-gradient(135deg, #002B45 0%, #004D7A 45%, #00629B 85%, #0077B6 100%);
   color: #ffffff;
-  padding-top: 3.5rem;
-  padding-bottom: 3.5rem;
+  padding-top: 6.5rem;
+  padding-bottom: 4rem;
   overflow: hidden;
   box-shadow: 0 10px 30px -10px rgba(0, 43, 69, 0.4);
 }
