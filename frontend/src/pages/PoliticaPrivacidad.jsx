@@ -207,7 +207,7 @@ export default function PoliticaPrivacidad() {
         <div className="pp-orb pp-orb--2" />
       </div>
 
-      <header className="pp-header">
+      <header className="pp-header" style={{ paddingTop: "7.5rem", paddingBottom: "4rem" }}>
         <div className="pp-header-grid" aria-hidden="true" />
         <div className="pp-container">
           <div className="pp-header-content">
