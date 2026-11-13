@@ -282,15 +282,15 @@ export default function App() {
           <Suspense fallback={<LoadingFallback />}>
             <Routes>
               <Route path="/login" element={<Login />} />
-              <Route path="/privacidad" element={<PoliticaPrivacidad />} />
 
-              <Route element={<ProtectedRoute />}>
+              <Route element={<ProtectedRoute allowedRoles={["admin", "estudiante"]} />}>
                 <Route path="/" element={<PaginaInicio />} />
                 <Route path="/reservar" element={<FormularioReserva />} />
                 <Route path="/mis-reservas" element={<MisReservas />} />
                 <Route path="/solicitud-talleres" element={<SolicitudTalleres />} />
                 <Route path="/reglamento" element={<Reglamento />} />
                 <Route path="/preguntas-frecuentes" element={<PreguntasFrecuentes />} />
+                <Route path="/privacidad" element={<PoliticaPrivacidad />} />
               </Route>
 
               <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
