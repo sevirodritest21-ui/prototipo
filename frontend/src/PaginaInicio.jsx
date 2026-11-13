@@ -510,21 +510,142 @@ export default function PaginaInicio() {
       </section>
 
       <footer className="pi-footer">
-        <div className="pi-container">
-          <div className="pi-footer-top">
-            <div className="pi-footer-brand">
-              Biblioteca <span style={{ color: "#00A3E0" }}>U</span>C<span style={{ color: "#FFC20E" }}>T</span>
-              <p>Universidad Católica de Temuco</p>
+        <div className="pi-footer-main">
+          <div className="pi-footer-grid">
+            <div className="pi-footer-col-brand">
+              <div className="pi-footer-uct-logo-wrap">
+                <img src={logoChatbot} alt="Logo Universidad Católica de Temuco" className="pi-footer-uct-img" />
+              </div>
+              <div className="pi-footer-uct-name">
+                <span>UNIVERSIDAD</span>
+                <span>CATÓLICA DE</span>
+                <span>TEMUCO</span>
+              </div>
             </div>
-            <nav className="pi-footer-links" aria-label="Enlaces del pie de página">
-              <Link to="/reservar">Reservar</Link>
-              <Link to="/preguntas-frecuentes">Preguntas Frecuentes</Link>
-              <Link to="/reglamento">Reglamento</Link>
-              <Link to="/privacidad">Política de Privacidad</Link>
-            </nav>
+
+            <div className="pi-footer-col-social">
+              <h3 className="pi-footer-col-title">Redes sociales:</h3>
+              <div className="pi-footer-social-list">
+                <a
+                  href="https://www.youtube.com/@uctemuco"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="pi-footer-social-link"
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 shrink-0" aria-hidden="true">
+                    <path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+                  </svg>
+                  <span>Youtube</span>
+                </a>
+                <a
+                  href="https://www.instagram.com/uc_temuco/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="pi-footer-social-link"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true">
+                    <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+                    <path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z" />
+                    <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+                  </svg>
+                  <span>Instagram</span>
+                </a>
+              </div>
+            </div>
+
+            <div className="pi-footer-col-links">
+              <h3 className="pi-footer-col-title">Enlaces:</h3>
+              <ul className="pi-footer-nav-list">
+                <li>
+                  <Link to="/privacidad" className="pi-footer-ext-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true">
+                      <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
+                      <polyline points="15 3 21 3 21 9" />
+                      <line x1="10" y1="14" x2="21" y2="3" />
+                    </svg>
+                    <span>Política de Privacidad</span>
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/reglamento" className="pi-footer-ext-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true">
+                      <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
+                      <polyline points="15 3 21 3 21 9" />
+                      <line x1="10" y1="14" x2="21" y2="3" />
+                    </svg>
+                    <span>Reglamento</span>
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/preguntas-frecuentes" className="pi-footer-ext-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true">
+                      <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
+                      <polyline points="15 3 21 3 21 9" />
+                      <line x1="10" y1="14" x2="21" y2="3" />
+                    </svg>
+                    <span>Documentos de interés</span>
+                  </Link>
+                </li>
+                <li>
+                  <button type="button" onClick={abrirChat} className="pi-footer-ext-link pi-footer-btn-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true">
+                      <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
+                      <polyline points="15 3 21 3 21 9" />
+                      <line x1="10" y1="14" x2="21" y2="3" />
+                    </svg>
+                    <span>Contactanos</span>
+                  </button>
+                </li>
+              </ul>
+            </div>
+
+            <div className="pi-footer-col-cna">
+              <div className="pi-cna-badge">
+                <div className="pi-cna-top">
+                  <div className="pi-cna-left">
+                    <div className="pi-cna-text-block">
+                      <span className="pi-cna-title">CNA</span>
+                      <span className="pi-cna-sub">Comisión Nacional<br />de Acreditación<br />Chile</span>
+                    </div>
+                    <svg viewBox="0 0 40 36" className="pi-cna-mark" fill="currentColor" aria-hidden="true">
+                      <path d="M15 2L2 34h7.5l3-7.5h9l3 7.5H32L19 2h-4zm2 10.5L20.5 21h-7l3.5-8.5z" />
+                      <path d="M26 24l11-11v18l-11-7z" opacity="0.85" />
+                    </svg>
+                  </div>
+                  <div className="pi-cna-right">
+                    <span className="pi-cna-acc">UNIVERSIDAD ACREDITADA</span>
+                    <span className="pi-cna-lvl">NIVEL AVANZADO</span>
+                    <span className="pi-cna-date">HASTA NOVIEMBRE DE 2029</span>
+                  </div>
+                </div>
+                <div className="pi-cna-areas">
+                  Docencia y resultados del proceso formativo | Gestión estratégica y recursos institucionales | Aseguramiento interno de la calidad | Vinculación con el medio | Investigación, creación y/o innovación
+                </div>
+                <div className="pi-cna-bottom">
+                  <div className="pi-cna-g9">
+                    <strong>G9</strong>
+                    <span>Universidades</span>
+                  </div>
+                  <div className="pi-cna-grat">
+                    <span>Adscrita a</span>
+                    <strong>GRATUIDAD</strong>
+                  </div>
+                  <div className="pi-cna-handles">
+                    <span>uc_temuco</span>
+                    <span>uctemuco</span>
+                  </div>
+                  <div className="pi-cna-url">uctemuco.cl</div>
+                </div>
+              </div>
+            </div>
           </div>
-          <p className="pi-footer-bottom">
-            © {new Date().getFullYear()} Dirección de Bibliotecas — Todos los derechos reservados
+        </div>
+
+        <div className="pi-footer-bottom-bar">
+          <p className="pi-footer-copyright">
+            Copyright © {new Date().getFullYear()}{" "}
+            <span className="pi-footer-uct-gold">Universidad Católica de Temuco</span>{" "}
+            Todos los derechos reservados.
           </p>
         </div>
       </footer>
