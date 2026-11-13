@@ -56,7 +56,9 @@ CREATE TABLE [usuarios] (
     [created_at] DATETIME2 NULL,
     [rut] NVARCHAR(50) NULL,
     [idmatricula] NVARCHAR(50) NULL,
-    [carrera] NVARCHAR(150) NULL
+    [carrera] NVARCHAR(150) NULL,
+    [terminos_aceptados] BIT DEFAULT 0,
+    [fecha_terminos] DATETIME2 NULL
 );
 
 IF OBJECT_ID('estudiante', 'U') IS NULL

@@ -498,6 +498,10 @@ async def _init_database_and_services():
                 await conn.execute("""
                     IF COL_LENGTH('usuarios', 'carrera') IS NULL
                         ALTER TABLE usuarios ADD carrera NVARCHAR(150) NULL;
+                    IF COL_LENGTH('usuarios', 'terminos_aceptados') IS NULL
+                        ALTER TABLE usuarios ADD terminos_aceptados BIT DEFAULT 0;
+                    IF COL_LENGTH('usuarios', 'fecha_terminos') IS NULL
+                        ALTER TABLE usuarios ADD fecha_terminos DATETIME2 NULL;
                     IF COL_LENGTH('estudiante', 'carrera') IS NULL
                         ALTER TABLE estudiante ADD carrera NVARCHAR(150) NULL;
                     IF COL_LENGTH('reservas', 'carrera') IS NULL
@@ -1184,6 +1188,7 @@ class UsuarioResponse(BaseModel):
     carrera: Optional[str] = None
     situacion: Optional[str] = None
     es_regular: Optional[bool] = True
+    terminos_aceptados: Optional[bool] = False
 
 
 class CrearUsuarioRequest(BaseModel):
@@ -1285,7 +1290,8 @@ async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] =
             COALESCE(u.idmatricula, CAST(ec.estu_registro AS VARCHAR(50))) AS idmatricula,
             COALESCE(u.carrera, cp.carr_nombre) AS carrera,
             sa.salu_nombre AS situacion,
-            CASE WHEN u.rol = 'admin' OR sa.salu_codigo = 1 OR UPPER(sa.salu_nombre) = 'REGULAR' THEN 1 ELSE 0 END AS es_regular
+            CASE WHEN u.rol = 'admin' OR sa.salu_codigo = 1 OR UPPER(sa.salu_nombre) = 'REGULAR' THEN 1 ELSE 0 END AS es_regular,
+            ISNULL(u.terminos_aceptados, 0) AS terminos_aceptados
         FROM usuarios u
         LEFT JOIN estudiante e ON e.estd_rut = TRY_CAST(LEFT(REPLACE(REPLACE(REPLACE(u.rut, '.', ''), '-', ''), ' ', ''), CASE WHEN LEN(REPLACE(REPLACE(REPLACE(u.rut, '.', ''), '-', ''), ' ', '')) > 1 THEN LEN(REPLACE(REPLACE(REPLACE(u.rut, '.', ''), '-', ''), ' ', '')) - 1 ELSE 0 END) AS INT)
         LEFT JOIN estudiante_carrera ec ON e.estd_rut = ec.estd_rut
@@ -1299,6 +1305,7 @@ async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] =
             raise credentials_exception
         d_row = dict(row)
         d_row["es_regular"] = bool(row.get("es_regular"))
+        d_row["terminos_aceptados"] = bool(row.get("terminos_aceptados"))
         _user_auth_cache[email] = (now_ts, d_row)
         asyncpg.set_rls_context(
             rol=d_row.get("rol"),
@@ -1329,7 +1336,8 @@ async def get_current_user_optional(credentials: Optional[HTTPAuthorizationCrede
                 COALESCE(u.idmatricula, CAST(ec.estu_registro AS VARCHAR(50))) AS idmatricula,
                 COALESCE(u.carrera, cp.carr_nombre) AS carrera,
                 sa.salu_nombre AS situacion,
-                CASE WHEN u.rol = 'admin' OR sa.salu_codigo = 1 OR UPPER(sa.salu_nombre) = 'REGULAR' THEN 1 ELSE 0 END AS es_regular
+                CASE WHEN u.rol = 'admin' OR sa.salu_codigo = 1 OR UPPER(sa.salu_nombre) = 'REGULAR' THEN 1 ELSE 0 END AS es_regular,
+                ISNULL(u.terminos_aceptados, 0) AS terminos_aceptados
             FROM usuarios u
             LEFT JOIN estudiante e ON REPLACE(REPLACE(REPLACE(UPPER(u.rut), '.', ''), '-', ''), ' ', '') = CONCAT(e.estd_rut, e.estd_dv)
             LEFT JOIN estudiante_carrera ec ON e.estd_rut = ec.estd_rut
@@ -1343,6 +1351,7 @@ async def get_current_user_optional(credentials: Optional[HTTPAuthorizationCrede
                 return None
             d_row = dict(row)
             d_row["es_regular"] = bool(row.get("es_regular"))
+            d_row["terminos_aceptados"] = bool(row.get("terminos_aceptados"))
             return d_row
     except Exception:
         return None
@@ -1365,9 +1374,9 @@ async def registrar_usuario(data: CrearUsuarioRequest, request: Request):
         try:
             row = await conn.fetchrow(
                 """
-                INSERT INTO usuarios (email, hashed_password, nombre, rut, rol, carrera)
-                VALUES ($1, $2, $3, $4, $5, $6)
-                RETURNING id, email, nombre, rut, rol, carrera
+                INSERT INTO usuarios (email, hashed_password, nombre, rut, rol, carrera, terminos_aceptados, fecha_terminos)
+                VALUES ($1, $2, $3, $4, $5, $6, 1, GETDATE())
+                RETURNING id, email, nombre, rut, rol, carrera, terminos_aceptados
                 """,
                 data.email, hashed, data.nombre, data.rut, data.rol, data.carrera
             )
@@ -1529,6 +1538,24 @@ async def logout(
 @app.get("/api/auth/me", response_model=UsuarioResponse)
 async def get_me(current_user: dict = Depends(get_current_user)):
     return current_user
+
+
+@app.post("/api/auth/aceptar-terminos")
+async def aceptar_terminos(current_user: dict = Depends(get_current_user)):
+    user_id = current_user.get("id")
+    email = current_user.get("email")
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE usuarios
+            SET terminos_aceptados = 1, fecha_terminos = GETDATE()
+            WHERE id = $1
+            """,
+            user_id
+        )
+    if email and email in _user_auth_cache:
+        del _user_auth_cache[email]
+    return {"status": "ok", "terminos_aceptados": True}
 
 
 # --- Endpoints de Gestión de Cubículos ---

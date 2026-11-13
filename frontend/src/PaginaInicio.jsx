@@ -520,6 +520,7 @@ export default function PaginaInicio() {
               <Link to="/reservar">Reservar</Link>
               <Link to="/preguntas-frecuentes">Preguntas Frecuentes</Link>
               <Link to="/reglamento">Reglamento</Link>
+              <Link to="/privacidad">Política de Privacidad</Link>
             </nav>
           </div>
           <p className="pi-footer-bottom">

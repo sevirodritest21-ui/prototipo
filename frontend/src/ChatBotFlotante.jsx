@@ -1088,7 +1088,8 @@ export default function ChatbotFlotante() {
               </span>
             </div>
           ) : (
-            <form onSubmit={handleEnviarMensaje} className="p-3 border-t border-slate-100 dark:border-slate-800 bg-white/90 dark:bg-slate-900/95 backdrop-blur-md flex items-center space-x-2">
+            <>
+              <form onSubmit={handleEnviarMensaje} className="p-3 border-t border-slate-100 dark:border-slate-800 bg-white/90 dark:bg-slate-900/95 backdrop-blur-md flex items-center space-x-2">
               {escuchandoVoz ? (
                 <div className="flex-1 flex items-center justify-between px-3.5 py-2.5 bg-rose-50/80 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800/80 rounded-2xl shadow-inner min-w-0">
                   <div className="flex items-center gap-2 min-w-0 pr-2">
@@ -1177,7 +1178,14 @@ export default function ChatbotFlotante() {
                 {cargandoBot ? '...' : 'Enviar'}
               </button>
             </form>
-          )}
+            <div className="px-3 pb-2 pt-0.5 text-center text-[10px] text-slate-400 dark:text-slate-500 bg-white/90 dark:bg-slate-900/95 border-t border-slate-100/50 dark:border-slate-800/50">
+              Consultas procesadas con IA bajo nuestra{" "}
+              <a href="/privacidad" target="_blank" rel="noopener noreferrer" className="underline hover:text-[#00629B] dark:hover:text-[#38BDF8]">
+                Política de Privacidad
+              </a>
+            </div>
+          </>
+        )}
         </div>
       )}
       <style>{`

@@ -52,7 +52,12 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
-  const value = { user, token, loading, login, logout };
+  const aceptarTerminos = useCallback(async () => {
+    await apiPost('/api/auth/aceptar-terminos');
+    setUser((prev) => (prev ? { ...prev, terminos_aceptados: true } : prev));
+  }, []);
+
+  const value = { user, token, loading, login, logout, aceptarTerminos };
 
   return (
     <AuthContext.Provider value={value}>

@@ -30,8 +30,10 @@ const MisReservas = lazyWithRetry(() => import("./pages/MisReservas"));
 const SolicitudTalleres = lazyWithRetry(() => import("./pages/SolicitudTalleres"));
 const Reglamento = lazyWithRetry(() => import("./pages/Reglamento"));
 const PreguntasFrecuentes = lazyWithRetry(() => import("./pages/PreguntasFrecuentes"));
+const PoliticaPrivacidad = lazyWithRetry(() => import("./pages/PoliticaPrivacidad"));
 
 import ProtectedRoute from "./components/ProtectedRoute";
+import ConsentModal from "./components/ConsentModal";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ThemeProvider, useTheme } from "./context/ThemeContext";
 import NetworkStatusBanner from "./components/NetworkStatusBanner";
@@ -280,6 +282,7 @@ export default function App() {
           <Suspense fallback={<LoadingFallback />}>
             <Routes>
               <Route path="/login" element={<Login />} />
+              <Route path="/privacidad" element={<PoliticaPrivacidad />} />
 
               <Route element={<ProtectedRoute />}>
                 <Route path="/" element={<PaginaInicio />} />
@@ -297,6 +300,7 @@ export default function App() {
               <Route path="*" element={<Navigate to="/login" replace />} />
             </Routes>
             <ChatbotFlotante />
+            <ConsentModal />
             <NetworkStatusBanner />
           </Suspense>
         </AuthProvider>
