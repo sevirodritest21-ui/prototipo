@@ -764,53 +764,32 @@ export default function ChatbotFlotante() {
                     </div>
 
                     {msg.esMenuOpciones && (
-                      <div className="w-full max-w-[95%] mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 animate-fadeIn">
+                      <div className="w-full max-w-[95%] mt-2 flex flex-wrap gap-1.5 animate-fadeIn">
                         <button
                           type="button"
                           onClick={() => seleccionarOpcion('reservas')}
-                          className="flex items-start gap-2.5 p-3 rounded-2xl bg-white/95 dark:bg-slate-800/90 border border-sky-200/80 dark:border-slate-700 hover:border-[#00629B] dark:hover:border-sky-400 hover:shadow-md hover:scale-[1.01] active:scale-[0.99] transition-all text-left cursor-pointer group"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white/95 dark:bg-slate-800/90 border border-sky-200/80 dark:border-slate-700 hover:border-[#00629B] dark:hover:border-sky-400 text-xs font-bold text-slate-700 dark:text-slate-200 hover:text-[#00629B] dark:hover:text-sky-300 shadow-2xs hover:shadow-xs active:scale-[0.98] transition-all cursor-pointer"
                         >
-                          <span className="text-xl p-1.5 rounded-xl bg-sky-100/70 dark:bg-sky-950/60 group-hover:scale-110 transition-transform">🏢</span>
-                          <div className="flex-1 min-w-0">
-                            <span className="block font-bold text-xs text-slate-800 dark:text-slate-100 group-hover:text-[#00629B] dark:group-hover:text-sky-300">
-                              Gestionar reserva
-                            </span>
-                            <span className="block text-[11px] text-slate-500 dark:text-slate-400 leading-tight mt-0.5">
-                              Cubículos de estudio, agendar o cancelar
-                            </span>
-                          </div>
+                          <span className="text-sm">🏢</span>
+                          <span>Gestionar reserva</span>
                         </button>
 
                         <button
                           type="button"
                           onClick={() => seleccionarOpcion('contacto')}
-                          className="flex items-start gap-2.5 p-3 rounded-2xl bg-white/95 dark:bg-slate-800/90 border border-sky-200/80 dark:border-slate-700 hover:border-[#00629B] dark:hover:border-sky-400 hover:shadow-md hover:scale-[1.01] active:scale-[0.99] transition-all text-left cursor-pointer group"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white/95 dark:bg-slate-800/90 border border-sky-200/80 dark:border-slate-700 hover:border-[#00629B] dark:hover:border-sky-400 text-xs font-bold text-slate-700 dark:text-slate-200 hover:text-[#00629B] dark:hover:text-sky-300 shadow-2xs hover:shadow-xs active:scale-[0.98] transition-all cursor-pointer"
                         >
-                          <span className="text-xl p-1.5 rounded-xl bg-sky-100/70 dark:bg-sky-950/60 group-hover:scale-110 transition-transform">📩</span>
-                          <div className="flex-1 min-w-0">
-                            <span className="block font-bold text-xs text-slate-800 dark:text-slate-100 group-hover:text-[#00629B] dark:group-hover:text-sky-300">
-                              Contactar al soporte
-                            </span>
-                            <span className="block text-[11px] text-slate-500 dark:text-slate-400 leading-tight mt-0.5">
-                              Envía un mensaje o consulta a biblioteca
-                            </span>
-                          </div>
+                          <span className="text-sm">📩</span>
+                          <span>Contactar soporte</span>
                         </button>
 
                         <button
                           type="button"
                           onClick={() => seleccionarOpcion('taller')}
-                          className="flex items-start gap-2.5 p-3 rounded-2xl bg-white/95 dark:bg-slate-800/90 border border-sky-200/80 dark:border-slate-700 hover:border-[#00629B] dark:hover:border-sky-400 hover:shadow-md hover:scale-[1.01] active:scale-[0.99] transition-all text-left cursor-pointer group"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white/95 dark:bg-slate-800/90 border border-sky-200/80 dark:border-slate-700 hover:border-[#00629B] dark:hover:border-sky-400 text-xs font-bold text-slate-700 dark:text-slate-200 hover:text-[#00629B] dark:hover:text-sky-300 shadow-2xs hover:shadow-xs active:scale-[0.98] transition-all cursor-pointer"
                         >
-                          <span className="text-xl p-1.5 rounded-xl bg-sky-100/70 dark:bg-sky-950/60 group-hover:scale-110 transition-transform">🎓</span>
-                          <div className="flex-1 min-w-0">
-                            <span className="block font-bold text-xs text-slate-800 dark:text-slate-100 group-hover:text-[#00629B] dark:group-hover:text-sky-300">
-                              Gestionar un taller
-                            </span>
-                            <span className="block text-[11px] text-slate-500 dark:text-slate-400 leading-tight mt-0.5">
-                              Solicita talleres presenciales o virtuales
-                            </span>
-                          </div>
+                          <span className="text-sm">🎓</span>
+                          <span>Gestionar taller</span>
                         </button>
                       </div>
                     )}
@@ -999,38 +978,38 @@ export default function ChatbotFlotante() {
           )}
 
           {user && !isNoRegular && !cargandoBot && !esModoAdmin && (
-            <div className="px-3 pt-2 pb-1 flex items-center gap-1.5 overflow-x-auto bg-white/80 dark:bg-slate-900/90 backdrop-blur-md border-t border-slate-100 dark:border-slate-800 scrollbar-none">
+            <div className="px-2 py-1 flex items-center gap-1 overflow-x-auto bg-white/85 dark:bg-slate-900/90 backdrop-blur-md border-t border-slate-100 dark:border-slate-800 scrollbar-none">
               <button
                 type="button"
                 onClick={volverAlMenuPrincipal}
-                className={`px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap active:scale-95 transition-all cursor-pointer shadow-2xs flex items-center gap-1 shrink-0 ${seccionActiva === 'menu'
+                className={`px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap active:scale-95 transition-all cursor-pointer shadow-2xs flex items-center gap-0.5 shrink-0 ${seccionActiva === 'menu'
                     ? 'bg-sky-100/90 hover:bg-sky-200/90 text-sky-900 dark:bg-sky-950 dark:hover:bg-sky-900 dark:text-sky-200 border border-sky-300 dark:border-sky-700'
                     : 'bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 dark:bg-amber-950/60 dark:hover:bg-amber-900 dark:border-amber-700 dark:text-amber-200'
                   }`}
                 title="Volver al menú principal"
               >
-                🏠 Menú principal
+                🏠 Menú
               </button>
               {seccionActiva === 'menu' && (
                 <>
                   <button
                     type="button"
                     onClick={() => seleccionarOpcion('reservas')}
-                    className="px-2.5 py-1 bg-sky-50/60 hover:bg-sky-100/70 border border-sky-200/70 hover:border-[#FFC20E] rounded-full text-[11px] font-semibold text-slate-700 hover:text-sky-900 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:border-slate-700 dark:hover:border-[#FFC20E] dark:text-slate-200 dark:hover:text-white whitespace-nowrap active:scale-95 transition-all cursor-pointer shadow-2xs"
+                    className="px-2 py-0.5 bg-sky-50/70 hover:bg-sky-100 border border-sky-200/70 hover:border-[#FFC20E] rounded-full text-[10px] font-medium text-slate-700 hover:text-sky-900 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:border-slate-700 dark:hover:border-[#FFC20E] dark:text-slate-300 dark:hover:text-white whitespace-nowrap active:scale-95 transition-all cursor-pointer shadow-2xs"
                   >
-                    🏢 Gestionar reserva
+                    🏢 Reservas
                   </button>
                   <button
                     type="button"
                     onClick={() => seleccionarOpcion('contacto')}
-                    className="px-2.5 py-1 bg-sky-50/60 hover:bg-sky-100/70 border border-sky-200/70 hover:border-[#FFC20E] rounded-full text-[11px] font-semibold text-slate-700 hover:text-sky-900 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:border-slate-700 dark:hover:border-[#FFC20E] dark:text-slate-200 dark:hover:text-white whitespace-nowrap active:scale-95 transition-all cursor-pointer shadow-2xs"
+                    className="px-2 py-0.5 bg-sky-50/70 hover:bg-sky-100 border border-sky-200/70 hover:border-[#FFC20E] rounded-full text-[10px] font-medium text-slate-700 hover:text-sky-900 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:border-slate-700 dark:hover:border-[#FFC20E] dark:text-slate-300 dark:hover:text-white whitespace-nowrap active:scale-95 transition-all cursor-pointer shadow-2xs"
                   >
-                    📩 Contactar soporte
+                    📩 Soporte
                   </button>
                   <button
                     type="button"
                     onClick={() => seleccionarOpcion('taller')}
-                    className="px-2.5 py-1 bg-sky-50/60 hover:bg-sky-100/70 border border-sky-200/70 hover:border-[#FFC20E] rounded-full text-[11px] font-semibold text-slate-700 hover:text-sky-900 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:border-slate-700 dark:hover:border-[#FFC20E] dark:text-slate-200 dark:hover:text-white whitespace-nowrap active:scale-95 transition-all cursor-pointer shadow-2xs"
+                    className="px-2 py-0.5 bg-sky-50/70 hover:bg-sky-100 border border-sky-200/70 hover:border-[#FFC20E] rounded-full text-[10px] font-medium text-slate-700 hover:text-sky-900 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:border-slate-700 dark:hover:border-[#FFC20E] dark:text-slate-300 dark:hover:text-white whitespace-nowrap active:scale-95 transition-all cursor-pointer shadow-2xs"
                   >
                     🎓 Talleres
                   </button>
@@ -1049,7 +1028,7 @@ export default function ChatbotFlotante() {
                       key={idx}
                       type="button"
                       onClick={() => enviarMensajeTexto(chip.texto)}
-                      className="px-2.5 py-1 bg-sky-50/60 hover:bg-sky-100/70 border border-sky-200/70 hover:border-[#FFC20E] rounded-full text-[11px] font-semibold text-slate-700 hover:text-sky-900 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:border-slate-700 dark:hover:border-[#FFC20E] dark:text-slate-200 dark:hover:text-white whitespace-nowrap active:scale-95 transition-all cursor-pointer shadow-2xs"
+                      className="px-2 py-0.5 bg-sky-50/70 hover:bg-sky-100 border border-sky-200/70 hover:border-[#FFC20E] rounded-full text-[10px] font-medium text-slate-700 hover:text-sky-900 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:border-slate-700 dark:hover:border-[#FFC20E] dark:text-slate-300 dark:hover:text-white whitespace-nowrap active:scale-95 transition-all cursor-pointer shadow-2xs"
                     >
                       {chip.label}
                     </button>
@@ -1070,7 +1049,7 @@ export default function ChatbotFlotante() {
                       key={idx}
                       type="button"
                       onClick={() => enviarMensajeTexto(chip.texto)}
-                      className="px-2.5 py-1 bg-sky-50/60 hover:bg-sky-100/70 border border-sky-200/70 hover:border-[#FFC20E] rounded-full text-[11px] font-semibold text-slate-700 hover:text-sky-900 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:border-slate-700 dark:hover:border-[#FFC20E] dark:text-slate-200 dark:hover:text-white whitespace-nowrap active:scale-95 transition-all cursor-pointer shadow-2xs"
+                      className="px-2 py-0.5 bg-sky-50/70 hover:bg-sky-100 border border-sky-200/70 hover:border-[#FFC20E] rounded-full text-[10px] font-medium text-slate-700 hover:text-sky-900 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:border-slate-700 dark:hover:border-[#FFC20E] dark:text-slate-300 dark:hover:text-white whitespace-nowrap active:scale-95 transition-all cursor-pointer shadow-2xs"
                     >
                       {chip.label}
                     </button>
