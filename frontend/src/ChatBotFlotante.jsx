@@ -253,7 +253,7 @@ export default function ChatbotFlotante() {
       setMensajes([
         {
           id: 1,
-          texto: `${getSaludo()}, ${user.nombre || 'estudiante'}! 👋 Te doy la bienvenida al asistente virtual de Biblioteca UCT.\n\n¿Qué deseas hacer hoy? Selecciona una de las siguientes opciones:`,
+          texto: `${getSaludo()}, ${user.nombre || 'estudiante'}! 👋 Te doy la bienvenida al asistente virtual de Biblioteca UCT.\n\n¿Qué deseas hacer hoy? Puedes presionar o escribir una opción:\n• Gestionar un taller\n• Gestionar una reserva\n• Contactar al soporte`,
           esBot: true,
           esMenuOpciones: true
         }
@@ -319,7 +319,7 @@ export default function ChatbotFlotante() {
       ...prev,
       {
         id: Date.now(),
-        texto: `${getSaludo()}, ${user?.nombre || 'estudiante'}! 👋\n\n¿Qué deseas hacer? Selecciona una opción:`,
+        texto: `${getSaludo()}, ${user?.nombre || 'estudiante'}! 👋\n\n¿Qué deseas hacer hoy? Puedes presionar o escribir una opción:\n• Gestionar un taller\n• Gestionar una reserva\n• Contactar al soporte`,
         esBot: true,
         esMenuOpciones: true
       }
@@ -373,6 +373,23 @@ export default function ChatbotFlotante() {
     }
     if (isNoRegular) return;
     if (!textoAEnviar.trim() || cargandoBot) return;
+
+    const txtLower = textoAEnviar.trim().toLowerCase();
+    if (txtLower === 'gestionar un taller' || txtLower === 'gestionar taller') {
+      seleccionarOpcion('taller');
+      setNuevoMensaje('');
+      return;
+    }
+    if (txtLower === 'gestionar una reserva' || txtLower === 'gestionar reserva') {
+      seleccionarOpcion('reservas');
+      setNuevoMensaje('');
+      return;
+    }
+    if (txtLower === 'contactar al soporte' || txtLower === 'contactar soporte') {
+      seleccionarOpcion('contacto');
+      setNuevoMensaje('');
+      return;
+    }
 
     const mensajeTexto = textoAEnviar.trim().slice(0, 300);
     const mensajeUsuario = { id: Date.now(), texto: mensajeTexto, esBot: false };
