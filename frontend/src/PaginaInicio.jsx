@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
 import { useCmsAnunciosQuery, useCmsTarjetasQuery } from "./services/queries";
 import logoChatbot from "./assets/logouctactual.png";
+import selloTransparencia from "./assets/sellotransparencia.png";
 import "./PaginaInicio.css";
 
 const IconChatSvg = ({ className = "w-5 h-5" }) => (
@@ -600,43 +601,11 @@ export default function PaginaInicio() {
             </div>
 
             <div className="pi-footer-col-cna">
-              <div className="pi-cna-badge">
-                <div className="pi-cna-top">
-                  <div className="pi-cna-left">
-                    <div className="pi-cna-text-block">
-                      <span className="pi-cna-title">CNA</span>
-                      <span className="pi-cna-sub">Comisión Nacional<br />de Acreditación<br />Chile</span>
-                    </div>
-                    <svg viewBox="0 0 40 36" className="pi-cna-mark" fill="currentColor" aria-hidden="true">
-                      <path d="M15 2L2 34h7.5l3-7.5h9l3 7.5H32L19 2h-4zm2 10.5L20.5 21h-7l3.5-8.5z" />
-                      <path d="M26 24l11-11v18l-11-7z" opacity="0.85" />
-                    </svg>
-                  </div>
-                  <div className="pi-cna-right">
-                    <span className="pi-cna-acc">UNIVERSIDAD ACREDITADA</span>
-                    <span className="pi-cna-lvl">NIVEL AVANZADO</span>
-                    <span className="pi-cna-date">HASTA NOVIEMBRE DE 2029</span>
-                  </div>
-                </div>
-                <div className="pi-cna-areas">
-                  Docencia y resultados del proceso formativo | Gestión estratégica y recursos institucionales | Aseguramiento interno de la calidad | Vinculación con el medio | Investigación, creación y/o innovación
-                </div>
-                <div className="pi-cna-bottom">
-                  <div className="pi-cna-g9">
-                    <strong>G9</strong>
-                    <span>Universidades</span>
-                  </div>
-                  <div className="pi-cna-grat">
-                    <span>Adscrita a</span>
-                    <strong>GRATUIDAD</strong>
-                  </div>
-                  <div className="pi-cna-handles">
-                    <span>uc_temuco</span>
-                    <span>uctemuco</span>
-                  </div>
-                  <div className="pi-cna-url">uctemuco.cl</div>
-                </div>
-              </div>
+              <img
+                src={selloTransparencia}
+                alt="Acreditación Institucional CNA y Transparencia UCT"
+                className="pi-cna-img"
+              />
             </div>
           </div>
         </div>
