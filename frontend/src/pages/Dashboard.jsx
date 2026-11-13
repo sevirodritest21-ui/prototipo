@@ -7,8 +7,7 @@ import logoUCT from "../assets/logobibliovice.png";
 import * as XLSX from "xlsx";
 import {
   exportarMetricasReservasExcel,
-  exportarMetricasTalleresExcel,
-  exportarMetricasPrediccionExcel
+  exportarMetricasTalleresExcel
 } from "../utils/exportMetricasExcel";
 
 const UI_ICON_MAP = {
@@ -514,12 +513,6 @@ export default function Dashboard() {
 
   const [metricas, setMetricas] = useState(null);
   const [tipoMetricas, setTipoMetricas] = useState("selector");
-  const [prediccionData, setPrediccionData] = useState(null);
-  const [cargandoPrediccion, setCargandoPrediccion] = useState(false);
-  const [campusFiltroPrediccion, setCampusFiltroPrediccion] = useState(1);
-  const [diasFiltroPrediccion, setDiasFiltroPrediccion] = useState(7);
-  const [diaPrediccionSeleccionado, setDiaPrediccionSeleccionado] = useState(null);
-  const [modeloPrediccion, setModeloPrediccion] = useState("random_forest");
   const [cargandoMetricas, setCargandoMetricas] = useState(false);
   const [mostrarGraficoMetricas, setMostrarGraficoMetricas] = useState(false);
   const [periodoMetricas, setPeriodoMetricas] = useState("dia");
@@ -922,29 +915,6 @@ export default function Dashboard() {
     }
   };
 
-  const fetchPrediccion = async (campusId = campusFiltroPrediccion, dias = diasFiltroPrediccion, reentrenar = false, modelo = modeloPrediccion) => {
-    setCargandoPrediccion(true);
-    try {
-      const data = await apiGet(`/api/metricas/prediccion?campus_id=${campusId}&dias=${dias}&reentrenar=${reentrenar}&modelo=${modelo}`);
-      setPrediccionData(data);
-      if (data?.proyeccion_diaria?.length > 0) {
-        const primerAbierto = data.proyeccion_diaria.find((d) => d.estado_atencion === "Abierto") || data.proyeccion_diaria[0];
-        setDiaPrediccionSeleccionado(primerAbierto);
-      }
-      if (reentrenar) {
-        const nombreMod = modelo === "xgboost" ? "XGBoost" : "Random Forest";
-        setToastNotificacion({
-          tipo: "exito",
-          texto: `Modelo ${nombreMod} autoentrenado y calibrado con éxito.`
-        });
-      }
-    } catch {
-      setPrediccionData(null);
-    } finally {
-      setCargandoPrediccion(false);
-    }
-  };
-
   const fetchMetricas = async (periodo = periodoMetricas, fecha = fechaMetricas, campusId = campusFiltroMetricas) => {
     setCargandoMetricas(true);
     try {
@@ -974,7 +944,6 @@ export default function Dashboard() {
       fetchCubiculos,
       fetchResumen,
       fetchReservasGestion,
-      fetchPrediccion,
       fetchMetricas,
       paginaHistorial,
       limiteHistorial,
@@ -1057,14 +1026,6 @@ export default function Dashboard() {
     }, 0);
     return () => clearTimeout(t);
   }, [campusSeleccionado, fechaSeleccionada]);
-
-  useEffect(() => {
-    if (tipoMetricas !== "prediccion") return;
-    const t = setTimeout(() => {
-      handlersRef.current.fetchPrediccion?.(campusFiltroPrediccion, diasFiltroPrediccion, false, modeloPrediccion);
-    }, 0);
-    return () => clearTimeout(t);
-  }, [tipoMetricas, campusFiltroPrediccion, diasFiltroPrediccion, modeloPrediccion]);
 
   useEffect(() => {
     if (activeTab !== "metricas" || (tipoMetricas !== "reservas" && tipoMetricas !== "selector")) return;
@@ -1170,22 +1131,6 @@ export default function Dashboard() {
       setToastNotificacion({ tipo: "exito", texto: "Reporte ejecutivo de talleres con gráficos exportado a Excel exitosamente." });
     } catch (err) {
       setToastNotificacion({ tipo: "error", texto: err.message || "Error al exportar métricas de talleres" });
-    } finally {
-      setExportandoMetricasExcel(false);
-    }
-  };
-
-  const handleExportarMetricasPrediccionExcel = async () => {
-    setExportandoMetricasExcel(true);
-    try {
-      await exportarMetricasPrediccionExcel({
-        prediccionData,
-        modeloPrediccion,
-        diasFiltroPrediccion
-      });
-      setToastNotificacion({ tipo: "exito", texto: "Reporte ejecutivo de pronóstico de aforo con gráficos exportado a Excel exitosamente." });
-    } catch (err) {
-      setToastNotificacion({ tipo: "error", texto: err.message || "Error al exportar pronóstico de aforo" });
     } finally {
       setExportandoMetricasExcel(false);
     }
@@ -2077,7 +2022,7 @@ export default function Dashboard() {
                   activeTab === "reservas" ? "Gestión de Reservas" :
                     activeTab === "incidencias" ? "Incidencias de Cubículos" :
                       activeTab === "talleres" ? "Talleres Solicitados" :
-                        activeTab === "metricas" ? (tipoMetricas === "talleres" ? "Métricas · Talleres" : tipoMetricas === "prediccion" ? "Métricas · Pronóstico" : tipoMetricas === "reservas" ? "Métricas · Reservas" : "Métricas y Análisis") :
+                        activeTab === "metricas" ? (tipoMetricas === "talleres" ? "Métricas · Talleres" : tipoMetricas === "reservas" ? "Métricas · Reservas" : "Métricas y Análisis") :
                           activeTab === "calendario" ? "Calendario y Bloqueos" :
                             activeTab === "sedes" ? "Sedes y Cubículos" :
                               activeTab === "cms" ? "Portal de Inicio" :
@@ -4705,7 +4650,7 @@ export default function Dashboard() {
                     </h2>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
                     <div
                       onClick={() => setTipoMetricas("reservas")}
                       className="group relative p-6 rounded-3xl bg-gradient-to-br from-white to-slate-50 border-2 border-slate-200 hover:border-[#00629B] hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden"
@@ -4759,33 +4704,6 @@ export default function Dashboard() {
                         </button>
                       </div>
                     </div>
-
-                    <div
-                      onClick={() => setTipoMetricas("prediccion")}
-                      className="group relative p-6 rounded-3xl bg-gradient-to-br from-white to-slate-50 border-2 border-slate-200 hover:border-[#00A3E0] hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden"
-                    >
-                      <div className="space-y-3 relative z-10">
-                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#00629B] to-[#00A3E0] text-white flex items-center justify-center text-xl shadow-md"><UiIcon name="trend" className="w-4 h-4" /></div>
-                        <div>
-                          <h3 className="text-lg font-black text-slate-800 group-hover:text-[#00629B] transition-colors">
-                            Pronóstico de Aforo
-                          </h3>
-                          <p className="text-xs text-slate-500 mt-1">
-                            Proyección de demanda y ocupación para los próximos días.
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="pt-5 relative z-10">
-                        <button
-                          type="button"
-                          className="w-full py-2.5 px-4 rounded-xl font-black text-xs bg-gradient-to-r from-[#00629B] to-[#00A3E0] hover:from-[#004D7A] hover:to-[#0082B3] text-white shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
-                        >
-                          <span>Ver Pronóstico</span>
-                          <span>→</span>
-                        </button>
-                      </div>
-                    </div>
                   </div>
                 </div>
               )}
@@ -4817,14 +4735,6 @@ export default function Dashboard() {
                       >
                         <span><UiIcon name="academic" className="w-4 h-4" /></span>
                         <span>Métricas de Talleres</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setTipoMetricas("prediccion")}
-                        className="px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 text-slate-600 hover:text-slate-900"
-                      >
-                        <span><UiIcon name="trend" className="w-4 h-4" /></span>
-                        <span>Pronóstico de Aforo</span>
                       </button>
                     </div>
                   </div>
@@ -6130,14 +6040,6 @@ export default function Dashboard() {
                         <span><UiIcon name="academic" className="w-4 h-4" /></span>
                         <span>Métricas de Talleres</span>
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => setTipoMetricas("prediccion")}
-                        className="px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 text-slate-600 hover:text-slate-900"
-                      >
-                        <span><UiIcon name="trend" className="w-4 h-4" /></span>
-                        <span>Pronóstico de Aforo</span>
-                      </button>
                     </div>
                   </div>
 
@@ -6479,386 +6381,6 @@ export default function Dashboard() {
                       </div>
                     );
                   })()}
-                </div>
-              )}
-              {tipoMetricas === "prediccion" && (
-                <div className={`${CARD} p-6 md:p-8 mb-8 space-y-6 animate-fadeIn`}>
-                  <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-100">
-                    <button
-                      type="button"
-                      onClick={() => setTipoMetricas("selector")}
-                      className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-all flex items-center gap-2 cursor-pointer shadow-2xs"
-                    >
-                      <span>←</span>
-                      <span>Cambiar tipo de métricas</span>
-                    </button>
-                    <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200 shadow-xs">
-                      <button
-                        type="button"
-                        onClick={() => setTipoMetricas("reservas")}
-                        className="px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 text-slate-600 hover:text-slate-900"
-                      >
-                        <span><UiIcon name="building" className="w-4 h-4" /></span>
-                        <span>Métricas de Reservas</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setTipoMetricas("talleres")}
-                        className="px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 text-slate-600 hover:text-slate-900"
-                      >
-                        <span><UiIcon name="academic" className="w-4 h-4" /></span>
-                        <span>Métricas de Talleres</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setTipoMetricas("prediccion")}
-                        className="px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 bg-[#002D4C] text-white shadow-xs"
-                      >
-                        <span><UiIcon name="trend" className="w-4 h-4" /></span>
-                        <span>Pronóstico de Aforo</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-                    <div>
-                      <h2 className={SECTION_TITLE}>Pronóstico de Aforo</h2>
-                      <p className="text-[11px] text-slate-500 mt-0.5">
-                        {modeloPrediccion === "xgboost"
-                          ? "Algoritmo: XGBoost (Recomendado para más de 100.000 registros)"
-                          : "Algoritmo: Random Forest (Recomendado para menos de 100.000 registros)"}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2.5">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[11px] font-bold text-slate-500">Modelo:</span>
-                        <select
-                          value={modeloPrediccion}
-                          onChange={(e) => {
-                            const nuevoMod = e.target.value;
-                            setModeloPrediccion(nuevoMod);
-                            fetchPrediccion(campusFiltroPrediccion, diasFiltroPrediccion, false, nuevoMod);
-                          }}
-                          className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 shadow-xs focus:ring-2 focus:ring-[#00629B] focus:outline-none cursor-pointer"
-                        >
-                          <option value="random_forest">Random Forest (&lt;100k)</option>
-                          <option value="xgboost">XGBoost (&ge;100k)</option>
-                        </select>
-                      </div>
-
-                      <select
-                        value={campusFiltroPrediccion}
-                        onChange={(e) => setCampusFiltroPrediccion(Number(e.target.value))}
-                        className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 shadow-xs focus:ring-2 focus:ring-[#00629B] focus:outline-none cursor-pointer"
-                      >
-                        {campus.map((c) => (
-                          <option key={c.id} value={c.id}>{c.nombre}</option>
-                        ))}
-                      </select>
-
-                      <select
-                        value={diasFiltroPrediccion}
-                        onChange={(e) => setDiasFiltroPrediccion(Number(e.target.value))}
-                        className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 shadow-xs focus:ring-2 focus:ring-[#00629B] focus:outline-none cursor-pointer"
-                      >
-                        <option value={7}>Próximos 7 días</option>
-                        <option value={14}>Próximos 14 días</option>
-                      </select>
-
-                      <button
-                        type="button"
-                        onClick={() => fetchPrediccion(campusFiltroPrediccion, diasFiltroPrediccion, false, modeloPrediccion)}
-                        disabled={cargandoPrediccion}
-                        className={`${BTN_GHOST} shrink-0`}
-                      >
-                        {cargandoPrediccion ? "Calculando..." : "Actualizar"}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => fetchPrediccion(campusFiltroPrediccion, diasFiltroPrediccion, true, modeloPrediccion)}
-                        disabled={cargandoPrediccion}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#002D4C] hover:bg-[#00416D] text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-50 shrink-0"
-                        title="Reentrenar y calibrar el modelo seleccionado"
-                      >
-                        <span><UiIcon name="bolt" className="w-4 h-4" /></span>
-                        <span>{cargandoPrediccion ? "Calibrando..." : "Autoentrenar"}</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={handleExportarMetricasPrediccionExcel}
-                        disabled={cargandoPrediccion || exportandoMetricasExcel}
-                        className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50 shrink-0"
-                      >
-                        <span><UiIcon name="doc" className="w-4 h-4" /></span>
-                        <span>{exportandoMetricasExcel ? "Generando..." : "Exportar Excel (.xlsx)"}</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {cargandoPrediccion ? (
-                    <div className="py-20 px-6 rounded-3xl bg-slate-50/70 border border-slate-200/80 flex flex-col items-center justify-center text-center gap-4">
-                      <div className="relative w-14 h-14 flex items-center justify-center">
-                        <div className="absolute inset-0 rounded-full border-4 border-sky-100"></div>
-                        <div className="absolute inset-0 rounded-full border-4 border-[#00629B] border-t-transparent animate-spin"></div>
-                        <span className="text-lg"><UiIcon name="trend" className="w-4 h-4" /></span>
-                      </div>
-                      <div className="space-y-1">
-                        <h3 className="text-sm font-black text-slate-800">Cargando pronóstico de aforo...</h3>
-                        <p className="text-xs text-slate-500 max-w-sm">
-                          Procesando historial de reservas y calibrando las proyecciones por bloque horario.
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <div className="p-5 rounded-3xl bg-gradient-to-br from-[#00629B] via-[#0077B8] to-[#00A3E0] text-white shadow-md">
-                          <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-widest text-sky-100">
-                            <span>Ocupación Promedio</span>
-                            <span className="w-8 h-8 rounded-xl bg-white/15 flex items-center justify-center text-sm"><UiIcon name="chart" className="w-4 h-4" /></span>
-                          </div>
-                          <div className="text-3xl font-black mt-2 tracking-tight">
-                            {prediccionData?.resumen?.ocupacion_promedio_semana ?? 0}%
-                          </div>
-                        </div>
-
-                        <div className="p-5 rounded-3xl bg-white border border-rose-200/80 shadow-xs">
-                          <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-widest text-rose-600">
-                            <span>Mayor Demanda</span>
-                            <span className="w-8 h-8 rounded-xl bg-rose-50 flex items-center justify-center text-sm"><UiIcon name="flame" className="w-4 h-4" /></span>
-                          </div>
-                          <div className="text-xl font-black text-slate-800 mt-2 truncate">
-                            {prediccionData?.resumen?.dia_mayor_demanda || "—"}
-                          </div>
-                        </div>
-
-                        <div className="p-5 rounded-3xl bg-white border border-emerald-200/80 shadow-xs">
-                          <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-widest text-emerald-600">
-                            <span>Menor Demanda</span>
-                            <span className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center text-sm"><UiIcon name="leaf" className="w-4 h-4" /></span>
-                          </div>
-                          <div className="text-xl font-black text-slate-800 mt-2 truncate">
-                            {prediccionData?.resumen?.dia_menor_demanda || "—"}
-                          </div>
-                        </div>
-
-                        <div className="p-5 rounded-3xl bg-white border border-sky-200/80 shadow-xs">
-                          <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-widest text-[#00629B]">
-                            <span>Precisión Real</span>
-                            <span className="w-8 h-8 rounded-xl bg-sky-50 flex items-center justify-center text-sm"><UiIcon name="target" className="w-4 h-4" /></span>
-                          </div>
-                          <div className="flex items-baseline gap-2 mt-2">
-                            <span className="text-2xl font-black text-slate-800">
-                              {prediccionData?.autoevaluacion?.precision_real_pct ?? 93.9}%
-                            </span>
-                            <span className="text-[11px] font-semibold text-slate-500">
-                              ({prediccionData?.autoevaluacion?.bloques_evaluados ?? 0} bloques)
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs">
-                        <div className="flex items-center gap-2.5 flex-wrap">
-                          <span className="text-xs font-bold text-slate-700">Modelo Activo:</span>
-                          <span className="px-2.5 py-1 rounded-xl bg-sky-50 border border-sky-200/80 font-black text-xs text-[#00629B]">
-                            {prediccionData?.modelo_info?.algoritmo || (modeloPrediccion === "xgboost" ? "XGBoost Regressor" : "Random Forest Regressor")}
-                          </span>
-                          <span className="text-[11px] text-slate-500 font-semibold">
-                            R²: <strong className="text-slate-800">{prediccionData?.modelo_info?.r2_score ?? "0.85"}</strong> • MAE: <strong className="text-slate-800">{prediccionData?.modelo_info?.mae ?? "4.5"}%</strong> • Muestras: <strong className="text-slate-800">{prediccionData?.modelo_info?.muestras_entrenamiento ?? 0}</strong>
-                          </span>
-                        </div>
-                        <div className="text-[11px] font-semibold text-slate-600 bg-slate-50 px-3 py-1 rounded-xl border border-slate-200/70">
-                          {prediccionData?.modelo_info?.recomendacion_volumen || (modeloPrediccion === "xgboost" ? "Recomendado para grandes volúmenes (≥100.000 registros)" : "Óptimo para datasets moderados (<100.000 registros)")}
-                        </div>
-                      </div>
-
-                      <div className="p-6 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-4">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
-                          <h3 className="text-sm font-black text-slate-800 flex items-center gap-2">
-                            <span className="text-[#00629B]"><UiIcon name="trend" className="w-4 h-4" /></span> Proyección por Día
-                          </h3>
-                          <div className="flex items-center gap-3 text-[10px] font-bold text-slate-600">
-                            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span> Alta (&ge;70%)</span>
-                            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#00629B]"></span> Media (45-69%)</span>
-                            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Baja (&lt;45%)</span>
-                          </div>
-                        </div>
-
-                        <div className="h-64 flex items-end justify-between gap-2 sm:gap-3 pt-8 pb-3 px-3 bg-gradient-to-b from-sky-50/40 via-white to-slate-50/60 rounded-2xl border border-slate-100 overflow-x-auto">
-                          {(prediccionData?.proyeccion_diaria || []).map((dia) => {
-                            const pct = Math.round(dia.ocupacion_promedio_dia || 0);
-                            const isSelected = diaPrediccionSeleccionado?.fecha === dia.fecha;
-                            const esCerrado = dia.estado_atencion === "Cerrado";
-                            const barHeight = esCerrado ? 10 : Math.max(pct, 12);
-                            const barColor = esCerrado
-                              ? "bg-slate-200 text-slate-400"
-                              : pct >= 70
-                                ? "bg-gradient-to-t from-rose-600 to-amber-500"
-                                : pct >= 45
-                                  ? "bg-gradient-to-t from-[#004D7A] via-[#00629B] to-[#00A3E0]"
-                                  : "bg-gradient-to-t from-emerald-600 to-teal-400";
-
-                            return (
-                              <div
-                                key={dia.fecha}
-                                onClick={() => setDiaPrediccionSeleccionado(dia)}
-                                className={`flex-1 min-w-[55px] max-w-[120px] flex flex-col items-center gap-2 cursor-pointer transition-all duration-200 p-1.5 rounded-xl group ${
-                                  isSelected ? "bg-sky-50 ring-2 ring-[#00629B] shadow-xs scale-105" : "hover:bg-slate-100/70"
-                                }`}
-                              >
-                                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md border shadow-2xs transition-transform group-hover:scale-110 ${
-                                  esCerrado
-                                    ? "bg-slate-100 text-slate-500 border-slate-200"
-                                    : isSelected
-                                      ? "bg-[#002D4C] text-white border-[#002D4C]"
-                                      : "bg-white text-slate-700 border-slate-200"
-                                }`}>
-                                  {esCerrado ? "Cerrado" : `${pct}%`}
-                                </span>
-
-                                <div className="w-full h-36 bg-slate-100 rounded-xl flex items-end justify-center p-1 relative overflow-hidden border border-slate-200/70">
-                                  <div
-                                    className={`w-full rounded-lg transition-all duration-500 ${barColor} ${isSelected ? "brightness-110" : ""}`}
-                                    style={{ height: `${barHeight}%` }}
-                                  />
-                                </div>
-
-                                <div className="text-center">
-                                  <div className={`text-[11px] font-extrabold truncate uppercase ${isSelected ? "text-[#00629B]" : "text-slate-700"}`}>
-                                    {dia.dia_nombre.slice(0, 3)}
-                                  </div>
-                                  <div className="text-[10px] text-slate-600 font-mono">
-                                    {dia.fecha.slice(5)}
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      {diaPrediccionSeleccionado && (
-                        <div className="p-5 rounded-3xl bg-slate-50/70 border border-slate-200/80 space-y-4">
-                          <div className="flex items-center justify-between border-b border-slate-200/60 pb-3">
-                            <div>
-                              <h4 className="text-sm font-black text-slate-800">
-                                {diaPrediccionSeleccionado.dia_nombre} {diaPrediccionSeleccionado.fecha}
-                              </h4>
-                              <p className="text-[11px] text-slate-500">
-                                {prediccionData?.campus_nombre} · {prediccionData?.capacidad_campus || 10} cubículos
-                              </p>
-                            </div>
-                            <span className="px-3 py-1 rounded-full text-xs font-bold bg-[#00629B]/10 text-[#00629B]">
-                              {diaPrediccionSeleccionado.ocupacion_promedio_dia}% promedio
-                            </span>
-                          </div>
-
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-                            {diaPrediccionSeleccionado.bloques.map((b) => {
-                              const pct = b.ocupacion_proyectada_pct;
-                              const badgeColor =
-                                b.nivel_demanda === "Alta"
-                                  ? "bg-rose-100 text-rose-800 border-rose-200"
-                                  : b.nivel_demanda === "Media"
-                                    ? "bg-amber-100 text-amber-800 border-amber-200"
-                                    : b.nivel_demanda === "Baja"
-                                      ? "bg-emerald-100 text-emerald-800 border-emerald-200"
-                                      : "bg-slate-200 text-slate-600 border-slate-300";
-                              const barColor =
-                                pct >= 75 ? "bg-rose-500" : pct >= 45 ? "bg-amber-500" : "bg-emerald-500";
-                              return (
-                                <div key={b.hora} className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-2.5">
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-xs font-black text-slate-800">{b.rango}</span>
-                                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md border ${badgeColor}`}>
-                                      {b.nivel_demanda === "Cerrado" ? "Cerrado" : b.nivel_demanda}
-                                    </span>
-                                  </div>
-                                  <div className="space-y-1">
-                                    <div className="flex justify-between text-[11px] font-semibold text-slate-600">
-                                      <span>Ocupación</span>
-                                      <span className="font-extrabold text-slate-900">{pct}%</span>
-                                    </div>
-                                    <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
-                                      <div className={`h-full rounded-full transition-all duration-500 ${barColor}`} style={{ width: `${pct}%` }} />
-                                    </div>
-                                  </div>
-                                  <div className="flex justify-between text-[10px] text-slate-500 pt-1 border-t border-slate-100">
-                                    <span>Ocupados: <strong className="text-slate-800">{b.cubiculos_ocupados_estimados}</strong></span>
-                                    <span>Libres: <strong className="text-emerald-700">{b.cubiculos_libres_estimados}</strong></span>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-
-                      {(prediccionData?.autoevaluacion?.comparativa_diaria?.length > 0) && (
-                        <div className="p-6 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-4">
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
-                            <div>
-                              <h3 className="text-sm font-black text-slate-800 flex items-center gap-2">
-                                <span className="text-[#00629B]"><UiIcon name="target" className="w-4 h-4" /></span> Predicción vs Ocupación Real (Autoentrenamiento)
-                              </h3>
-                              <p className="text-[11px] text-slate-500 mt-0.5">
-                                Contraste automático entre el aforo proyectado y la asistencia real registrada para calibrar futuras proyecciones.
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-3 text-[11px] font-bold">
-                              <span className="flex items-center gap-1.5 text-slate-600">
-                                <span className="w-2.5 h-2.5 rounded-full bg-[#00629B]"></span> Predicho
-                              </span>
-                              <span className="flex items-center gap-1.5 text-slate-600">
-                                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Real
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                            {prediccionData.autoevaluacion.comparativa_diaria.map((item) => (
-                              <div key={item.fecha} className="p-3.5 rounded-2xl bg-slate-50/70 border border-slate-200/80 space-y-2.5">
-                                <div className="flex items-center justify-between">
-                                  <div>
-                                    <div className="text-xs font-black text-slate-800">{item.dia_nombre}</div>
-                                    <div className="text-[10px] font-mono text-slate-500">{item.fecha}</div>
-                                  </div>
-                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                    {item.precision_dia}% precisión
-                                  </span>
-                                </div>
-
-                                <div className="space-y-1.5">
-                                  <div className="space-y-0.5">
-                                    <div className="flex justify-between text-[10px] font-semibold text-slate-600">
-                                      <span>Predicho</span>
-                                      <span className="font-bold text-[#00629B]">{item.pct_predicho}%</span>
-                                    </div>
-                                    <div className="w-full h-1.5 rounded-full bg-slate-200 overflow-hidden">
-                                      <div className="h-full rounded-full bg-[#00629B]" style={{ width: `${Math.min(100, item.pct_predicho)}%` }} />
-                                    </div>
-                                  </div>
-
-                                  <div className="space-y-0.5">
-                                    <div className="flex justify-between text-[10px] font-semibold text-slate-600">
-                                      <span>Real</span>
-                                      <span className="font-bold text-emerald-600">{item.pct_real}%</span>
-                                    </div>
-                                    <div className="w-full h-1.5 rounded-full bg-slate-200 overflow-hidden">
-                                      <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.min(100, item.pct_real)}%` }} />
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  )}
                 </div>
               )}
             </>
