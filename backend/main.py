@@ -3866,8 +3866,6 @@ async def eliminar_solicitud_taller(solicitud_id: int, current_user: dict = Depe
 
 
 _session_saved_cache: Dict[str, float] = {}
-_chat_faq_cache: Dict[str, str] = {}
-_chat_faq_locks: Dict[str, asyncio.Lock] = {}
 
 
 def formatear_error_amigable_chatbot(raw: str) -> str:
@@ -3912,14 +3910,6 @@ def formatear_error_amigable_chatbot(raw: str) -> str:
     if not txt or any(inv in txt_lower for inv in frases_tecnicas):
         return "Lo siento, ocurrió un inconveniente momentáneo al procesar tu solicitud con el sistema de reservas. Por favor intenta consultarme nuevamente o reformular tu consulta."
     return txt
-
-
-def _es_pregunta_informativa_general(msg: str) -> bool:
-    if not msg:
-        return False
-    m = msg.lower().strip()
-    acc_words = ["reservar", "agendar", "quiero un", "cancelar", "anular", "editar", "modificar", "cambiar mi", "mis reservas", "tengo reserva", "para hoy", "para mañana", "2026-", "bloque de las"]
-    return not any(w in m for w in acc_words)
 
 
 @app.post("/api/chat")
@@ -4032,50 +4022,31 @@ async def hablar_con_bot(input_data: MessageInput, request: Request, current_use
             "hora_actual": hora_actual
         }
 
-        es_faq = _es_pregunta_informativa_general(input_data.message)
-        faq_key = input_data.message.strip().lower() if es_faq and input_data.message else None
-        if faq_key and faq_key in _chat_faq_cache:
-            return {"response": _chat_faq_cache[faq_key]}
-
-        lock = None
-        if faq_key:
-            lock = _chat_faq_locks.setdefault(faq_key, asyncio.Lock())
-            await lock.acquire()
-            if faq_key in _chat_faq_cache:
-                lock.release()
-                return {"response": _chat_faq_cache[faq_key]}
-
+        payload_bytes, headers = generar_headers_webhook_n8n(payload)
+        timeout_n8n = float(os.getenv("N8N_CHATBOT_TIMEOUT", "120.0"))
         try:
-            payload_bytes, headers = generar_headers_webhook_n8n(payload)
-            timeout_n8n = float(os.getenv("N8N_CHATBOT_TIMEOUT", "120.0"))
+            response = await httpx_client.post(N8N_WEBHOOK_URL, content=payload_bytes, headers=headers, timeout=timeout_n8n)
+        except (httpx.TimeoutException, httpx.ConnectError, httpx.RequestError):
+            return {
+                "response": "El asistente está tardando más de lo habitual en responder. Por favor intenta consultar nuevamente en unos momentos."
+            }
+
+        if response.status_code != 200:
             try:
-                response = await httpx_client.post(N8N_WEBHOOK_URL, content=payload_bytes, headers=headers, timeout=timeout_n8n)
-            except (httpx.TimeoutException, httpx.ConnectError, httpx.RequestError):
-                return {
-                    "response": "El asistente está tardando más de lo habitual en responder. Por favor intenta consultar nuevamente en unos momentos."
-                }
+                err_data = response.json()
+                raw_err = str(err_data.get("message") or err_data.get("errorMessage") or err_data.get("detail") or err_data.get("output") or "")
+            except Exception:
+                raw_err = response.text or ""
 
-            if response.status_code != 200:
-                try:
-                    err_data = response.json()
-                    raw_err = str(err_data.get("message") or err_data.get("errorMessage") or err_data.get("detail") or err_data.get("output") or "")
-                except Exception:
-                    raw_err = response.text or ""
+            clean_err = formatear_error_amigable_chatbot(raw_err)
+            return {"response": clean_err}
 
-                clean_err = formatear_error_amigable_chatbot(raw_err)
-                return {"response": clean_err}
-
-            data = response.json()
-            bot_response = data.get("output") or data.get("message") or data.get("response") or "Reserva procesada con éxito."
-            bot_response = formatear_error_amigable_chatbot(bot_response)
-            if not bot_response:
-                bot_response = "Estoy procesando tu solicitud de cubículos. ¿En qué fecha, hora y sede te gustaría agendar?"
-            if faq_key:
-                _chat_faq_cache[faq_key] = bot_response
-            return {"response": bot_response}
-        finally:
-            if lock and lock.locked():
-                lock.release()
+        data = response.json()
+        bot_response = data.get("output") or data.get("message") or data.get("response") or "Reserva procesada con éxito."
+        bot_response = formatear_error_amigable_chatbot(bot_response)
+        if not bot_response:
+            bot_response = "Estoy procesando tu solicitud de cubículos. ¿En qué fecha, hora y sede te gustaría agendar?"
+        return {"response": bot_response}
 
     except HTTPException:
         raise
