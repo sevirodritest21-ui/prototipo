@@ -2571,48 +2571,6 @@ async def eliminar_campus_por_id(campus_id: int, current_user: dict = Depends(ge
     return {"message": f"El campus '{nombre_campus}', sus cubículos y reservas asociadas fueron eliminados."}
 
 
-@app.get("/api/metricas/prediccion")
-async def obtener_prediccion_aforo(
-    campus_id: int = Query(1),
-    dias: int = Query(7),
-    reentrenar: bool = Query(False),
-    modelo: str = Query("random_forest"),
-    current_user: dict = Depends(get_current_user)
-):
-    try:
-        from backend.ml_occupancy import predecir_aforo_semanal
-    except ImportError:
-        from ml_occupancy import predecir_aforo_semanal
-    return await asyncio.to_thread(
-        predecir_aforo_semanal,
-        campus_id=campus_id,
-        dias=dias,
-        forzar_reentrenamiento=reentrenar,
-        algoritmo=modelo
-    )
-
-
-@app.post("/api/metricas/prediccion/reentrenar")
-async def forzar_autoentrenamiento_ml(
-    campus_id: int = Query(1),
-    dias: int = Query(7),
-    modelo: str = Query("random_forest"),
-    current_user: dict = Depends(get_current_user)
-):
-    if current_user.get("rol") != "admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
-    try:
-        from backend.ml_occupancy import predecir_aforo_semanal
-    except ImportError:
-        from ml_occupancy import predecir_aforo_semanal
-    return await asyncio.to_thread(
-        predecir_aforo_semanal,
-        campus_id=campus_id,
-        dias=dias,
-        forzar_reentrenamiento=True,
-        algoritmo=modelo
-    )
-
 @app.get("/api/dashboard/metricas")
 async def obtener_metricas_dashboard(
     campus_id: Optional[int] = None,
@@ -4153,29 +4111,6 @@ async def hablar_con_bot_admin(input_data: AdminChatMessageInput, request: Reque
 
     if len(input_data.message.strip()) > 600:
         raise HTTPException(status_code=400, detail="La consulta no puede superar los 600 caracteres.")
-
-    msg_lower = input_data.message.lower().strip()
-    palabras_ml = ["pronostico", "pronóstico", "prediccion", "predicción", "proyeccion", "proyección", "aforo", "demanda esperada", "saturacion", "saturación", "cuanto se llenara", "cuánto se llenará"]
-    if any(p in msg_lower for p in palabras_ml):
-        cid = 1
-        if "derecho" in msg_lower:
-            cid = 2
-        elif "arellano" in msg_lower or "jaime" in msg_lower:
-            cid = 7
-        try:
-            from backend.ml_occupancy import predecir_aforo_semanal
-        except ImportError:
-            from ml_occupancy import predecir_aforo_semanal
-        pred = predecir_aforo_semanal(campus_id=cid, dias=7)
-        r_txt = (
-            f"📊 **Pronóstico de Aforo con Machine Learning ({pred['campus_nombre']})**\n\n"
-            f"{pred['resumen']['mensaje_analitico']}\n\n"
-            f"• **Día mayor congestión:** {pred['resumen']['dia_mayor_demanda']}\n"
-            f"• **Día más disponible:** {pred['resumen']['dia_menor_demanda']}\n"
-            f"• **Algoritmo de Inferencia:** {pred['modelo_info']['algoritmo']} (R² = {pred['modelo_info']['r2_score']}, MAE = {pred['modelo_info']['mae']}%)\n\n"
-            f"💡 *Para ver el desglose interactivo gráfico día a día y por horas, puedes ingresar a la pestaña **Métricas y Análisis > Predicción con IA**.*"
-        )
-        return {"response": r_txt}
 
     payload = {
         "message": input_data.message.strip(),

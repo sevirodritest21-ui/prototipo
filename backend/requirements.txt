@@ -9,6 +9,3 @@ passlib
 bcrypt==4.0.1
 holidays
 pymssql
-scikit-learn
-joblib
-xgboost

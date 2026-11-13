@@ -263,21 +263,6 @@ CREATE TABLE [n8n_chat_histories] (
     [message] NVARCHAR(MAX) NOT NULL
 );
 
-IF OBJECT_ID('predicciones_aforo_log', 'U') IS NULL
-CREATE TABLE [predicciones_aforo_log] (
-    [id] INT IDENTITY(1,1) PRIMARY KEY NOT NULL,
-    [campus_id] INT NOT NULL,
-    [fecha] DATE NOT NULL,
-    [hora] VARCHAR(10) NOT NULL,
-    [pct_predicho] FLOAT NOT NULL,
-    [pct_real] FLOAT NULL,
-    [error_abs] FLOAT NULL,
-    [evaluado] BIT NOT NULL DEFAULT 0,
-    [created_at] DATETIME NULL DEFAULT GETDATE(),
-    [evaluated_at] DATETIME NULL
-);
-
-
 IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'rls')
     EXEC('CREATE SCHEMA [rls]');
 

@@ -28,8 +28,7 @@ TABLE_ORDER = [
     'solicitudes_talleres',
     'estadisticas_reservas_carrera',
     'rate_limits',
-    'n8n_chat_histories',
-    'predicciones_aforo_log'
+    'n8n_chat_histories'
 ]
 
 DEMO_RESERVAS_NOV = [
