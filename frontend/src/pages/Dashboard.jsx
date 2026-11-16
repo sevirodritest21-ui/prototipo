@@ -260,6 +260,150 @@ export default function Dashboard() {
     }
   };
 
+  const IA_PROVIDERS = {
+    deepseek: {
+      label: "DeepSeek",
+      baseUrl: "https://api.deepseek.com/v1",
+      models: ["deepseek-chat", "deepseek-reasoner", "deepseek-flash"],
+    },
+    openai: {
+      label: "OpenAI",
+      baseUrl: "https://api.openai.com/v1",
+      models: ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1", "gpt-5-mini", "o3-mini"],
+    },
+    gemini: {
+      label: "Google Gemini (OpenAI Compatible)",
+      baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+      models: ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"],
+    },
+    openrouter: {
+      label: "OpenRouter",
+      baseUrl: "https://openrouter.ai/api/v1",
+      models: ["openai/gpt-4o-mini", "deepseek/deepseek-chat", "google/gemini-2.5-flash", "anthropic/claude-3.5-sonnet"],
+    },
+    custom: {
+      label: "Personalizada (URL manual)",
+      baseUrl: "",
+      models: [],
+    },
+  };
+
+  const [modalIaConfig, setModalIaConfig] = useState({
+    open: false,
+    loading: false,
+    saving: false,
+    testingModels: false,
+    provider: "deepseek",
+    baseUrl: "https://api.deepseek.com/v1",
+    apiKey: "",
+    showApiKey: false,
+    model: "deepseek-chat",
+    availableModels: [],
+    showAdvancedN8n: false,
+    n8nApiBase: "",
+    n8nApiKey: "",
+    statusInfo: null,
+    errorMsg: "",
+  });
+
+  const handleAbrirModalIaConfig = async () => {
+    setModalIaConfig((prev) => ({
+      ...prev,
+      open: true,
+      loading: true,
+      apiKey: "",
+      n8nApiKey: "",
+      availableModels: [],
+      errorMsg: "",
+    }));
+    try {
+      const cfg = await apiGet("/api/admin/ia-config");
+      const prov = cfg.provider && IA_PROVIDERS[cfg.provider] ? cfg.provider : "custom";
+      setModalIaConfig((prev) => ({
+        ...prev,
+        loading: false,
+        provider: prov,
+        baseUrl: cfg.base_url || IA_PROVIDERS[prov]?.baseUrl || "https://api.deepseek.com/v1",
+        model: cfg.model || "deepseek-chat",
+        n8nApiBase: cfg.n8n_api_base || "",
+        showAdvancedN8n: !cfg.n8n_api_configured,
+        statusInfo: cfg,
+      }));
+    } catch (err) {
+      setModalIaConfig((prev) => ({
+        ...prev,
+        loading: false,
+        errorMsg: err.message || "No se pudo cargar la configuración actual de IA.",
+      }));
+    }
+  };
+
+  const handleCambiarProveedorIa = (nuevoProv) => {
+    const def = IA_PROVIDERS[nuevoProv] || IA_PROVIDERS.custom;
+    setModalIaConfig((prev) => ({
+      ...prev,
+      provider: nuevoProv,
+      baseUrl: nuevoProv === "custom" ? prev.baseUrl : def.baseUrl,
+      model: def.models[0] || prev.model,
+      availableModels: [],
+      errorMsg: "",
+    }));
+  };
+
+  const handleProbarModelosIa = async () => {
+    if (!modalIaConfig.apiKey.trim()) {
+      setModalIaConfig((prev) => ({ ...prev, errorMsg: "Ingresa la API Key primero para consultar los modelos disponibles." }));
+      return;
+    }
+    setModalIaConfig((prev) => ({ ...prev, testingModels: true, errorMsg: "" }));
+    try {
+      const res = await apiPost("/api/admin/ia-config/models", {
+        base_url: modalIaConfig.baseUrl,
+        api_key: modalIaConfig.apiKey.trim(),
+      });
+      const list = Array.isArray(res.modelos) ? res.modelos : [];
+      setModalIaConfig((prev) => ({
+        ...prev,
+        testingModels: false,
+        availableModels: list,
+        model: list.length > 0 && !list.includes(prev.model) ? list[0] : prev.model,
+      }));
+      setToastNotificacion({
+        tipo: "exito",
+        texto: list.length > 0 ? `Conexión exitosa (${list.length} modelos detectados).` : "Conexión validada correctamente.",
+      });
+    } catch (err) {
+      setModalIaConfig((prev) => ({
+        ...prev,
+        testingModels: false,
+        errorMsg: err.message || "Error al validar la API Key con el proveedor.",
+      }));
+    }
+  };
+
+  const handleGuardarIaConfig = async (e) => {
+    e.preventDefault();
+    setModalIaConfig((prev) => ({ ...prev, saving: true, errorMsg: "" }));
+    try {
+      const res = await apiPut("/api/admin/ia-config", {
+        provider: modalIaConfig.provider,
+        base_url: modalIaConfig.baseUrl.trim(),
+        api_key: modalIaConfig.apiKey.trim() || null,
+        model: modalIaConfig.model.trim(),
+        n8n_api_base: modalIaConfig.n8nApiBase.trim() || null,
+        n8n_api_key: modalIaConfig.n8nApiKey.trim() || null,
+      });
+      setModalIaConfig((prev) => ({ ...prev, saving: false, open: false, apiKey: "", n8nApiKey: "" }));
+      setToastNotificacion({ tipo: "exito", texto: res.message || "Configuración de IA aplicada en n8n." });
+    } catch (err) {
+      setModalIaConfig((prev) => ({
+        ...prev,
+        saving: false,
+        errorMsg: err.message || "Error al guardar la configuración en n8n.",
+      }));
+    }
+  };
+
   useEffect(() => {
     if (toastNotificacion.texto) {
       const timer = setTimeout(() => {
@@ -2120,6 +2264,16 @@ export default function Dashboard() {
                   >
                     <span><UiIcon name="building" className="w-4 h-4" /></span>
                     <span>Administrar Sedes y Cubículos</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleAbrirModalIaConfig();
+                      setSettingsDropdownOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-xl hover:bg-sky-50 text-[#00629B] flex items-center gap-2 cursor-pointer font-semibold"
+                  >
+                    <span><UiIcon name="bolt" className="w-4 h-4" /></span>
+                    <span>Administrar API Key / Modelo IA</span>
                   </button>
                 </div>
               )}
@@ -8767,6 +8921,226 @@ export default function Dashboard() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {modalIaConfig.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fadeIn">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-lg overflow-hidden">
+            <div className="bg-gradient-to-r from-[#002D4C] to-[#00629B] px-6 py-4 flex items-center justify-between text-white">
+              <div className="flex items-center gap-2.5">
+                <span className="p-2 rounded-xl bg-white/15">
+                  <UiIcon name="bolt" className="w-5 h-5" />
+                </span>
+                <div>
+                  <h3 className="font-bold text-sm">Administrar Proveedor IA, API Key y Modelo</h3>
+                  <p className="text-[11px] text-sky-100/90">Sincroniza Flujo estudiante y Flujo administrador en n8n</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalIaConfig((prev) => ({ ...prev, open: false }))}
+                className="text-white/80 hover:text-white text-lg font-bold px-2 py-1 cursor-pointer"
+              >
+                ×
+              </button>
+            </div>
+
+            {modalIaConfig.loading ? (
+              <div className="p-8 text-center text-xs text-slate-500 dark:text-slate-400">
+                Consultando estado actual en n8n...
+              </div>
+            ) : (
+              <form onSubmit={handleGuardarIaConfig} className="p-6 space-y-4 text-xs">
+                {modalIaConfig.statusInfo && (
+                  <div className="rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 p-3 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                    <div className="space-y-0.5">
+                      <p className="font-bold text-slate-800 dark:text-slate-100">
+                        Modelo activo: <span className="text-[#00629B] dark:text-sky-300">{modalIaConfig.statusInfo.model || "No detectado"}</span>
+                      </p>
+                      <p className="text-slate-500 dark:text-slate-400">
+                        {modalIaConfig.statusInfo.updated_at
+                          ? `Último cambio: ${modalIaConfig.statusInfo.updated_at} (${modalIaConfig.statusInfo.updated_by || "admin"})`
+                          : "Usando configuración actual de n8n"}
+                      </p>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded-full font-bold border ${modalIaConfig.statusInfo.n8n_connected
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800"
+                      : "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800"
+                      }`}>
+                      {modalIaConfig.statusInfo.n8n_connected ? "n8n conectado" : "Configurar conexión n8n"}
+                    </span>
+                  </div>
+                )}
+
+                {modalIaConfig.errorMsg && (
+                  <div className="rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 p-3 text-rose-700 dark:text-rose-300 font-medium">
+                    {modalIaConfig.errorMsg}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-700 dark:text-slate-200 mb-1">
+                      Proveedor
+                    </label>
+                    <select
+                      value={modalIaConfig.provider}
+                      onChange={(e) => handleCambiarProveedorIa(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#00629B]"
+                    >
+                      {Object.entries(IA_PROVIDERS).map(([key, info]) => (
+                        <option key={key} value={key}>{info.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-700 dark:text-slate-200 mb-1">
+                      URL Base (OpenAI Compatible)
+                    </label>
+                    <input
+                      type="url"
+                      required
+                      value={modalIaConfig.baseUrl}
+                      onChange={(e) => setModalIaConfig((prev) => ({ ...prev, baseUrl: e.target.value }))}
+                      placeholder="https://api.openai.com/v1"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#00629B]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-200 mb-1">
+                    API Key del Proveedor
+                  </label>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <input
+                        type={modalIaConfig.showApiKey ? "text" : "password"}
+                        value={modalIaConfig.apiKey}
+                        onChange={(e) => setModalIaConfig((prev) => ({ ...prev, apiKey: e.target.value }))}
+                        placeholder={modalIaConfig.statusInfo?.has_api_key ? "Dejar vacío para mantener la API Key actual" : "sk-..."}
+                        className="w-full px-3 py-2 pr-14 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#00629B]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setModalIaConfig((prev) => ({ ...prev, showApiKey: !prev.showApiKey }))}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer"
+                      >
+                        {modalIaConfig.showApiKey ? "Ocultar" : "Ver"}
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleProbarModelosIa}
+                      disabled={modalIaConfig.testingModels}
+                      className="px-3 py-2 rounded-xl bg-sky-50 hover:bg-sky-100 text-[#00629B] border border-sky-200 dark:bg-slate-800 dark:text-sky-300 dark:border-slate-700 font-bold cursor-pointer whitespace-nowrap disabled:opacity-50"
+                    >
+                      {modalIaConfig.testingModels ? "Probando..." : "Cargar modelos"}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-200 mb-1">
+                    Modelo a utilizar
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <select
+                      value={
+                        (modalIaConfig.availableModels.length > 0
+                          ? modalIaConfig.availableModels
+                          : (IA_PROVIDERS[modalIaConfig.provider]?.models || [])
+                        ).includes(modalIaConfig.model)
+                          ? modalIaConfig.model
+                          : "__custom__"
+                      }
+                      onChange={(e) => {
+                        if (e.target.value !== "__custom__") {
+                          setModalIaConfig((prev) => ({ ...prev, model: e.target.value }));
+                        }
+                      }}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#00629B]"
+                    >
+                      {(modalIaConfig.availableModels.length > 0
+                        ? modalIaConfig.availableModels
+                        : (IA_PROVIDERS[modalIaConfig.provider]?.models || [])
+                      ).map((m) => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                      <option value="__custom__">Otro modelo (escribir ID)</option>
+                    </select>
+
+                    <input
+                      type="text"
+                      required
+                      value={modalIaConfig.model}
+                      onChange={(e) => setModalIaConfig((prev) => ({ ...prev, model: e.target.value }))}
+                      placeholder="Ej: gpt-4o-mini o deepseek-chat"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#00629B]"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setModalIaConfig((prev) => ({ ...prev, showAdvancedN8n: !prev.showAdvancedN8n }))}
+                    className="text-[11px] font-semibold text-slate-500 hover:text-[#00629B] dark:text-slate-400 cursor-pointer"
+                  >
+                    {modalIaConfig.showAdvancedN8n ? "▼ Ocultar conexión n8n" : "▶ Configuración de conexión n8n (opcional)"}
+                  </button>
+
+                  {modalIaConfig.showAdvancedN8n && (
+                    <div className="mt-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-2.5">
+                      <div>
+                        <label className="block font-bold text-slate-600 dark:text-slate-300 mb-1">
+                          URL Base de n8n
+                        </label>
+                        <input
+                          type="text"
+                          value={modalIaConfig.n8nApiBase}
+                          onChange={(e) => setModalIaConfig((prev) => ({ ...prev, n8nApiBase: e.target.value }))}
+                          placeholder="https://botsbiblioteca.dev.uct.cl/n8n"
+                          className="w-full px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-bold text-slate-600 dark:text-slate-300 mb-1">
+                          n8n API Key {modalIaConfig.statusInfo?.n8n_api_configured ? "(ya configurada)" : "(requerida si no está en .env)"}
+                        </label>
+                        <input
+                          type="password"
+                          value={modalIaConfig.n8nApiKey}
+                          onChange={(e) => setModalIaConfig((prev) => ({ ...prev, n8nApiKey: e.target.value }))}
+                          placeholder={modalIaConfig.statusInfo?.n8n_api_configured ? "Dejar vacío para mantener la actual" : "eyJhbGciOi..."}
+                          className="w-full px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setModalIaConfig((prev) => ({ ...prev, open: false }))}
+                    className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-semibold cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={modalIaConfig.saving}
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#00629B] to-[#0082B3] hover:from-[#004B75] hover:to-[#00629B] text-white font-bold shadow-sm cursor-pointer disabled:opacity-50"
+                  >
+                    {modalIaConfig.saving ? "Aplicando en n8n..." : "Guardar y aplicar en n8n"}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

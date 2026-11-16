@@ -106,6 +106,10 @@ N8N_CREACION_WEBHOOK_URL = os.getenv("N8N_CREACION_WEBHOOK_URL")
 N8N_EDICION_WEBHOOK_URL = os.getenv("N8N_EDICION_WEBHOOK_URL")
 N8N_REGLAMENTO_WEBHOOK_URL = os.getenv("N8N_REGLAMENTO_WEBHOOK_URL", os.getenv("N8N_ADMIN_WEBHOOK_URL", "http://uct-botsbiblioteca-dev-n8n-1:5678/webhook/consultar-reglamento"))
 N8N_SECRET_KEY = os.getenv("N8N_SECRET_KEY") or "uct_n8n_shared_secret_webhook_2026"
+N8N_API_KEY = os.getenv("N8N_API_KEY", "").strip()
+N8N_API_BASE = os.getenv("N8N_API_BASE", "").strip()
+N8N_STUDENT_WORKFLOW_ID = os.getenv("N8N_STUDENT_WORKFLOW_ID", "NfpOMbAbZ9S7CAEk").strip()
+N8N_ADMIN_WORKFLOW_ID = os.getenv("N8N_ADMIN_WORKFLOW_ID", "OYl1cwAIqZb9alG4").strip()
 DATABASE_URL = os.getenv("DATABASE_URL")
 if DATABASE_URL and (os.path.exists("/.dockerenv") or os.getenv("RUNNING_IN_DOCKER")):
     DATABASE_URL = DATABASE_URL.replace("@localhost:", "@host.docker.internal:").replace("@127.0.0.1:", "@host.docker.internal:")
@@ -547,6 +551,18 @@ async def _init_database_and_services():
                         campus_id INT NULL,
                         fecha DATE NULL,
                         created_at DATETIME2 DEFAULT GETDATE()
+                    );
+                    IF OBJECT_ID('configuracion_ia', 'U') IS NULL
+                    CREATE TABLE configuracion_ia (
+                        id INT IDENTITY(1,1) PRIMARY KEY,
+                        provider NVARCHAR(60) NOT NULL,
+                        base_url NVARCHAR(500) NOT NULL,
+                        model NVARCHAR(150) NOT NULL,
+                        credential_id NVARCHAR(100) NULL,
+                        n8n_api_base NVARCHAR(500) NULL,
+                        n8n_api_key NVARCHAR(1000) NULL,
+                        updated_by NVARCHAR(255) NULL,
+                        updated_at DATETIME2 DEFAULT GETDATE()
                     );
                 """)
                 cnt_est = await conn.fetchval("SELECT COUNT(*) FROM estadisticas_reservas_carrera")
@@ -5462,3 +5478,432 @@ async def recibir_evento_hikcentral(request: Request):
         resultados.append(res)
 
     return {"processed": len(resultados), "results": resultados}
+
+
+class EsquemaConfigIA(BaseModel):
+    provider: str = "openai"
+    base_url: str
+    api_key: Optional[str] = None
+    model: str
+    n8n_api_base: Optional[str] = None
+    n8n_api_key: Optional[str] = None
+
+
+class EsquemaModelosIA(BaseModel):
+    base_url: str
+    api_key: Optional[str] = None
+
+
+async def _ensure_configuracion_ia_table(conn):
+    await conn.execute("""
+        IF OBJECT_ID('configuracion_ia', 'U') IS NULL
+        CREATE TABLE configuracion_ia (
+            id INT IDENTITY(1,1) PRIMARY KEY,
+            provider NVARCHAR(60) NOT NULL,
+            base_url NVARCHAR(500) NOT NULL,
+            model NVARCHAR(150) NOT NULL,
+            credential_id NVARCHAR(100) NULL,
+            n8n_api_base NVARCHAR(500) NULL,
+            n8n_api_key NVARCHAR(1000) NULL,
+            updated_by NVARCHAR(255) NULL,
+            updated_at DATETIME2 DEFAULT GETDATE()
+        );
+    """)
+
+
+def _normalizar_url_proveedor(raw_url: str) -> str:
+    url = (raw_url or "").strip().rstrip("/")
+    if not re.match(r'^https?://[a-zA-Z0-9\.\-:_]+', url):
+        raise HTTPException(status_code=400, detail="URL base del proveedor inválida. Debe iniciar con http:// o https://.")
+    if "169.254.169.254" in url or "metadata.google.internal" in url:
+        raise HTTPException(status_code=400, detail="URL no permitida por políticas de seguridad.")
+    return url
+
+
+def _normalizar_n8n_api_base(raw_base: Optional[str]) -> str:
+    base = (raw_base or "").strip().rstrip("/")
+    if not base:
+        if N8N_API_BASE:
+            base = N8N_API_BASE.rstrip("/")
+        elif N8N_WEBHOOK_URL and "/webhook" in N8N_WEBHOOK_URL:
+            base = N8N_WEBHOOK_URL.split("/webhook")[0].rstrip("/")
+        else:
+            base = "http://uct-botsbiblioteca-dev-n8n-1:5678"
+    if os.path.exists("/.dockerenv") or os.getenv("RUNNING_IN_DOCKER"):
+        base = base.replace("://localhost:5678", "://uct-botsbiblioteca-dev-n8n-1:5678").replace("://127.0.0.1:5678", "://uct-botsbiblioteca-dev-n8n-1:5678")
+    return base.rstrip("/")
+
+
+async def _obtener_n8n_conexion(conn, override_base: Optional[str] = None, override_key: Optional[str] = None) -> tuple:
+    row = await conn.fetchrow("SELECT TOP 1 n8n_api_base, n8n_api_key FROM configuracion_ia ORDER BY id DESC")
+    db_base = row["n8n_api_base"] if row else None
+    db_key = row["n8n_api_key"] if row else None
+    api_base = _normalizar_n8n_api_base(override_base or db_base)
+    api_key = (override_key or N8N_API_KEY or db_key or "").strip()
+    return api_base, api_key
+
+
+async def _consultar_modelos_proveedor(base_url: str, api_key: str) -> List[str]:
+    clean_url = _normalizar_url_proveedor(base_url)
+    try:
+        resp = await httpx_client.get(
+            f"{clean_url}/models",
+            headers={"Authorization": f"Bearer {api_key.strip()}"},
+            timeout=12.0
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"No se pudo conectar con {clean_url}: {e}")
+
+    if resp.status_code in (401, 403):
+        raise HTTPException(status_code=400, detail="La API Key ingresada fue rechazada por el proveedor (401/403).")
+    if resp.status_code >= 400:
+        raise HTTPException(status_code=400, detail=f"El proveedor respondió con error {resp.status_code} al verificar la clave.")
+
+    try:
+        payload = resp.json()
+        modelos = [m.get("id") for m in payload.get("data", []) if isinstance(m, dict) and m.get("id")]
+        return sorted(set(modelos))
+    except Exception:
+        return []
+
+
+def _extraer_info_llm_workflow(wf: dict) -> dict:
+    nodes = wf.get("nodes") or []
+    connections = wf.get("connections") or {}
+    conectado_nombre = None
+    for src_name, targets in connections.items():
+        if "ai_languageModel" in targets:
+            for n in nodes:
+                if n.get("name") == src_name and "lmChat" in (n.get("type") or ""):
+                    conectado_nombre = src_name
+                    break
+        if conectado_nombre:
+            break
+
+    nodo_activo = None
+    for n in nodes:
+        if conectado_nombre and n.get("name") == conectado_nombre:
+            nodo_activo = n
+            break
+    if not nodo_activo:
+        for n in nodes:
+            if "lmChat" in (n.get("type") or ""):
+                nodo_activo = n
+                break
+
+    if not nodo_activo:
+        return {"workflow_name": wf.get("name"), "node_type": None, "model": None, "credential_id": None}
+
+    params = nodo_activo.get("parameters") or {}
+    raw_model = params.get("model")
+    if isinstance(raw_model, dict):
+        model_val = raw_model.get("value")
+    else:
+        model_val = raw_model
+
+    creds = nodo_activo.get("credentials") or {}
+    cred_id = None
+    for c_val in creds.values():
+        if isinstance(c_val, dict) and c_val.get("id"):
+            cred_id = c_val.get("id")
+            break
+
+    return {
+        "workflow_id": wf.get("id"),
+        "workflow_name": wf.get("name"),
+        "active": bool(wf.get("active")),
+        "node_name": nodo_activo.get("name"),
+        "node_type": nodo_activo.get("type"),
+        "model": model_val,
+        "credential_id": cred_id
+    }
+
+
+async def _upsert_credencial_openai_n8n(api_base: str, headers: dict, api_key: str, base_url: str, saved_cred_id: Optional[str]) -> tuple:
+    cred_name = "IA Chatbot Dinámica"
+    target_id = saved_cred_id
+    if not target_id:
+        r_list = await httpx_client.get(f"{api_base}/api/v1/credentials", headers=headers, timeout=15.0)
+        if r_list.status_code == 200:
+            for c in r_list.json().get("data", []):
+                if c.get("type") == "openAiApi" and c.get("name") == cred_name:
+                    target_id = c.get("id")
+                    break
+
+    payload = {
+        "name": cred_name,
+        "type": "openAiApi",
+        "data": {
+            "apiKey": api_key,
+            "url": base_url
+        }
+    }
+
+    if target_id:
+        r_upd = await httpx_client.patch(f"{api_base}/api/v1/credentials/{target_id}", headers=headers, json=payload, timeout=15.0)
+        if r_upd.status_code == 404:
+            target_id = None
+        elif r_upd.status_code >= 400:
+            raise HTTPException(status_code=502, detail=f"Error actualizando credencial en n8n ({r_upd.status_code}): {r_upd.text}")
+
+    if not target_id:
+        r_new = await httpx_client.post(f"{api_base}/api/v1/credentials", headers=headers, json=payload, timeout=15.0)
+        if r_new.status_code >= 400:
+            raise HTTPException(status_code=502, detail=f"Error creando credencial en n8n ({r_new.status_code}): {r_new.text}")
+        target_id = r_new.json().get("id")
+
+    await httpx_client.post(f"{api_base}/api/v1/credentials/{target_id}/test", headers=headers, json={}, timeout=15.0)
+    return target_id, cred_name
+
+
+async def _actualizar_workflow_llm_n8n(api_base: str, headers: dict, wf_id: str, agent_names: List[str], cred_id: str, cred_name: str, model_name: str) -> dict:
+    r_get = await httpx_client.get(f"{api_base}/api/v1/workflows/{wf_id}", headers=headers, timeout=15.0)
+    if r_get.status_code >= 400:
+        raise HTTPException(status_code=502, detail=f"No se pudo leer workflow {wf_id} en n8n ({r_get.status_code}).")
+
+    wf = r_get.json()
+    was_active = bool(wf.get("active"))
+    nodes = wf.get("nodes") or []
+    connections = wf.get("connections") or {}
+
+    target_agent = None
+    for a_name in agent_names:
+        if any(n.get("name") == a_name for n in nodes):
+            target_agent = a_name
+            break
+    if not target_agent:
+        for n in nodes:
+            if "langchain.agent" in (n.get("type") or ""):
+                target_agent = n.get("name")
+                break
+    if not target_agent:
+        raise HTTPException(status_code=500, detail=f"No se encontró el nodo AI Agent en workflow {wf_id}.")
+
+    openai_node = None
+    fallback_pos = [320, 272]
+    for n in nodes:
+        if n.get("type") == "@n8n/n8n-nodes-langchain.lmChatOpenAi":
+            openai_node = n
+            break
+        if "lmChat" in (n.get("type") or "") and n.get("position"):
+            fallback_pos = [n["position"][0] + 140, n["position"][1]]
+
+    if not openai_node:
+        openai_node = {
+            "id": str(uuid.uuid4()),
+            "name": "OpenAI Chat Model",
+            "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+            "typeVersion": 1.3,
+            "position": fallback_pos,
+            "parameters": {},
+            "credentials": {}
+        }
+        nodes.append(openai_node)
+
+    openai_node["type"] = "@n8n/n8n-nodes-langchain.lmChatOpenAi"
+    openai_node["typeVersion"] = 1.3
+    openai_node["parameters"] = {
+        "model": {
+            "__rl": True,
+            "mode": "id",
+            "value": model_name
+        },
+        "responsesApiEnabled": False,
+        "builtInTools": {},
+        "options": {
+            "temperature": 0,
+            "maxRetries": 3
+        }
+    }
+    openai_node["credentials"] = {
+        "openAiApi": {
+            "id": cred_id,
+            "name": cred_name
+        }
+    }
+
+    lm_node_name = openai_node["name"]
+    for n in nodes:
+        n_name = n.get("name")
+        if n_name != lm_node_name and "lmChat" in (n.get("type") or ""):
+            if n_name in connections and "ai_languageModel" in connections[n_name]:
+                del connections[n_name]["ai_languageModel"]
+                if not connections[n_name]:
+                    del connections[n_name]
+
+    connections[lm_node_name] = {
+        "ai_languageModel": [[{"node": target_agent, "type": "ai_languageModel", "index": 0}]]
+    }
+
+    allowed_settings = wf.get("settings") or {}
+    clean_settings = {k: v for k, v in allowed_settings.items() if k in ("executionOrder", "timezone", "saveManualExecutions", "callerPolicy", "errorWorkflow", "binaryMode")}
+    update_payload = {
+        "name": wf.get("name"),
+        "nodes": nodes,
+        "connections": connections,
+        "settings": clean_settings
+    }
+
+    r_put = await httpx_client.put(f"{api_base}/api/v1/workflows/{wf_id}", headers=headers, json=update_payload, timeout=20.0)
+    if r_put.status_code >= 400:
+        raise HTTPException(status_code=502, detail=f"Error actualizando workflow {wf_id} en n8n ({r_put.status_code}): {r_put.text}")
+
+    if was_active:
+        r_pub = await httpx_client.post(f"{api_base}/api/v1/workflows/{wf_id}/publish", headers=headers, json={}, timeout=15.0)
+        if r_pub.status_code >= 400:
+            await httpx_client.post(f"{api_base}/api/v1/workflows/{wf_id}/activate", headers=headers, json={}, timeout=15.0)
+
+    return {"id": wf_id, "name": wf.get("name"), "model": model_name, "active": was_active}
+
+
+@app.get("/api/admin/ia-config")
+async def obtener_config_ia(current_user: dict = Depends(get_current_user)):
+    if current_user.get("rol") != "admin":
+        raise HTTPException(status_code=403, detail="Acceso denegado.")
+
+    async with pool.acquire() as conn:
+        await _ensure_configuracion_ia_table(conn)
+        row = await conn.fetchrow("SELECT TOP 1 provider, base_url, model, credential_id, n8n_api_base, n8n_api_key, updated_by, updated_at FROM configuracion_ia ORDER BY id DESC")
+        api_base, api_key = await _obtener_n8n_conexion(conn)
+
+    n8n_connected = False
+    workflows_info = []
+    detected_model = row["model"] if row else None
+    detected_node_type = None
+    has_openai_cred = bool(row and row["credential_id"])
+
+    if api_key:
+        headers = {"X-N8N-API-KEY": api_key}
+        try:
+            for wf_id in [N8N_STUDENT_WORKFLOW_ID, N8N_ADMIN_WORKFLOW_ID]:
+                if not wf_id:
+                    continue
+                r = await httpx_client.get(f"{api_base}/api/v1/workflows/{wf_id}", headers=headers, timeout=10.0)
+                if r.status_code == 200:
+                    n8n_connected = True
+                    info = _extraer_info_llm_workflow(r.json())
+                    workflows_info.append(info)
+                    if wf_id == N8N_STUDENT_WORKFLOW_ID and info.get("model"):
+                        detected_model = info["model"]
+                        detected_node_type = info.get("node_type")
+                        if info.get("node_type") == "@n8n/n8n-nodes-langchain.lmChatOpenAi" and info.get("credential_id"):
+                            has_openai_cred = True
+        except Exception:
+            pass
+
+    return {
+        "n8n_api_configured": bool(api_key),
+        "n8n_api_base": api_base,
+        "n8n_connected": n8n_connected,
+        "provider": (row["provider"] if row else "deepseek"),
+        "base_url": (row["base_url"] if row else "https://api.deepseek.com/v1"),
+        "model": detected_model or "deepseek-flash",
+        "node_type": detected_node_type,
+        "has_api_key": has_openai_cred,
+        "workflows": workflows_info,
+        "updated_by": row["updated_by"] if row else None,
+        "updated_at": row["updated_at"].strftime("%Y-%m-%d %H:%M") if row and row["updated_at"] else None
+    }
+
+
+@app.post("/api/admin/ia-config/models")
+async def listar_modelos_ia(data: EsquemaModelosIA, current_user: dict = Depends(get_current_user)):
+    if current_user.get("rol") != "admin":
+        raise HTTPException(status_code=403, detail="Acceso denegado.")
+    if not data.api_key or not data.api_key.strip():
+        raise HTTPException(status_code=400, detail="Ingresa la API Key del proveedor para consultar los modelos disponibles.")
+    modelos = await _consultar_modelos_proveedor(data.base_url, data.api_key)
+    return {"modelos": modelos}
+
+
+@app.put("/api/admin/ia-config")
+async def actualizar_config_ia(data: EsquemaConfigIA, current_user: dict = Depends(get_current_user)):
+    if current_user.get("rol") != "admin":
+        raise HTTPException(status_code=403, detail="Acceso denegado.")
+
+    base_url = _normalizar_url_proveedor(data.base_url)
+    model_name = (data.model or "").strip()
+    if not model_name:
+        raise HTTPException(status_code=400, detail="Debes indicar o seleccionar un modelo válido.")
+
+    async with pool.acquire() as conn:
+        await _ensure_configuracion_ia_table(conn)
+        row = await conn.fetchrow("SELECT TOP 1 credential_id, base_url FROM configuracion_ia ORDER BY id DESC")
+        saved_cred_id = row["credential_id"] if row else None
+        prev_base_url = row["base_url"] if row else None
+        api_base, n8n_key = await _obtener_n8n_conexion(conn, data.n8n_api_base, data.n8n_api_key)
+
+    if not n8n_key:
+        raise HTTPException(status_code=400, detail="Falta configurar la n8n API Key (N8N_API_KEY) en el servidor o en las opciones avanzadas.")
+
+    n8n_headers = {"X-N8N-API-KEY": n8n_key}
+    raw_api_key = (data.api_key or "").strip()
+
+    if raw_api_key:
+        await _consultar_modelos_proveedor(base_url, raw_api_key)
+        cred_id, cred_name = await _upsert_credencial_openai_n8n(api_base, n8n_headers, raw_api_key, base_url, saved_cred_id)
+    else:
+        if not saved_cred_id:
+            raise HTTPException(status_code=400, detail="Debes ingresar la API Key del proveedor la primera vez que configuras el módulo OpenAI.")
+        if prev_base_url and prev_base_url.rstrip("/") != base_url:
+            raise HTTPException(status_code=400, detail="Si cambias la URL del proveedor debes ingresar la API Key correspondiente.")
+        cred_id = saved_cred_id
+        cred_name = "IA Chatbot Dinámica"
+
+    synced = []
+    for wf_id, agents in [(N8N_STUDENT_WORKFLOW_ID, ["AI Agent1", "AI Agent"]), (N8N_ADMIN_WORKFLOW_ID, ["AI Agent", "AI Agent1"])]:
+        if wf_id:
+            res_wf = await _actualizar_workflow_llm_n8n(api_base, n8n_headers, wf_id, agents, cred_id, cred_name, model_name)
+            synced.append(res_wf)
+
+    async with pool.acquire() as conn:
+        await _ensure_configuracion_ia_table(conn)
+        existing_id = await conn.fetchval("SELECT TOP 1 id FROM configuracion_ia ORDER BY id DESC")
+        n8n_base_save = (data.n8n_api_base or "").strip() or None
+        n8n_key_save = (data.n8n_api_key or "").strip() or None
+        if existing_id:
+            await conn.execute(
+                """
+                UPDATE configuracion_ia
+                SET provider = $1,
+                    base_url = $2,
+                    model = $3,
+                    credential_id = $4,
+                    n8n_api_base = COALESCE($5, n8n_api_base),
+                    n8n_api_key = COALESCE($6, n8n_api_key),
+                    updated_by = $7,
+                    updated_at = GETDATE()
+                WHERE id = $8
+                """,
+                data.provider.strip(),
+                base_url,
+                model_name,
+                cred_id,
+                n8n_base_save,
+                n8n_key_save,
+                current_user.get("email") or current_user.get("nombre") or "admin",
+                existing_id
+            )
+        else:
+            await conn.execute(
+                """
+                INSERT INTO configuracion_ia (provider, base_url, model, credential_id, n8n_api_base, n8n_api_key, updated_by, updated_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, GETDATE())
+                """,
+                data.provider.strip(),
+                base_url,
+                model_name,
+                cred_id,
+                n8n_base_save,
+                n8n_key_save,
+                current_user.get("email") or current_user.get("nombre") or "admin"
+            )
+
+    return {
+        "ok": True,
+        "message": f"Configuración aplicada en n8n ({len(synced)} flujos actualizados con el modelo {model_name}).",
+        "provider": data.provider.strip(),
+        "base_url": base_url,
+        "model": model_name,
+        "workflows": synced
+    }

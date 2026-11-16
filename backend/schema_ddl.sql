@@ -263,6 +263,19 @@ CREATE TABLE [n8n_chat_histories] (
     [message] NVARCHAR(MAX) NOT NULL
 );
 
+IF OBJECT_ID('configuracion_ia', 'U') IS NULL
+CREATE TABLE [configuracion_ia] (
+    [id] INT IDENTITY(1,1) PRIMARY KEY NOT NULL,
+    [provider] NVARCHAR(60) NOT NULL,
+    [base_url] NVARCHAR(500) NOT NULL,
+    [model] NVARCHAR(150) NOT NULL,
+    [credential_id] NVARCHAR(100) NULL,
+    [n8n_api_base] NVARCHAR(500) NULL,
+    [n8n_api_key] NVARCHAR(1000) NULL,
+    [updated_by] NVARCHAR(255) NULL,
+    [updated_at] DATETIME2 DEFAULT GETDATE()
+);
+
 IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'rls')
     EXEC('CREATE SCHEMA [rls]');
 
