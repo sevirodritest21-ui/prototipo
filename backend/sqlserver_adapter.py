@@ -245,14 +245,19 @@ class ConnectionWrapper:
                 raise UniqueViolationError(msg) from e
             raise
 
+    def _needs_commit(self, query: str) -> bool:
+        q_up = query.upper()
+        return any(k in q_up for k in ("INSERT ", "UPDATE ", "DELETE ", "MERGE ", "EXEC ", "CREATE ", "ALTER ", "DROP "))
+
     async def fetch(self, query: str, *args) -> List[Record]:
         def _do():
             cur = self._execute_sync(query, args)
             rows = cur.fetchall()
-            try:
-                self._conn.commit()
-            except Exception:
-                pass
+            if self._needs_commit(query):
+                try:
+                    self._conn.commit()
+                except Exception:
+                    pass
             if not rows or not cur.description:
                 return []
             col_names = [d[0] if d[0] else f"col_{i}" for i, d in enumerate(cur.description)]
@@ -267,10 +272,11 @@ class ConnectionWrapper:
         def _do():
             cur = self._execute_sync(query, args)
             r = cur.fetchone()
-            try:
-                self._conn.commit()
-            except Exception:
-                pass
+            if self._needs_commit(query):
+                try:
+                    self._conn.commit()
+                except Exception:
+                    pass
             if not r or not cur.description:
                 return None
             col_names = [d[0] if d[0] else f"col_{i}" for i, d in enumerate(cur.description)]
@@ -282,10 +288,11 @@ class ConnectionWrapper:
         def _do():
             cur = self._execute_sync(query, args)
             r = cur.fetchone()
-            try:
-                self._conn.commit()
-            except Exception:
-                pass
+            if self._needs_commit(query):
+                try:
+                    self._conn.commit()
+                except Exception:
+                    pass
             if not r:
                 return None
             return r[0]
@@ -326,8 +333,10 @@ class PoolWrapper:
         self._last_error = None
 
     def _create_raw(self):
-        hosts_to_try = [self.host] if self.host else []
-        for fallback in ["botsbiblioteca-sqlserver-dev", "sqlserver", "host.docker.internal", "localhost"]:
+        hosts_to_try = []
+        if self.host:
+            hosts_to_try.append(self.host)
+        for fallback in ["prototipo-sqlserver", "botsbiblioteca-sqlserver-dev", "sqlserver", "host.docker.internal", "localhost"]:
             if fallback and fallback not in hosts_to_try:
                 hosts_to_try.append(fallback)
 
@@ -341,8 +350,8 @@ class PoolWrapper:
                 "password": self.password or "SqlAdmin2026!",
                 "database": self.db or "reservas_db",
                 "autocommit": False,
-                "login_timeout": 2,
-                "timeout": 5
+                "login_timeout": 5,
+                "timeout": 15
             }
             try:
                 conn = pymssql.connect(**conn_params)

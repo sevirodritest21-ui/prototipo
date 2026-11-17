@@ -193,6 +193,8 @@ async def notificar_creacion_n8n(detalle: dict):
         email_encontrado = detalle.get("email")
         rut_item = detalle.get("rut", "")
         rut_limpio = str(rut_item).replace(".", "").replace("-", "").upper().strip() if rut_item else ""
+        if (len(rut_limpio) == 9 and rut_limpio.startswith("3100")) or (email_encontrado and re.fullmatch(r"prueba\d+@alu\.uct\.cl", str(email_encontrado).strip().lower())):
+            return
 
         if not email_encontrado and pool and rut_limpio:
             try:
@@ -235,6 +237,8 @@ async def notificar_edicion_n8n(detalle: dict):
         email_encontrado = detalle.get("email")
         rut_item = detalle.get("rut", "")
         rut_limpio = str(rut_item).replace(".", "").replace("-", "").upper().strip() if rut_item else ""
+        if (len(rut_limpio) == 9 and rut_limpio.startswith("3100")) or (email_encontrado and re.fullmatch(r"prueba\d+@alu\.uct\.cl", str(email_encontrado).strip().lower())):
+            return
 
         if not email_encontrado and pool and rut_limpio:
             try:
@@ -775,18 +779,34 @@ async def verificar_estudiante_regular(conn, rut: str) -> dict:
     if not rut:
         return {"es_regular": False, "situacion": "Sin identificación", "mensaje": "No se proporcionó RUT de estudiante."}
     rut_limpio = str(rut).replace(".", "").replace("-", "").replace(" ", "").upper().strip()
-    row = await conn.fetchrow(
-        """
-        SELECT sa.salu_codigo, sa.salu_nombre
-        FROM estudiante e
-        JOIN estudiante_carrera ec ON e.estd_rut = ec.estd_rut
-        JOIN situacion_alumno sa ON ec.salu_codigo = sa.salu_codigo
-        WHERE CONCAT(e.estd_rut, e.estd_dv) = $1
-        ORDER BY CASE WHEN sa.salu_codigo = 1 OR UPPER(sa.salu_nombre) = 'REGULAR' THEN 0 ELSE 1 END
-        LIMIT 1
-        """,
-        rut_limpio
-    )
+    rut_num = int(rut_limpio[:-1]) if len(rut_limpio) > 1 and rut_limpio[:-1].isdigit() else -1
+    rut_dv = rut_limpio[-1] if len(rut_limpio) > 1 else ""
+    if rut_num > 0:
+        row = await conn.fetchrow(
+            """
+            SELECT sa.salu_codigo, sa.salu_nombre
+            FROM estudiante e
+            JOIN estudiante_carrera ec ON e.estd_rut = ec.estd_rut
+            JOIN situacion_alumno sa ON ec.salu_codigo = sa.salu_codigo
+            WHERE e.estd_rut = $1 AND UPPER(e.estd_dv) = $2
+            ORDER BY CASE WHEN sa.salu_codigo = 1 OR UPPER(sa.salu_nombre) = 'REGULAR' THEN 0 ELSE 1 END
+            LIMIT 1
+            """,
+            rut_num, rut_dv
+        )
+    else:
+        row = await conn.fetchrow(
+            """
+            SELECT sa.salu_codigo, sa.salu_nombre
+            FROM estudiante e
+            JOIN estudiante_carrera ec ON e.estd_rut = ec.estd_rut
+            JOIN situacion_alumno sa ON ec.salu_codigo = sa.salu_codigo
+            WHERE CONCAT(e.estd_rut, e.estd_dv) = $1
+            ORDER BY CASE WHEN sa.salu_codigo = 1 OR UPPER(sa.salu_nombre) = 'REGULAR' THEN 0 ELSE 1 END
+            LIMIT 1
+            """,
+            rut_limpio
+        )
     if not row:
         return {
             "es_regular": False,
@@ -808,7 +828,8 @@ _static_cache: Dict[str, tuple] = {}
 
 async def invalidar_caches_disponibilidad(campus_id: Optional[int] = None, fecha_str: Optional[str] = None):
     _disponibilidad_cache.clear()
-    _static_cache.clear()
+    if campus_id is None and fecha_str is None:
+        _static_cache.clear()
 
 
 # --- Esquemas Pydantic ---
@@ -3253,6 +3274,9 @@ async def validar_acompanantes_cruzados(conn, rut_titular: str, fecha_parsed: da
         )
 
 
+_reserva_slot_locks: Dict[tuple, asyncio.Lock] = {}
+
+
 @app.post("/api/reservas", status_code=status.HTTP_201_CREATED, response_model=ReservaResponse)
 async def crear_reserva(
     reserva: ReservaBase,
@@ -3266,10 +3290,25 @@ async def crear_reserva(
             payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
             email: str = payload.get("sub")
             if email:
-                async with pool.acquire() as conn:
-                    row_u = await conn.fetchrow("SELECT id, email, nombre, rut, rol FROM usuarios WHERE email = $1", email)
-                    if row_u:
-                        current_user = dict(row_u)
+                now_u = _time.time()
+                cached_u = _user_auth_cache.get(f"res_u:{email}")
+                if cached_u and (now_u - cached_u[0] < 120):
+                    current_user = cached_u[1]
+                elif payload.get("rut") and payload.get("rol"):
+                    current_user = {
+                        "email": email,
+                        "nombre": payload.get("nombre"),
+                        "rut": payload.get("rut"),
+                        "rol": payload.get("rol"),
+                        "carrera": payload.get("carrera") or ""
+                    }
+                    _user_auth_cache[f"res_u:{email}"] = (now_u, current_user)
+                else:
+                    async with pool.acquire() as conn:
+                        row_u = await conn.fetchrow("SELECT id, email, nombre, rut, rol, carrera FROM usuarios WHERE email = $1", email)
+                        if row_u:
+                            current_user = dict(row_u)
+                            _user_auth_cache[f"res_u:{email}"] = (now_u, current_user)
         except JWTError:
             pass
 
@@ -3288,7 +3327,7 @@ async def crear_reserva(
             rut_final = user_rut_limpio
             nombre_final = current_user.get("nombre") or nombre_final
 
-    if reserva.sessionId:
+    if reserva.sessionId and not current_user:
         rut_ses = extraer_rut_de_session(reserva.sessionId)
         async with pool.acquire() as conn:
             row_s = await conn.fetchrow("SELECT rut, nombre FROM sesiones WHERE session_id = $1", reserva.sessionId)
@@ -3296,7 +3335,7 @@ async def crear_reserva(
                 rut_ses = row_s["rut"]
                 if row_s["nombre"] and (not nombre_final or nombre_final == "Usuario Chatbot"):
                     nombre_final = row_s["nombre"]
-        if rut_ses and (not current_user or current_user.get("rol") != "admin"):
+        if rut_ses:
             rut_final = rut_ses
 
     if not rut_final or not reserva.fecha or not reserva.hora:
@@ -3342,14 +3381,23 @@ async def crear_reserva(
                 detail=f"La fecha {reserva.fecha} corresponde a un feriado oficial no laboral ({nombre_fer})."
             )
 
-        async with pool.acquire() as conn:
+        slot_key = (fecha_parsed, hora_parsed)
+        slot_lock = _reserva_slot_locks.setdefault(slot_key, asyncio.Lock())
+        async with slot_lock:
+          async with pool.acquire() as conn:
             async with conn.transaction():
                 # Resolución de campus
                 target_campus_id, target_campus_nombre = None, None
                 if reserva.campus_id:
-                    row_c = await conn.fetchrow("SELECT id, nombre FROM campus WHERE id = $1", reserva.campus_id)
-                    if row_c:
-                        target_campus_id, target_campus_nombre = row_c["id"], row_c["nombre"]
+                    c_cache_key = f"campus_id:{reserva.campus_id}"
+                    cached_c = _static_cache.get(c_cache_key)
+                    if cached_c and (_time.time() - cached_c[0] < 300):
+                        target_campus_id, target_campus_nombre = cached_c[1]
+                    else:
+                        row_c = await conn.fetchrow("SELECT id, nombre FROM campus WHERE id = $1", reserva.campus_id)
+                        if row_c:
+                            target_campus_id, target_campus_nombre = row_c["id"], row_c["nombre"]
+                            _static_cache[c_cache_key] = (_time.time(), (target_campus_id, target_campus_nombre))
 
                 if not target_campus_id and reserva.campus:
                     nombre_clean = reserva.campus.strip().lower()
@@ -3366,156 +3414,161 @@ async def crear_reserva(
                     nombres_formateados = ", ".join([f["nombre"] for f in filas_c])
                     raise HTTPException(status_code=400, detail=f"Sede no válida. Disponibles: {nombres_formateados}.")
 
-                bloqueo = await conn.fetchrow(
-                    "SELECT motivo FROM dias_bloqueados WHERE fecha = $1 AND (campus_id IS NULL OR campus_id = $2) LIMIT 1",
-                    fecha_parsed, target_campus_id
+                rut_con_guion = f"{rut_limpio[:-1]}-{rut_limpio[-1]}" if len(rut_limpio) > 1 else rut_limpio
+                rut_num_check = int(rut_limpio[:-1]) if len(rut_limpio) > 1 and rut_limpio[:-1].isdigit() else -1
+                rut_dv_check = rut_limpio[-1] if len(rut_limpio) > 1 else ""
+                es_admin_flag = 1 if (current_user and current_user.get("rol") == "admin") else 0
+                carr_pref = (current_user.get("carrera") or "").strip() if current_user else ""
+                hora_str_ins = hora_parsed.strftime("%H:%M")
+
+                if reserva.acompanantes:
+                    await validar_acompanantes_cruzados(conn, rut_limpio, fecha_parsed, hora_parsed, reserva.acompanantes)
+
+                tx_res = await conn.fetchrow(
+                    """
+                    SET NOCOUNT ON;
+                    DECLARE @bloqueo NVARCHAR(255) = (SELECT TOP 1 motivo FROM dias_bloqueados WHERE fecha = $1 AND (campus_id IS NULL OR campus_id = $2));
+                    IF @bloqueo IS NOT NULL
+                    BEGIN
+                        SELECT 'BLOQUEO' AS status_code, @bloqueo AS info, 0 AS id, 0 AS cub_id, '' AS cub_cod, '' AS carrera;
+                        RETURN;
+                    END
+
+                    IF $8 = 0
+                    BEGIN
+                        DECLARE @es_reg INT = (
+                            SELECT TOP 1 CASE WHEN sa.salu_codigo = 1 OR UPPER(sa.salu_nombre) = 'REGULAR' THEN 1 ELSE 0 END
+                            FROM estudiante e
+                            JOIN estudiante_carrera ec ON e.estd_rut = ec.estd_rut
+                            JOIN situacion_alumno sa ON ec.salu_codigo = sa.salu_codigo
+                            WHERE e.estd_rut = $3 AND UPPER(e.estd_dv) = $4
+                            ORDER BY CASE WHEN sa.salu_codigo = 1 OR UPPER(sa.salu_nombre) = 'REGULAR' THEN 0 ELSE 1 END
+                        );
+                        IF ISNULL(@es_reg, 0) = 0
+                        BEGIN
+                            SELECT 'NO_REGULAR' AS status_code, '' AS info, 0 AS id, 0 AS cub_id, '' AS cub_cod, '' AS carrera;
+                            RETURN;
+                        END
+                    END
+
+                    DECLARE @activa NVARCHAR(255) = (
+                        SELECT TOP 1 CONCAT(CONVERT(VARCHAR(10), r.fecha, 23), '|', CONVERT(VARCHAR(5), r.hora, 108), '|', ISNULL(c.nombre, 'Campus'), '|', ISNULL(cb.codigo, 'N/A'))
+                        FROM reservas r
+                        LEFT JOIN campus c ON r.campus_id = c.id
+                        LEFT JOIN cubiculos cb ON r.cubiculo_id = cb.id
+                        WHERE r.rut IN ($5, $6)
+                          AND (r.fecha > CAST(GETDATE() AS DATE) OR (r.fecha = CAST(GETDATE() AS DATE) AND DATEADD(hour, 1, r.hora) > CAST(GETDATE() AS TIME)))
+                    );
+                    IF @activa IS NOT NULL
+                    BEGIN
+                        SELECT 'ACTIVA' AS status_code, @activa AS info, 0 AS id, 0 AS cub_id, '' AS cub_cod, '' AS carrera;
+                        RETURN;
+                    END
+
+                    DECLARE @acomp NVARCHAR(255) = (
+                        SELECT TOP 1 CONCAT(CONVERT(VARCHAR(10), r.fecha, 23), '|', CONVERT(VARCHAR(5), r.hora, 108), '|', ISNULL(c.nombre, 'Campus'), '|', ISNULL(cb.codigo, 'N/A'), '|', ISNULL(r.nombre, 'otro estudiante'))
+                        FROM reserva_acompanantes ra
+                        JOIN reservas r ON ra.reserva_id = r.id
+                        LEFT JOIN campus c ON r.campus_id = c.id
+                        LEFT JOIN cubiculos cb ON r.cubiculo_id = cb.id
+                        WHERE ra.rut IN ($5, $6)
+                          AND (r.fecha > CAST(GETDATE() AS DATE) OR (r.fecha = CAST(GETDATE() AS DATE) AND DATEADD(hour, 1, r.hora) > CAST(GETDATE() AS TIME)))
+                    );
+                    IF @acomp IS NOT NULL
+                    BEGIN
+                        SELECT 'ACOMP' AS status_code, @acomp AS info, 0 AS id, 0 AS cub_id, '' AS cub_cod, '' AS carrera;
+                        RETURN;
+                    END
+
+                    DECLARE @cub_id INT = NULL;
+                    DECLARE @cub_cod NVARCHAR(50) = NULL;
+                    SELECT TOP 1 @cub_id = cb.id, @cub_cod = cb.codigo
+                    FROM cubiculos cb
+                    WHERE cb.campus_id = $2
+                      AND (cb.estado IS NULL OR cb.estado = 'disponible')
+                      AND cb.id NOT IN (SELECT cm.cubiculo_id FROM cubiculos_mantenimiento cm WHERE cm.fecha = $1)
+                      AND cb.id NOT IN (SELECT r2.cubiculo_id FROM reservas r2 WHERE r2.campus_id = $2 AND r2.fecha = $1 AND r2.hora = $7 AND r2.cubiculo_id IS NOT NULL)
+                    ORDER BY cb.codigo ASC;
+
+                    IF @cub_id IS NULL
+                    BEGIN
+                        SELECT 'SIN_CUPO' AS status_code, '' AS info, 0 AS id, 0 AS cub_id, '' AS cub_cod, '' AS carrera;
+                        RETURN;
+                    END
+
+                    DECLARE @carr NVARCHAR(150) = NULLIF(LTRIM(RTRIM($9)), '');
+                    IF @carr IS NULL
+                    BEGIN
+                        SELECT TOP 1 @carr = COALESCE(NULLIF(LTRIM(RTRIM(e.carrera)), ''), NULLIF(LTRIM(RTRIM(cp.carr_nombre)), ''), 'Otras Carreras / General')
+                        FROM estudiante e
+                        LEFT JOIN estudiante_carrera ec ON e.estd_rut = ec.estd_rut
+                        LEFT JOIN carrera_programa cp ON ec.carr_codigo = cp.carr_codigo
+                        WHERE e.estd_rut = $3;
+                        SET @carr = ISNULL(@carr, 'Otras Carreras / General');
+                    END
+
+                    DECLARE @new_id INT;
+                    INSERT INTO reservas (nombre, rut, fecha, hora, campus_id, session_id, cubiculo_id, carrera, created_at)
+                    VALUES ($10, $5, $1, $7, $2, $11, @cub_id, @carr, GETDATE());
+                    SET @new_id = SCOPE_IDENTITY();
+
+                    INSERT INTO historial_reservas (reserva_id, nombre, rut, campus_id, fecha, hora, estado, carrera, fecha_registro)
+                    VALUES (@new_id, $10, $5, $2, $1, $12, 'activa', @carr, GETDATE());
+
+                    INSERT INTO estadisticas_reservas_carrera (reserva_id, carrera, campus_id, fecha, created_at)
+                    VALUES (@new_id, @carr, $2, $1, GETDATE());
+
+                    IF $11 IS NOT NULL AND $11 <> ''
+                    BEGIN
+                        IF EXISTS (SELECT 1 FROM sesiones WHERE session_id = $11)
+                            UPDATE sesiones SET rut = $5, nombre = $10, updated_at = GETDATE() WHERE session_id = $11;
+                        ELSE
+                            INSERT INTO sesiones (session_id, rut, nombre, updated_at) VALUES ($11, $5, $10, GETDATE());
+                    END
+
+                    SELECT 'OK' AS status_code, '' AS info, @new_id AS id, @cub_id AS cub_id, @cub_cod AS cub_cod, @carr AS carrera;
+                    """,
+                    fecha_parsed, target_campus_id, rut_num_check, rut_dv_check, rut_limpio, rut_con_guion, hora_parsed,
+                    es_admin_flag, carr_pref, nombre_final or "Usuario Chatbot", reserva.sessionId or "", hora_str_ins
                 )
-                if bloqueo:
+
+                st_code = tx_res["status_code"]
+                if st_code == "BLOQUEO":
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"No se permite agendar reservas en la fecha {reserva.fecha}: {bloqueo['motivo']}."
+                        detail=f"No se permite agendar reservas en la fecha {reserva.fecha}: {tx_res['info']}."
                     )
-
-                sancion = await verificar_sancion_usuario(conn, rut_limpio)
-                if sancion.get("suspendido"):
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail=sancion.get("mensaje")
-                    )
-
-                if not current_user or current_user.get("rol") != "admin":
-                    reg_check = await verificar_estudiante_regular(conn, rut_limpio)
-                    if not reg_check["es_regular"]:
+                if st_code == "NO_REGULAR":
+                    reg_fallback = await verificar_estudiante_regular(conn, rut_limpio)
+                    if not reg_fallback["es_regular"]:
                         raise HTTPException(
                             status_code=status.HTTP_403_FORBIDDEN,
                             detail="Actualmente estás como estudiante no regular, cuando resuelvas esa situación estarás activo nuevamente."
                         )
-
-                reserva_activa = await conn.fetchrow(
-                    """
-                    SELECT r.id, r.fecha, r.hora, c.nombre AS campus_nombre, cb.codigo AS cubiculo_codigo
-                    FROM reservas r
-                    LEFT JOIN campus c ON r.campus_id = c.id
-                    LEFT JOIN cubiculos cb ON r.cubiculo_id = cb.id
-                    WHERE REPLACE(REPLACE(REPLACE(UPPER(r.rut), '.', ''), '-', ''), ' ', '') = $1
-                      AND (r.fecha > CURRENT_DATE OR (r.fecha = CURRENT_DATE AND r.hora + INTERVAL '1 hour' > CURRENT_TIME))
-                    LIMIT 1
-                    """,
-                    rut_limpio
-                )
-                if reserva_activa:
-                    fecha_fmt = reserva_activa["fecha"].strftime("%Y-%m-%d")
-                    hora_fmt = reserva_activa["hora"].strftime("%H:%M")
-                    campus_nom = reserva_activa["campus_nombre"] or "Campus"
-                    cub_cod = reserva_activa["cubiculo_codigo"] or "N/A"
+                if st_code == "ACTIVA":
+                    partes_act = str(tx_res["info"]).split("|")
+                    fecha_fmt, hora_fmt, campus_nom, cub_cod = (partes_act + ["", "", "Campus", "N/A"])[:4]
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail=f"El usuario con RUT {rut_limpio} ya posee una reserva activa para el día {fecha_fmt} a las {hora_fmt} hrs en {campus_nom} (Cubículo {cub_cod}). Solo se permite 1 reserva activa por usuario."
                     )
-
-                reserva_como_ac = await conn.fetchrow(
-                    """
-                    SELECT r.id, r.fecha, r.hora, c.nombre AS campus_nombre, cb.codigo AS cubiculo_codigo, r.nombre AS titular_nombre
-                    FROM reserva_acompanantes ra
-                    JOIN reservas r ON ra.reserva_id = r.id
-                    LEFT JOIN campus c ON r.campus_id = c.id
-                    LEFT JOIN cubiculos cb ON r.cubiculo_id = cb.id
-                    WHERE REPLACE(REPLACE(REPLACE(UPPER(ra.rut), '.', ''), '-', ''), ' ', '') = $1
-                      AND (r.fecha > CURRENT_DATE OR (r.fecha = CURRENT_DATE AND r.hora + INTERVAL '1 hour' > CURRENT_TIME))
-                    LIMIT 1
-                    """,
-                    rut_limpio
-                )
-                if reserva_como_ac:
-                    fecha_fmt = reserva_como_ac["fecha"].strftime("%Y-%m-%d")
-                    hora_fmt = reserva_como_ac["hora"].strftime("%H:%M")
-                    campus_nom = reserva_como_ac["campus_nombre"] or "Campus"
-                    cub_cod = reserva_como_ac["cubiculo_codigo"] or "N/A"
-                    titular_nom = reserva_como_ac["titular_nombre"] or "otro estudiante"
+                if st_code == "ACOMP":
+                    partes_ac = str(tx_res["info"]).split("|")
+                    fecha_fmt, hora_fmt, campus_nom, cub_cod, titular_nom = (partes_ac + ["", "", "Campus", "N/A", "otro estudiante"])[:5]
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail=f"El usuario con RUT {rut_limpio} ya está registrado como acompañante en una reserva activa (Titular: {titular_nom}) para el día {fecha_fmt} a las {hora_fmt} hrs en {campus_nom} (Cubículo {cub_cod}). Solo se permite 1 reserva activa por usuario."
                     )
-
-                await validar_acompanantes_cruzados(conn, rut_limpio, fecha_parsed, hora_parsed, reserva.acompanantes)
-
-                cubiculo_libre = await conn.fetchrow(
-                    """
-                    SELECT cb.id, cb.codigo 
-                    FROM cubiculos cb
-                    WHERE cb.campus_id = $1 
-                      AND (cb.estado IS NULL OR cb.estado = 'disponible')
-                      AND cb.id NOT IN (
-                          SELECT cm.cubiculo_id FROM cubiculos_mantenimiento cm WHERE cm.fecha = $2
-                      )
-                      AND cb.id NOT IN (
-                          SELECT r.cubiculo_id 
-                          FROM reservas r 
-                          WHERE r.campus_id = $1 AND r.fecha = $2 AND r.hora = $3 AND r.cubiculo_id IS NOT NULL
-                      )
-                    ORDER BY cb.codigo ASC
-                    LIMIT 1
-                    """,
-                    target_campus_id, fecha_parsed, hora_parsed
-                )
-
-                if not cubiculo_libre:
-                    hora_str = hora_parsed.strftime("%H:%M")
+                if st_code == "SIN_CUPO":
                     raise HTTPException(
                         status_code=status.HTTP_409_CONFLICT,
-                        detail=f"Todos los cubículos de la sede {target_campus_nombre} se encuentran reservados a las {hora_str} hrs."
+                        detail=f"Todos los cubículos de la sede {target_campus_nombre} se encuentran reservados a las {hora_str_ins} hrs."
                     )
 
-                cubiculo_id_asignado = cubiculo_libre["id"]
-                cubiculo_codigo_asignado = cubiculo_libre["codigo"]
-
-                row_carr = await conn.fetchrow(
-                    """
-                    SELECT COALESCE(
-                        NULLIF(TRIM(u.carrera), ''),
-                        NULLIF(TRIM(e.carrera), ''),
-                        NULLIF(TRIM(cp.carr_nombre), ''),
-                        'Otras Carreras / General'
-                    ) AS carrera
-                    FROM (SELECT $1 AS rut) t
-                    LEFT JOIN usuarios u ON REPLACE(REPLACE(REPLACE(UPPER(u.rut), '.', ''), '-', ''), ' ', '') = REPLACE(REPLACE(REPLACE(UPPER(t.rut), '.', ''), '-', ''), ' ', '')
-                    LEFT JOIN estudiante e ON REPLACE(REPLACE(REPLACE(UPPER(t.rut), '.', ''), '-', ''), ' ', '') = CONCAT(e.estd_rut, e.estd_dv)
-                    LEFT JOIN estudiante_carrera ec ON e.estd_rut = ec.estd_rut
-                    LEFT JOIN carrera_programa cp ON ec.carr_codigo = cp.carr_codigo
-                    """,
-                    rut_limpio
-                )
-                carr_detectada = row_carr["carrera"] if row_carr and row_carr["carrera"] else "Otras Carreras / General"
-
-                row = await conn.fetchrow(
-                    """
-                    INSERT INTO reservas (nombre, rut, fecha, hora, campus_id, session_id, cubiculo_id, carrera, created_at)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, GETDATE())
-                    RETURNING id, nombre, rut, fecha, hora, campus_id, session_id, carrera
-                    """,
-                    nombre_final or "Usuario Chatbot", rut_limpio, fecha_parsed, hora_parsed,
-                    target_campus_id, reserva.sessionId, cubiculo_id_asignado, carr_detectada
-                )
-                reserva_id_creada = row["id"]
-
-                await conn.execute(
-                    """
-                    INSERT INTO historial_reservas (reserva_id, nombre, rut, campus_id, fecha, hora, estado, carrera, fecha_registro)
-                    VALUES ($1, $2, $3, $4, $5, $6, 'activa', $7, GETDATE())
-                    """,
-                    reserva_id_creada, nombre_final or "Usuario Chatbot", rut_limpio, target_campus_id, fecha_parsed, hora_parsed.strftime("%H:%M"), carr_detectada
-                )
-
-                try:
-                    await conn.execute(
-                        """
-                        INSERT INTO estadisticas_reservas_carrera (reserva_id, carrera, campus_id, fecha, created_at)
-                        VALUES ($1, $2, $3, $4, GETDATE())
-                        """,
-                        reserva_id_creada, carr_detectada, target_campus_id, fecha_parsed
-                    )
-                except Exception as ex_carr:
-                    print(f"⚠️ Error registrando carrera para estadísticas: {ex_carr}")
+                reserva_id_creada = tx_res["id"]
+                cubiculo_id_asignado = tx_res["cub_id"]
+                cubiculo_codigo_asignado = tx_res["cub_cod"]
+                carr_detectada = tx_res["carrera"] or "Otras Carreras / General"
 
                 acompanantes_guardados = []
                 if reserva.acompanantes:
@@ -3527,33 +3580,26 @@ async def crear_reserva(
                         )
                         acompanantes_guardados.append({"nombre": row_ac["nombre"], "rut": row_ac["rut"]})
 
-                if reserva.sessionId:
-                    await conn.execute(
-                        """
-                        IF EXISTS (SELECT 1 FROM sesiones WHERE session_id = $1)
-                            UPDATE sesiones SET rut = $2, nombre = $3, updated_at = GETDATE() WHERE session_id = $1
-                        ELSE
-                            INSERT INTO sesiones (session_id, rut, nombre, updated_at) VALUES ($1, $2, $3, GETDATE())
-                        """,
-                        reserva.sessionId, rut_limpio, nombre_final
-                    )
-
-        await invalidar_caches_disponibilidad(target_campus_id, row["fecha"].strftime("%Y-%m-%d"))
+        fecha_str_out = fecha_parsed.strftime("%Y-%m-%d")
+        await invalidar_caches_disponibilidad(target_campus_id, fecha_str_out)
 
         res_data = {
-            "id": str(row["id"]),
-            "nombre": row["nombre"],
-            "rut": row["rut"],
-            "fecha": row["fecha"].strftime("%Y-%m-%d"),
-            "hora": row["hora"].strftime("%H:%M"),
+            "id": str(reserva_id_creada),
+            "nombre": nombre_final or "Usuario Chatbot",
+            "rut": rut_limpio,
+            "fecha": fecha_str_out,
+            "hora": hora_str_ins,
             "campus_id": target_campus_id,
             "campus": target_campus_nombre,
             "cubiculo_codigo": cubiculo_codigo_asignado,
-            "sessionId": row["session_id"],
+            "sessionId": reserva.sessionId,
             "carrera": carr_detectada,
             "acompanantes": acompanantes_guardados
         }
-        background_tasks.add_task(notificar_creacion_n8n, res_data)
+        res_notif = dict(res_data)
+        if current_user and current_user.get("email"):
+            res_notif["email"] = current_user.get("email")
+        asyncio.create_task(notificar_creacion_n8n(res_notif))
 
         return res_data
 
