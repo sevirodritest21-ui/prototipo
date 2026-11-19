@@ -37,3 +37,4 @@ sonar-project.properties
 .agents/skills/uct-ui-design/SKILL.md
 .agents/rules/uct-design-system.md
 *.bak
+reporte_locust_reservas.html
